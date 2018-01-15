@@ -1,0 +1,52 @@
+
+
+aarch64-linux-gnu-gcc -o FD628Service FD628Service.c -lpthread -static
+
+
+insmod aml_linux_fd628.ko
+
+./FD628Service &     (running FD628Service Daemon to show time )
+
+
+
+
+
+
+
+
+alarm led 
+
+echo alarm > /sys/class/leds/fd628_dev/led_on
+echo alarm > /sys/class/leds/fd628_dev/led_off
+
+
+wifi led
+
+
+echo wifi > /sys/class/leds/fd628_dev/led_on
+echo wifi > /sys/class/leds/fd628_dev/led_off
+
+
+ethnet led
+
+
+echo eth > /sys/class/leds/fd628_dev/led_on
+echo eth > /sys/class/leds/fd628_dev/led_off
+
+usb led
+
+echo usb > /sys/class/leds/fd628_dev/led_on
+echo usb > /sys/class/leds/fd628_dev/led_off
+
+pause led
+
+echo pause > /sys/class/leds/fd628_dev/led_on
+echo pause > /sys/class/leds/fd628_dev/led_off
+
+play led
+
+echo play > /sys/class/leds/fd628_dev/led_on
+echo play > /sys/class/leds/fd628_dev/led_off
+
+
+
