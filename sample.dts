@@ -1,0 +1,12 @@
+	fd628_dev {
+		compatible = "amlogic,fd628_dev";
+		status = "okay";
+		fd628_gpio_clk = <&gpio_ao GPIOAO_5 GPIO_ACTIVE_HIGH>;
+		fd628_gpio_dat = <&gpio_ao GPIOAO_4 GPIO_ACTIVE_HIGH>;
+		fd628_gpio_stb = <&gpio_ao GPIOAO_3 GPIO_ACTIVE_HIGH>;
+		/* < DHHMM > Order of display chars (D=dots, represented by a single char) */
+		fd628_chars = /bits/ 8 <0 1 2 3 4>;
+		/* Dot enumeration */
+		/* Alarm = 0, USB = 1, Play = 2, Pause = 3, Col = 4, Eth = 5, Wifi = 6 */
+		fd628_dot_bits = /bits/ 8 <0 1 2 3 4 5 6>;
+	};
