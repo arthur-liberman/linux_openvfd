@@ -451,16 +451,16 @@ static ssize_t fd628_dev_write(struct file *filp, const char __user * buf,
 	if (missing == 0) {
 		// 状态灯能否点亮，取决于led mask
 		//data[0] |= dev->status_led_mask;
-		data[0] |= dev->status_led_mask;
+		data[dev->dat_index[0]] |= dev->status_led_mask;
 		for (i = 0; i < count; i++) {
-			dev->wbuf[i * 2] = data[i];
+			dev->wbuf[dev->dat_index[i] * 2] = data[i];
 		}
 
-		dev->wbuf[0 * 2] = data[4];
-		dev->wbuf[1 * 2] = data[3];
-		dev->wbuf[2 * 2] = data[2];
-		dev->wbuf[3 * 2] = data[1];
-		dev->wbuf[4 * 2] = data[0];
+		dev->wbuf[dev->dat_index[0] * 2] = data[0];
+		dev->wbuf[dev->dat_index[1] * 2] = data[1];
+		dev->wbuf[dev->dat_index[2] * 2] = data[2];
+		dev->wbuf[dev->dat_index[3] * 2] = data[3];
+		dev->wbuf[dev->dat_index[4] * 2] = data[4];
 	
 			//采用递增模式写入显示数据
 		FD628_WrDisp_AddrINC(0x00, 2 * count, dev);
@@ -622,17 +622,17 @@ static ssize_t led_on_store(struct device *dev,
 		return size ;
 	
 	if (strncmp(buf,"alarm",5) == 0) {
-		pdata->dev->status_led_mask |= ledDots[LED_DOT_ALARM];
+		pdata->dev->status_led_mask |= pdata->dev->led_dots[LED_DOT_ALARM];
 	} else if (strncmp(buf,"usb",3) == 0) {
-		pdata->dev->status_led_mask |= ledDots[LED_DOT_USB];
+		pdata->dev->status_led_mask |= pdata->dev->led_dots[LED_DOT_USB];
 	} else if (strncmp(buf,"play",4) == 0) {
-		pdata->dev->status_led_mask |= ledDots[LED_DOT_PLAY];
+		pdata->dev->status_led_mask |= pdata->dev->led_dots[LED_DOT_PLAY];
 	} else if (strncmp(buf,"pause",5) == 0) {
-		pdata->dev->status_led_mask |= ledDots[LED_DOT_PAUSE];
+		pdata->dev->status_led_mask |= pdata->dev->led_dots[LED_DOT_PAUSE];
 	} else if (strncmp(buf,"eth",3) == 0) {
-		pdata->dev->status_led_mask |= ledDots[LED_DOT_ETH];
+		pdata->dev->status_led_mask |= pdata->dev->led_dots[LED_DOT_ETH];
 	} else if (strncmp(buf,"wifi",4) == 0) {
-		pdata->dev->status_led_mask |= ledDots[LED_DOT_WIFI];
+		pdata->dev->status_led_mask |= pdata->dev->led_dots[LED_DOT_WIFI];
 	} else {
 //		pr_info("echo wifi | usb | play | pause | eth > led_on\n");
 	}
@@ -681,17 +681,17 @@ static ssize_t led_off_store(struct device *dev,
 		return size ;
 
 	if (strncmp(buf,"alarm",5) == 0) {
-		pdata->dev->status_led_mask &= ~ledDots[LED_DOT_ALARM];
+		pdata->dev->status_led_mask &= ~pdata->dev->led_dots[LED_DOT_ALARM];
 	} else if (strncmp(buf,"usb",3) == 0) {
-		pdata->dev->status_led_mask &= ~ledDots[LED_DOT_USB];
+		pdata->dev->status_led_mask &= ~pdata->dev->led_dots[LED_DOT_USB];
 	} else if (strncmp(buf,"play",4) == 0) {
-		pdata->dev->status_led_mask &= ~ledDots[LED_DOT_PLAY];
+		pdata->dev->status_led_mask &= ~pdata->dev->led_dots[LED_DOT_PLAY];
 	} else if (strncmp(buf,"pause",5) == 0) {
-		pdata->dev->status_led_mask &= ~ledDots[LED_DOT_PAUSE];
+		pdata->dev->status_led_mask &= ~pdata->dev->led_dots[LED_DOT_PAUSE];
 	} else if (strncmp(buf,"eth",3) == 0) {
-		pdata->dev->status_led_mask &= ~ledDots[LED_DOT_ETH];
+		pdata->dev->status_led_mask &= ~pdata->dev->led_dots[LED_DOT_ETH];
 	} else if (strncmp(buf,"wifi",4) == 0) {
-		pdata->dev->status_led_mask &= ~ledDots[LED_DOT_WIFI];
+		pdata->dev->status_led_mask &= ~pdata->dev->led_dots[LED_DOT_WIFI];
 	} else {
 //		pr_info("echo wifi | usb | play | pause | eth > led_off\n");
 	}
@@ -722,6 +722,8 @@ static int fd628_driver_probe(struct platform_device *pdev)
 	struct gpio_desc *clk_desc = NULL;
 	struct gpio_desc *dat_desc = NULL;
 	struct gpio_desc *stb_desc = NULL;
+	struct property *chars = NULL;
+	struct property *dot_bits = NULL;
 	int ret;
 
 	pr_dbg("%s get in\n", __func__);
@@ -772,6 +774,52 @@ static int fd628_driver_probe(struct platform_device *pdev)
 		pr_error("can't request gpio of fd628_stb");
 		goto get_param_mem_fail;
 	}
+
+	chars = of_find_property(pdev->dev.of_node, "fd628_chars", NULL);
+	if (!chars || !chars->value) {
+		pr_error("can't find fd628_chars list, falling back to defaults.");
+		chars = NULL;
+	}
+	else if (chars->length < 5) {
+		pr_error("fd628_chars list is too short, falling back to defaults.");
+		chars = NULL;
+	}
+
+	for (__u8 i = 0; i < (sizeof(pdata->dev->dat_index) / sizeof(char)); i++)
+		pdata->dev->dat_index[i] = i;
+	pr_dbg2("chars = %p\n", chars);
+	if (chars) {
+		__u8 *c = (__u8*)chars->value;
+		const int length = min(chars->length, (int)(sizeof(pdata->dev->dat_index) / sizeof(char)));
+		pr_dbg2("chars->length = %d\n", chars->length);
+		for (int i = 0; i < length; i++) {
+			pdata->dev->dat_index[i] = c[i];
+			pr_dbg2("char #%d: %d\n", i, c[i]);
+		}
+	}
+
+	dot_bits = of_find_property(pdev->dev.of_node, "fd628_dot_bits", NULL);
+	if (!dot_bits || !dot_bits->value) {
+		pr_error("can't find fd628_dot_bits list, falling back to defaults.");
+		dot_bits = NULL;
+	}
+	else if (dot_bits->length < LED_DOT_MAX) {
+		pr_error("fd628_dot_bits list is too short, falling back to defaults.");
+		dot_bits = NULL;
+	}
+
+	for (int i = 0; i < LED_DOT_MAX; i++)
+		pdata->dev->led_dots[i] = ledDots[i];
+	pr_dbg2("dot_bits = %p\n", dot_bits);
+	if (dot_bits) {
+		__u8 *d = (__u8*)dot_bits->value;
+		pr_dbg2("dot_bits->length = %d\n", dot_bits->length);
+		for (int i = 0; i < dot_bits->length; i++) {
+			pdata->dev->led_dots[i] = ledDots[d[i]];
+			pr_dbg2("dot_bit #%d: %d\n", i, d[i]);
+		}
+	}
+
 	// sema_init(&pdata->dev->sem,1);
 	
 	pdata->dev->brightness = FD628_Brightness_8;
@@ -802,13 +850,13 @@ static int fd628_driver_probe(struct platform_device *pdev)
 	//  1 1 0  0 1 1 1  b => 0x67
 	//  1 1 0  0 0 1 1  o => 0x63
 	//  1 0 0  0 1 1 1  t => 0x47
-	data[4] = 0x00;
-	data[3] = 0x67;
+	data[0] = 0x00;
+	data[1] = 0x67;
 	data[2] = 0x63;
-	data[1] = 0x63;
-	data[0] = 0x47;
+	data[3] = 0x63;
+	data[4] = 0x47;
 	for (i = 0; i < 5; i++) {
-		pdata->dev->wbuf[i * 2] = data[i];
+		pdata->dev->wbuf[pdata->dev->dat_index[i] * 2] = data[i];
 	}
 	//采用递增模式写入显示数据
 	FD628_WrDisp_AddrINC(0x00, 2*5, pdata->dev);

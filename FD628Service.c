@@ -137,19 +137,11 @@ static void led_show_time_loop(){
 	   	time(&now);
 	   	timenow  =  localtime(&now);
 		hours = timenow->tm_hour;
-		
 
-#ifndef INVERTED_DISPLAY 
-	   	write_buffer[1] = char_to_mask(hours/10);
-       	write_buffer[2] = char_to_mask(hours %10);
-	   	write_buffer[3] = char_to_mask(timenow->tm_min /10);
-       	write_buffer[4] = char_to_mask(timenow->tm_min %10);
-#else
-	   	write_buffer[4] = char_to_mask(hours /10);
-       	write_buffer[3] = char_to_mask(hours %10);
-	   	write_buffer[2] = char_to_mask(timenow->tm_min /10);
-       	write_buffer[1] = char_to_mask(timenow->tm_min %10);
-#endif
+		write_buffer[1] = char_to_mask(hours / 10);
+		write_buffer[2] = char_to_mask(hours % 10);
+		write_buffer[3] = char_to_mask(timenow->tm_min / 10);
+		write_buffer[4] = char_to_mask(timenow->tm_min % 10);
 
 	   	// 冒号灯500ms闪一次
 	   	ledDots[LED_DOT_SEC].on = ~ledDots[LED_DOT_SEC].on;

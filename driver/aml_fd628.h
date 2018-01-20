@@ -33,6 +33,7 @@ typedef unsigned long 	u_int32;
 #endif
 
 #define pr_error(args...) printk(KERN_ALERT "FD628: " args)
+#define pr_dbg2(args...) printk(KERN_DEBUG "FD628: " args)
 
 #ifndef CONFIG_OF
 #define CONFIG_OF
@@ -67,6 +68,8 @@ struct fd628_dev{
 	int dat_pin;
 	int stb_pin;
 	char wbuf[14];
+	__u8 dat_index[7];
+	__u8 led_dots[8];
     __u8 mode;
 	__u8 brightness;
 	struct semaphore sem;
