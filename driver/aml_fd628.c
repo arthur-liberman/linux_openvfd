@@ -64,27 +64,6 @@ struct kp {
 };
 
 static struct kp *kp;
-#if 0
-/**
- * @brief   转换字符为数码管的显示码
- * @param   cTemp 待转换为显示码的字符
- * @return  显示码值,8位无符号
- * @note    码值见BCD_decode_tab[LEDMAPNUM]，如遇到无法转换的字符返回0
- */
-static u_int8 Led_Get_Code(char cTemp)
-{
-	u_int8 i, bitmap = 0x00;
-
-	for (i = 0; i < LEDMAPNUM; i++) {
-		if (LED_decode_tab[i].character == cTemp) {
-			bitmap = LED_decode_tab[i].bitmap;
-			break;
-		}
-	}
-
-	return bitmap;
-}
-#endif
 
 /****************************************************************
  *	函数的名称:			FD628_Start
@@ -257,40 +236,14 @@ static int FD628_WrDisp_AddrINC(u_int8 Addr, u_int8 DataLen,
 	return (0);
 }
 
-#if 0
-// TODO: 修复‘FD628_WrDisp_AddrStatic’ defined but not used [-Werror=unused-function]
-/****************************************************************
- *	函数的名称:				FD628_WrDisp_AddrStatic
- *	描述:							以地址固定模式发送显示内容 ;地址表看datasheet
- *	参数:		          INT8U Addr发送显示内容的地址；
- *										INT8U DIGData 写入显示内容
- *	返回值:				    BOOLEAN；如果地址超出将返回1；如果执行成功返回0。
-****************************************************************/
-static int FD628_WrDisp_AddrStatic(u_int8 Addr, u_int8 DIGData,
-				   struct fd628_dev *dev)
-{
-	u_int8 val;
-	val = FD628_DIGADDR_WRCMD;
-	val |= Addr;
-	if (Addr >= 14)
-		return (1);
-	FD628_Command(FD628_ADDR_STATIC_DIGWR_CMD, dev);
-	FD628_Start(dev);
-	FD628_WrByte(val, dev);
-	FD628_WrByte(DIGData, dev);
-	FD628_Stop(dev);
-	return (0);
-}
-#endif
-
 /****************************************************************
  *	函数的名称: 			FD628_SET_DISPLAY_MODE
  *	描述:							FD628设置显示模式
  *	参数:				  cmd
- 						FD628_4DIG_CMD        				0x00
-						FD628_5DIG_CMD        				0x01
-						FD628_6DIG_CMD         		       0x02
-						FD628_7DIG_CMD         		       0x03
+						FD628_4DIG_CMD			0x00
+						FD628_5DIG_CMD			0x01
+						FD628_6DIG_CMD			0x02
+						FD628_7DIG_CMD			0x03
  *	返回值: 				void
 ****************************************************************/
 static void FD628_SET_DISPLAY_MODE(u_int8 cmd, struct fd628_dev *dev)
@@ -364,21 +317,6 @@ static int fd628_dev_open(struct inode *inode, struct file *file)
 	file->private_data = pdata->dev;
 	dev = file->private_data;
 	memset(dev->wbuf, 0x00, sizeof(dev->wbuf));
-#if 0
-	FD628_Init(dev);
-	FD628_SET_DISPLAY_MODE(FD628_7DIG_CMD, dev);
-	FD628_SET_BRIGHTNESS(pdata->dev->brightness, dev, FD628_DISP_ON);
-#endif
-#if 0
-      dev->wbuf[0] = NEGA_LED_1; //  1
-      dev->wbuf[2] = NEGA_LED_2; // 2
-      dev->wbuf[4] = NEGA_LED_3; // 3
-      dev->wbuf[6] = NEGA_LED_4; // 4
-      dev->wbuf[8] = NEGA_LED_5; // 5
-      dev->wbuf[10] = NEGA_LED_6;
-      dev->wbuf[12] = NEGA_LED_7;
-      FD628_WrDisp_AddrINC(0x00,10,dev);
-#endif
 	pr_dbg("fd628_dev_open now.............................\r\n");
 	return 0;
 }
@@ -386,7 +324,7 @@ static int fd628_dev_open(struct inode *inode, struct file *file)
 static int fd628_dev_release(struct inode *inode, struct file *file)
 {
 	struct fd628_dev *dev = file->private_data;
-//      del_timer(&dev->timer);
+	//del_timer(&dev->timer);
 	FD628_SET_BRIGHTNESS(pdata->dev->brightness, dev, FD628_DISP_OFF);
 	file->private_data = NULL;
 	pr_dbg("succes to close  fd628_dev.............\n");
@@ -397,7 +335,7 @@ static int fd628_dev_release(struct inode *inode, struct file *file)
 //ssize_t (*write) (struct file *, const char __user *, size_t, loff_t *);
 
 static ssize_t fd628_dev_read(struct file *filp, char __user * buf,
-			      size_t count, loff_t * f_pos)
+				  size_t count, loff_t * f_pos)
 {
 	__u32 disk = 0;
 	struct fd628_dev *dev = filp->private_data;
@@ -432,7 +370,7 @@ static ssize_t fd628_dev_read(struct file *filp, char __user * buf,
  * @return
  */
 static ssize_t fd628_dev_write(struct file *filp, const char __user * buf,
-			       size_t count, loff_t * f_pos)
+				   size_t count, loff_t * f_pos)
 {
 
 	struct fd628_dev *dev;
@@ -475,7 +413,7 @@ static ssize_t fd628_dev_write(struct file *filp, const char __user * buf,
 }
 
 static long fd628_dev_ioctl(struct file *filp, unsigned int cmd,
-			    unsigned long arg)
+				unsigned long arg)
 {
 	int err = 0, ret = 0;
 	struct fd628_dev *dev;
@@ -488,11 +426,11 @@ static long fd628_dev_ioctl(struct file *filp, unsigned int cmd,
 		return -ENOTTY;
 	if (_IOC_DIR(cmd) & _IOC_READ)
 		err =
-		    !access_ok(VERIFY_WRITE, (void __user *)arg,
-			       _IOC_SIZE(cmd));
+			!access_ok(VERIFY_WRITE, (void __user *)arg,
+				   _IOC_SIZE(cmd));
 	else if (_IOC_DIR(cmd) & _IOC_WRITE)
 		err =
-		    !access_ok(VERIFY_READ, (void __user *)arg, _IOC_SIZE(cmd));
+			!access_ok(VERIFY_READ, (void __user *)arg, _IOC_SIZE(cmd));
 	if (err)
 		return -EFAULT;
 
@@ -507,7 +445,7 @@ static long fd628_dev_ioctl(struct file *filp, unsigned int cmd,
 		break;
 	case FD628_IOC_GVER:
 		ret =
-		    copy_to_user((unsigned char __user *)arg,
+			copy_to_user((unsigned char __user *)arg,
 				 FD628_DRIVER_VERSION,
 				 sizeof(FD628_DRIVER_VERSION));
 		break;
@@ -593,7 +531,7 @@ static void deregister_fd628_driver(void)
 		pr_dbg("%s: failed to deregister fd628 module\n", __func__);
 	else
 		pr_dbg("%s: Successed to deregister fd628  module \n",
-		       __func__);
+			   __func__);
 }
 
 
@@ -753,7 +691,7 @@ static int fd628_driver_probe(struct platform_device *pdev)
 	}
 
 	clk_desc = of_get_named_gpiod_flags(pdev->dev.of_node,
-				     "fd628_gpio_clk", 0, NULL);
+					 "fd628_gpio_clk", 0, NULL);
 	pdata->dev->clk_pin = desc_to_gpio(clk_desc);
 	ret = gpio_request(pdata->dev->clk_pin, DEV_NAME);
 	if (ret) {
@@ -762,7 +700,7 @@ static int fd628_driver_probe(struct platform_device *pdev)
 	}
 
 	dat_desc = of_get_named_gpiod_flags(pdev->dev.of_node,
-				     "fd628_gpio_dat", 0, NULL);
+					 "fd628_gpio_dat", 0, NULL);
 	pdata->dev->dat_pin = desc_to_gpio(dat_desc);
 	ret = gpio_request(pdata->dev->dat_pin, DEV_NAME);
 	if (ret) {
@@ -771,7 +709,7 @@ static int fd628_driver_probe(struct platform_device *pdev)
 	}
 
 	stb_desc = of_get_named_gpiod_flags(pdev->dev.of_node,
-				     "fd628_gpio_stb", 0, NULL);
+					 "fd628_gpio_stb", 0, NULL);
 	pdata->dev->stb_pin = desc_to_gpio(stb_desc);
 	ret = gpio_request(pdata->dev->stb_pin, DEV_NAME);
 	if (ret) {
@@ -824,8 +762,6 @@ static int fd628_driver_probe(struct platform_device *pdev)
 		}
 	}
 
-	// sema_init(&pdata->dev->sem,1);
-	
 	pdata->dev->brightness = FD628_Brightness_8;
 
 	register_fd628_driver();
@@ -854,6 +790,7 @@ static int fd628_driver_probe(struct platform_device *pdev)
 	//  1 1 0  0 1 1 1  b => 0x67
 	//  1 1 0  0 0 1 1  o => 0x63
 	//  1 0 0  0 1 1 1  t => 0x47
+	__u8 data[7];
 	data[0] = 0x00;
 	data[1] = 0x67;
 	data[2] = 0x63;
@@ -873,14 +810,13 @@ static int fd628_driver_probe(struct platform_device *pdev)
 	register_early_suspend(&fd628_early_suspend);
 #endif
 
-
 	return 0;
 
-      get_param_mem_fail:
+	  get_param_mem_fail:
 	kfree(pdata->dev);
-      get_fd628_mem_fail:
+	  get_fd628_mem_fail:
 	kfree(pdata);
-      get_fd628_node_fail:
+	  get_fd628_node_fail:
 	return state;
 }
 
@@ -926,8 +862,7 @@ static int fd628_driver_resume(struct platform_device *dev)
 
 #ifdef CONFIG_OF
 static const struct of_device_id fd628_dt_match[] = {
-	{.compatible = "amlogic,fd628_dev",
-	 },
+	{.compatible = "amlogic,fd628_dev",},
 	{},
 };
 #else

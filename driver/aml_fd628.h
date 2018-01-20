@@ -47,7 +47,7 @@ typedef unsigned long 	u_int32;
  * Ioctl definitions
  */
 
-/* Use 'K' as magic number */
+/* Use 'M' as magic number */
 #define FD628_IOC_MAGIC  'M'
 #define FD628_IOC_SMODE _IOW(FD628_IOC_MAGIC,  1, int)
 #define FD628_IOC_GMODE _IOR(FD628_IOC_MAGIC,  2, int)
@@ -63,14 +63,14 @@ typedef unsigned long 	u_int32;
 #define MOD_NAME_STB       "fd628_stb"
 #define DEV_NAME           "fd628_dev"
 
-struct fd628_dev{
+struct fd628_dev {
 	int clk_pin;
 	int dat_pin;
 	int stb_pin;
 	char wbuf[14];
 	__u8 dat_index[7];
 	__u8 led_dots[8];
-    __u8 mode;
+	__u8 mode;
 	__u8 brightness;
 	struct semaphore sem;
 	wait_queue_head_t kb_waitq;       /* read and write queues */
@@ -84,118 +84,39 @@ struct fd628_dev{
 	__u8 status_led_mask;
 };
 
-struct fd628_platform_data{
+struct fd628_platform_data {
 	struct fd628_dev *dev;
 };
 
 #ifdef  FD628_Drive_GLOBALS
 #define FD628_Drive_EXT
 #else
-#define FD628_Drive_EXT  extern
+#define FD628_Drive_EXT extern
 #endif
 
-#if 0
-/* *************************************************************************************************************************************
- *            a
- *         -------
- *        |       |
- *      f |       | b
- *         ---g---
- *        |       |	c
- *      e |       |
- *         ---d---   dp
- * *************************************************************************************************************************************** *
- *码字		| 0		| 1		| 2		| 3		| 4		| 5		| 6		| 7		| 8		| 9		| A		| b		| C 	| d		| E		| F		|
- *编码		|0x3F	|0x06	|0x5B	|0x4F	|0x66	|0x6D	|0x7D	|0x07	|0x7F	|0x6F	|0x77	|0x7c	|0x39	|0x5E	|0x79	|0x71	|
- ************************************************************************************************************************************* */
-#define		NEGA_LED_NONE 0X00
-#define		NEGA_LED_0 0X3F
-#define		NEGA_LED_1 0x40
-#define		NEGA_LED_2 0x5b
-#define		NEGA_LED_3 0x79
-#define		NEGA_LED_4 0x74
-#define		NEGA_LED_5 0X6b
-#define		NEGA_LED_6 0x6f
-#define		NEGA_LED_7 0x38
-#define		NEGA_LED_8 0x7f
-#define		NEGA_LED_9 0x7d
-
-//#define		NEGA_LED_A 0X77
-//#define		NEGA_LED_b 0x7c
-//#define		NEGA_LED_C 0X39
-//#define		NEGA_LED_c 0X58
-//#define		NEGA_LED_d 0x5E
-//#define		NEGA_LED_E 0X79
-//#define		NEGA_LED_e 0X7b
-//#define		NEGA_LED_F 0x71
-//#define		NEGA_LED_I 0X60
-//#define		NEGA_LED_L 0X38
-//#define		NEGA_LED_r 0X72
-//#define		NEGA_LED_n 0X54
-//#define		NEGA_LED_N 0X37
-//#define		NEGA_LED_O 0X3F
-//#define		NEGA_LED_P 0XF3
-//#define		NEGA_LED_S 0X6d
-//#define		NEGA_LED_y 0X6e
-//#define		NEGA_LED__ 0x08
-#endif
-
-#define KEYBOARD_SCAN_FRE      2
-#define KEYBOARD_MARK         0x00
+#define KEYBOARD_SCAN_FRE	2
+#define KEYBOARD_MARK		0x00
 
 /** Character conversion of digital tube display code*/
-typedef struct _led_bitmap
-{
+typedef struct _led_bitmap {
 	u_int8 character;
 	u_int8 bitmap;
-} led_bitmap;
+}led_bitmap;
 
-#if 0
 /** Character conversion of digital tube display code array*/
-#define LEDMAPNUM   (sizeof(LED_decode_tab)/sizeof(LED_decode_tab[0]))		///<Digital tube code array maximum
-static const led_bitmap LED_decode_tab[] =
-{
-#if 0
-#if 1
-	{'0', 0x3F}, {'1', 0x06}, {'2', 0x5B}, {'3', 0x4F},
-	{'4', 0x66}, {'5', 0x6D}, {'6', 0x7D}, {'7', 0x07},
-	{'8', 0x7F}, {'9', 0x6F}, {'a', 0x77}, {'A', 0x77},
-	{'b', 0x7C}, {'B', 0x7C}, {'c', 0x58}, {'C', 0x39},
-	{'d', 0x5E}, {'D', 0x5E}, {'e', 0x79}, {'E', 0x79},
-	{'f', 0x71}, {'F', 0x71}, {'I', 0X60}, {'i', 0x60},
-	{'L', 0x38}, {'l', 0x38}, {'r', 0x38}, {'R', 0x38},
-	{'n', 0x54}, {'N', 0x37}, {'O', 0x3F}, {'o', 0x3f},
-	{'p', 0xf3}, {'P', 0x38}, {'S', 0x6D}, {'s', 0x6d},
-	{'y', 0x6e}, {'Y', 0x6E}, {'_', 0x08}, {0,   0x3F},
-	{1,   0x06}, {2,   0x5B}, {3,   0x4F}, {4,   0x66},
-	{5,   0x6D}, {6,   0x7D}, {7,   0x07}, {8,   0x7F},
-	{9,   0x6F}, {'!', 0X01}, {'@', 0X02}, {'#', 0X04},
-	{'$', 0X08}, {':', 0X10}, {'^', 0X20}, {'&', 0X40},
-	{0xC5,0X00}, {0x3b,0x18}, {0xc4,0x08}, {0x3c,0x14},
-	{0xc3,0x04}, {0x3d,0x1c}, {0xc2,0x0c},
-#else
-    {'0', 0x3F}, {'1', 0x06}, {'2', 0x5B}, {'3', 0x4F},
-	{'4', 0x66}, {'5', 0x6D}, {'6', 0x7D}, {'7', 0x07},
-	{'8', 0x7F}, {'9', 0x6F}, {'a', 0x77}, {'A', 0x77},
-	{'b', 0x7C}, {'B', 0x7C}, {'c', 0x58}, {'C', 0x39},
-	{'d', 0x5E}, {'D', 0x5E}, {'e', 0x79}, {'E', 0x79},
-	{'f', 0x71}, {'F', 0x71}
-
-#endif
-#else
-
+static const led_bitmap LED_decode_tab[] = {
 /*
  * amlogic905的LED包含5个位，1-4位为第1-4个数码管，第5位其他的灯（5A-5G）
  * amlogic905的LED七段管顺序如下图
  *
  *  dp
- *	  +---d---+
- *    |       |
- *  c |       | e
- *    +---g---+
- *    |       |
- *  b |       | f
- *    +---a---+
+ *      +--d/8--+
+ *      |       |
+ *  c/4 |       | e/1
+ *      +--g/4--+
+ *      |       |
+ *  b/2 |       | f/2
+ *      +--a/1--+
  *
  * 暂时仅颠倒了0-9, '0'-'9'字符
  *	6 5 4  3 2 1 0
@@ -217,77 +138,65 @@ static const led_bitmap LED_decode_tab[] =
  *  1 0 0  0 1 1 1  t => 0x47
  *
  */
+	{0,   0x3F}, {1,   0x30}, {2,   0x5B}, {3,   0x79},
+	{4,   0x74}, {5,   0x6D}, {6,   0x6F}, {7,   0x38},
+	{8,   0x7F}, {9,   0x7D},
+
 	{'0', 0x3F}, {'1', 0x30}, {'2', 0x5B}, {'3', 0x79},
-	{'4', 0x74}, {'5', 0x6d}, {'6', 0x6f}, {'7', 0x38},
-	{'8', 0x7F}, {'9', 0x7d},
+	{'4', 0x74}, {'5', 0x6D}, {'6', 0x6F}, {'7', 0x38},
+	{'8', 0x7F}, {'9', 0x7D},
 
-    {'a', 0x77}, {'A', 0x77},
-	{'b', 0x7C}, {'B', 0x7C}, {'c', 0x58}, {'C', 0x39},
-	{'d', 0x5E}, {'D', 0x5E}, {'e', 0x79}, {'E', 0x79},
-	{'f', 0x71}, {'F', 0x71}, {'I', 0X60}, {'i', 0x60},
-	{'L', 0x38}, {'l', 0x38}, {'r', 0x38}, {'R', 0x38},
-	{'n', 0x54}, {'N', 0x37}, {'O', 0x3F}, {'o', 0x3f},
-	{'p', 0xf3}, {'P', 0x38}, {'S', 0x6D}, {'s', 0x6d},
-	{'y', 0x6e}, {'Y', 0x6E}, {'_', 0x08},
+	{'a', 0x7E}, {'A', 0x7E},
+	{'b', 0x67}, {'B', 0x67}, {'c', 0x0F}, {'C', 0x0F},
+	{'d', 0x73}, {'D', 0x73}, {'e', 0x4F}, {'E', 0x4F},
+	{'f', 0x4E}, {'F', 0x4E}, {'g', 0x2F}, {'G', 0x2F},
+	{'h', 0x66}, {'H', 0x66}, {'i', 0x06}, {'I', 0x06},
+	{'j', 0x33}, {'J', 0x33}, {'k', 0x6E}, {'K', 0x6E},
+	{'l', 0x07}, {'L', 0x07}, {'m', 0x2A}, {'M', 0x2A},
+	{'n', 0x3E}, {'N', 0x3E}, {'o', 0x63}, {'O', 0x63},
+	{'p', 0x5E}, {'P', 0x5E}, {'q', 0x7C}, {'Q', 0x7C},
+	{'r', 0x42}, {'R', 0x42}, {'s', 0x6D}, {'S', 0x6D},
+	{'t', 0x47}, {'T', 0x47}, {'u', 0x23}, {'U', 0x23},
+	{'v', 0x37}, {'V', 0x37}, {'w', 0x15}, {'W', 0x15},
+	{'x', 0x76}, {'X', 0x76}, {'y', 0x75}, {'Y', 0x75},
+	{'z', 0x5B}, {'Z', 0x5B}, {'_', 0x01}, {'-', 0x40},
 
-    {0,   0x3F},
-	{1,   0x30}, {2,   0x5B}, {3,   0x79}, {4,   0x74},
-	{5,   0x6d}, {6,   0x6f}, {7,   0x38}, {8,   0x7F},
-	{9,   0x7d},
-
-    {'!', 0X01}, {'@', 0X02}, {'#', 0X04},
-	{'$', 0X08}, {':', 0X10}, {'^', 0X20}, {'&', 0X40},
-
-    /* ? what's this ? */
-    {0xC5,0X00}, {0x3b,0x18}, {0xc4,0x08}, {0x3c,0x14},
-	{0xc3,0x04}, {0x3d,0x1c}, {0xc2,0x0c}
-#endif
-};//BCD码字映射
-#endif
+}; //BCD码字映射
 
 /* **************************************API*********************************************** */
 /* *************************用户需要修改部分************************** */
 //typedef bit            int;       /* 布尔变量布尔变量*/
 //typedef unsigned char  u_int8;         /* 无符号8位数*/
 /* **************按键名和对应码值定义********************** */
-#define FD628_KEY10 	0x00000200
-#define FD628_KEY9 		0x00000100
-#define FD628_KEY8 		0x00000080
-#define FD628_KEY7 		0x00000040
-#define FD628_KEY6  	0x00000020
-#define FD628_KEY5 		0x00000010
-#define FD628_KEY4  	0x00000008
-#define FD628_KEY3  	0x00000004
-#define FD628_KEY2  	0x00000002
-#define FD628_KEY1  	0x00000001
-#define FD628_KEY_NONE_CODE 0x00
+#define FD628_KEY10		0x00000200
+#define FD628_KEY9		0x00000100
+#define FD628_KEY8		0x00000080
+#define FD628_KEY7		0x00000040
+#define FD628_KEY6		0x00000020
+#define FD628_KEY5		0x00000010
+#define FD628_KEY4		0x00000008
+#define FD628_KEY3		0x00000004
+#define FD628_KEY2		0x00000002
+#define FD628_KEY1		0x00000001
+#define FD628_KEY_NONE_CODE	0x00
 
 /* *************************************************************************************************************************************** *
 *	Status说明	| bit7	| bit6	| bit5	| bit4	| bit3			| bit2	| bit1	| bit0	| 		 Display_EN：显示使能位，1：打开显示；0：关闭显示
 *				| 0		| 0		| 0		| 0		| Display_EN	|	brightness[3:0]		|		 brightness：显示亮度控制位，000～111 分别代表着1（min）～8（max）级亮度
 * ************************************************************************************************************************************* */
 /* ************** Status可以使用下面的宏 （之间用或的关系） ************ */
-#define FD628_DISP_ON        					0x08		/*打开FD628显示*/
-#define FD628_DISP_OFF        				0x00		/*关闭FD628显示*/
+#define FD628_DISP_ON	0x08							/*打开FD628显示*/
+#define FD628_DISP_OFF	0x00							/*关闭FD628显示*/
 
-//#define FD628_Brightness_1        				0x00		/*设置FD628显示亮度等级为1*/
-//#define FD628_Brightness_2        				0x01		/*设置FD628显示亮度等级为2*/
-//#define FD628_Brightness_3        				0x02		/*设置FD628显示亮度等级为3*/
-//#define FD628_Brightness_4        				0x03		/*设置FD628显示亮度等级为4*/
-//#define FD628_Brightness_5        				0x04		/*设置FD628显示亮度等级为5*/
-//#define FD628_Brightness_6        				0x05		/*设置FD628显示亮度等级为6*/
-//#define FD628_Brightness_7        				0x06		/*设置FD628显示亮度等级为7*/
-//#define FD628_Brightness_8        				0x07		/*设置FD628显示亮度等级为8*/
-
-typedef enum  _Brightness{
-	FD628_Brightness_1 = 0x00,
-	FD628_Brightness_2,
-	FD628_Brightness_3,
-	FD628_Brightness_4,
-	FD628_Brightness_5,
-	FD628_Brightness_6,
-	FD628_Brightness_7,
-	FD628_Brightness_8
+typedef enum  _Brightness {
+	FD628_Brightness_1 = 0x00,		/*设置FD628显示亮度等级为1*/
+	FD628_Brightness_2,			/*设置FD628显示亮度等级为2*/
+	FD628_Brightness_3,			/*设置FD628显示亮度等级为3*/
+	FD628_Brightness_4,			/*设置FD628显示亮度等级为4*/
+	FD628_Brightness_5,			/*设置FD628显示亮度等级为5*/
+	FD628_Brightness_6,			/*设置FD628显示亮度等级为6*/
+	FD628_Brightness_7,			/*设置FD628显示亮度等级为7*/
+	FD628_Brightness_8			/*设置FD628显示亮度等级为8*/
 }Brightness;
 
 #define 	FD628_DELAY_1us						udelay(4)					    	/* 延时时间 >1us*/
@@ -301,15 +210,15 @@ typedef enum  _Brightness{
 
 
 /* ***********************写入FD628操作命令***************************** */
-#define FD628_KEY_RDCMD        					0x42                //按键读取命令
-#define FD628_4DIG_CMD        				0x00		/*设置FD628工作在4位模式的命令*/
-#define FD628_5DIG_CMD        				0x01		/*设置FD628工作在5位模式的命令*/
-#define FD628_6DIG_CMD         				0x02	 	/*设置FD628工作在6位模式的命令*/
-#define FD628_7DIG_CMD         				0x03	 	/*设置FD628工作在7位模式的命令*/
-#define FD628_DIGADDR_WRCMD  				0xC0								//显示地址写入命令
-#define FD628_ADDR_INC_DIGWR_CMD       	0x40								//地址递增方式显示数据写入
-#define FD628_ADDR_STATIC_DIGWR_CMD    	0x44								//地址不递增方式显示数据写入
-#define FD628_DISP_STATUE_WRCMD        	0x80								//显示亮度写入命令
+#define FD628_KEY_RDCMD		0x42		//按键读取命令
+#define FD628_4DIG_CMD			0x00		/*设置FD628工作在4位模式的命令*/
+#define FD628_5DIG_CMD			0x01		/*设置FD628工作在5位模式的命令*/
+#define FD628_6DIG_CMD			0x02		/*设置FD628工作在6位模式的命令*/
+#define FD628_7DIG_CMD			0x03		/*设置FD628工作在7位模式的命令*/
+#define FD628_DIGADDR_WRCMD		0xC0		//显示地址写入命令
+#define FD628_ADDR_INC_DIGWR_CMD	0x40		//地址递增方式显示数据写入
+#define FD628_ADDR_STATIC_DIGWR_CMD	0x44		//地址不递增方式显示数据写入
+#define FD628_DISP_STATUE_WRCMD	0x80		//显示亮度写入命令
 /* **************************************************************************************************************************** */
 
 enum {
@@ -332,7 +241,5 @@ static const __u8 ledDots[LED_DOT_MAX] = {
 	0x20,
 	0x40
 };
-
-
 
 #endif
