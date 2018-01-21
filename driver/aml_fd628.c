@@ -67,9 +67,9 @@ static struct kp *kp;
 
 /****************************************************************
  *	函数的名称:			FD628_Start
- *	描述:						FD628通信的起始准备
- *	参数：					void
- *	返回值:					void
+ *	描述:				FD628通信的起始准备
+ *	参数：				void
+ *	返回值:				void
 ****************************************************************/
 static void FD628_Start(struct fd628_dev *dev)
 {
@@ -82,89 +82,90 @@ static void FD628_Start(struct fd628_dev *dev)
 
 /****************************************************************
  *	函数的名称:			FD628_Stop
- *	描述:						FD628通信的结束准备
- *	参数：					void
- *	返回值:					void
+ *	描述:				FD628通信的结束准备
+ *	参数：				void
+ *	返回值:				void
 ****************************************************************/
 static void FD628_Stop(struct fd628_dev *dev)
 {
-	//FD628_CLK_SET;                                                  /* 设置CLK为高电平 */
+	//FD628_CLK_SET;				/* 设置CLK为高电平 */
 	gpio_direction_output(dev->clk_pin, 1);
 	FD628_DELAY_STB;
-	//FD628_STB_SET;                                          /* 设置STB为高电平 */
+	//FD628_STB_SET;				/* 设置STB为高电平 */
 	gpio_direction_output(dev->stb_pin, 1);
-	//FD628_DIO_SET;                                                  /* 设置DIO为高电平 */
+	//FD628_DIO_SET;				/* 设置DIO为高电平 */
 	gpio_direction_output(dev->dat_pin, 1);
-	//      FD628_DIO_D_IN;                                           /* 设置DIO为输入方向 */
+	//FD628_DIO_D_IN;				/* 设置DIO为输入方向 */
 	gpio_direction_input(dev->dat_pin);
-	FD628_DELAY_BUF;	/* 通信结束到下一次通信开始的间隔 */
+	FD628_DELAY_BUF;				/* 通信结束到下一次通信开始的间隔 */
 }
 
 /****************************************************************
  *	函数的名称:			FD628_WrByte
- *	描述:						向FD628写入一个字节的数据
- *	参数：					INT8U  发送的数据
- *	返回值:					void
- *	注意:						数据从低位到高位传输
+ *	描述:				向FD628写入一个字节的数据
+ *	参数：				INT8U  发送的数据
+ *	返回值:				void
+ *	注意:				数据从低位到高位传输
 ****************************************************************/
 static void FD628_WrByte(u_int8 dat, struct fd628_dev *dev)
 {
-	u_int8 i;		/* 移位控制变量 */
-//      FD628_DIO_D_OUT;                                /* 设置DIO为输出方向 */
-	for (i = 0; i != 8; i++) {	/* 输出8 bit的数据 */
-		//      FD628_CLK_CLR;                                          /* 设置CLK为低电平 */
+	u_int8 i;						/* 移位控制变量 */
+	//FD628_DIO_D_OUT;                                	/* 设置DIO为输出方向 */
+	for (i = 0; i != 8; i++) {				/* 输出8 bit的数据 */
+		//FD628_CLK_CLR;				/* 设置CLK为低电平 */
 		gpio_direction_output(dev->clk_pin, 0);
-		if (dat & 0x01) {	/* 数据从低位到高位输出 */
-			//  FD628_DIO_SET;                    /* 设置DIO为高电平 */
+		if (dat & 0x01) {				/* 数据从低位到高位输出 */
+			//FD628_DIO_SET;			/* 设置DIO为高电平 */
 			gpio_direction_output(dev->dat_pin, 1);
 
 		} else {
-			//  FD628_DIO_CLR;                                    /* 设置DIO为低电平 */
+			//FD628_DIO_CLR;			/* 设置DIO为低电平 */
 			gpio_direction_output(dev->dat_pin, 0);
 		}
-		FD628_DELAY_LOW;	/* 时钟低电平时间 */
-		//FD628_CLK_SET;                                                        /* 设置SCL为高电平 上升沿写入*/
+		FD628_DELAY_LOW;				/* 时钟低电平时间 */
+		//FD628_CLK_SET;
+		//设置SCL为高电平 上升沿写入
 		gpio_direction_output(dev->clk_pin, 1);
-		dat >>= 1;	/* 输出数据右移一位，数据从低到高的输出 */
-		FD628_DELAY_HIGH;	/* 时钟高电平时间 */
+		dat >>= 1;					/* 输出数据右移一位，数据从低到高的输出 */
+		FD628_DELAY_HIGH;				/* 时钟高电平时间 */
 	}
 }
 
 /****************************************************************
  *	函数的名称:			FD628_RdByte
- *	描述:						从FD628读一个字节的数据
- *	参数：					void
- *	返回值:					INT8U 读到的数据
- *	注意:						数据从低位到高位传输
+ *	描述:				从FD628读一个字节的数据
+ *	参数：				void
+ *	返回值:				INT8U 读到的数据
+ *	注意:				数据从低位到高位传输
 ****************************************************************/
 static u_int8 FD628_RdByte(struct fd628_dev *dev)
 {
-	u_int8 i, dat = 0;	/* 移位控制变量i;读取数据暂存变量dat */
-//      FD628_DIO_SET;                      /* 设置DIO为高电平 */
+	u_int8 i, dat = 0;					/* 移位控制变量i;读取数据暂存变量dat */
+	//FD628_DIO_SET;					/* 设置DIO为高电平 */
 	gpio_direction_output(dev->dat_pin, 1);
-//      FD628_DIO_D_IN;                           /* 设置DIO为输出方向 */
+	//FD628_DIO_D_IN;					/* 设置DIO为输出方向 */
 	gpio_direction_input(dev->dat_pin);
-	for (i = 0; i != 8; i++) {	/* 输出8 bit的数据 */
-		//      FD628_CLK_CLR;                                          /* 设置CLK为低电平 */
+	for (i = 0; i != 8; i++) {				/* 输出8 bit的数据 */
+		//FD628_CLK_CLR;				/* 设置CLK为低电平 */
 		gpio_direction_output(dev->clk_pin, 0);
-		FD628_DELAY_LOW;	/* 时钟低电平时间 */
-		dat >>= 1;	/* 读入数据右移一位，数据从低到高的读入 */
-		//      if( FD628_DIO_IN ) dat|=0X80;           /* 读入1 bit值 */
+		FD628_DELAY_LOW;				/* 时钟低电平时间 */
+		dat >>= 1;					/* 读入数据右移一位，数据从低到高的读入 */
+		//if( FD628_DIO_IN ) dat|=0X80;			/* 读入1 bit值 */
 		if (gpio_get_value(dev->dat_pin))
-			dat |= 0X80;	/* 读入1 bit值 */
-		//      FD628_CLK_SET;                                                  /* 设置CLK为高电平 */
+			dat |= 0X80;				/* 读入1 bit值 */
+		//FD628_CLK_SET;				/* 设置CLK为高电平 */
 		gpio_direction_output(dev->clk_pin, 1);
-		FD628_DELAY_HIGH;	/* 时钟高电平时间 */
+		FD628_DELAY_HIGH;				/* 时钟高电平时间 */
 	}
-	return dat;		/* 返回接收到的数据 */
+	return dat;						/* 返回接收到的数据 */
 }
 
 /****************************************FD628操作函数*********************************************/
 /****************************************************************
- *	函数的名称:					    FD628_Command
- *	描述:										发送控制命令
- *	参数:		             		INT8U 控制命令
- *	返回值:				    	    void
+ *	函数的名称:				FD628_Command
+ *	描述:					发送控制命令
+ *	参数:					INT8U 控制命令
+ *	返回值:					void
 ****************************************************************/
 static void FD628_Command(u_int8 cmd, struct fd628_dev *dev)
 {
@@ -174,10 +175,10 @@ static void FD628_Command(u_int8 cmd, struct fd628_dev *dev)
 }
 
 /****************************************************************
- *	函数的名称:					    FD628_GetKey
- *	描述:										读按键码值
- *	参数:			             	void
- *	返回值:					        INT32U 返回按键值
+ *	函数的名称:				FD628_GetKey
+ *	描述:					读按键码值
+ *	参数:					void
+ *	返回值:					INT32U 返回按键值
  **************************************************************************************************************************************
 返回的按键值编码
 				| 0			| 0			| 0			| 0			| 0			| 0			| KS10	| KS9		| KS8		| KS7		| KS6		| KS5		| KS4		| KS3		| KS2		| KS1		|
@@ -191,7 +192,7 @@ static u_int32 FD628_GetKey(struct fd628_dev *dev)
 	FD628_Start(dev);
 	FD628_WrByte(FD628_KEY_RDCMD, dev);
 	for (i = 0; i != 5; i++) {
-		KeyDataTemp = FD628_RdByte(dev);	/*将5字节的按键码值转化成2字节的码值 */
+		KeyDataTemp = FD628_RdByte(dev);		/*将5字节的按键码值转化成2字节的码值 */
 		if (KeyDataTemp & 0x01)
 			FD628_KeyData |= (0x00000001 << i * 2);
 		if (KeyDataTemp & 0x02)
@@ -206,12 +207,12 @@ static u_int32 FD628_GetKey(struct fd628_dev *dev)
 }
 
 /****************************************************************
- *	函数的名称:					    FD628_WrDisp_AddrINC
- *	描述:										以地址递增模式发送显示内容
- *	参数:		         				INT8U Addr发送显示内容的起始地址；具体地址和显示对应的表格见datasheet
- *													INT8U DataLen 发送显示内容的位数
- *	返回值:				        	BOOLEAN；如果地址超出将返回1；如果执行成功返回0。
- *  使用方法：						先将数据写入FD628_DispData[]的相应位置，再调用FD628_WrDisp_AddrINC（）函数。
+ *	函数的名称:				FD628_WrDisp_AddrINC
+ *	描述:					以地址递增模式发送显示内容
+ *	参数:					INT8U Addr发送显示内容的起始地址；具体地址和显示对应的表格见datasheet
+ *						INT8U DataLen 发送显示内容的位数
+ *	返回值:				        BOOLEAN；如果地址超出将返回1；如果执行成功返回0。
+ *	使用方法：				先将数据写入FD628_DispData[]的相应位置，再调用FD628_WrDisp_AddrINC（）函数。
 ****************************************************************/
 static int FD628_WrDisp_AddrINC(u_int8 Addr, u_int8 DataLen,
 				struct fd628_dev *dev)
@@ -237,14 +238,14 @@ static int FD628_WrDisp_AddrINC(u_int8 Addr, u_int8 DataLen,
 }
 
 /****************************************************************
- *	函数的名称: 			FD628_SET_DISPLAY_MODE
- *	描述:							FD628设置显示模式
- *	参数:				  cmd
-						FD628_4DIG_CMD			0x00
-						FD628_5DIG_CMD			0x01
-						FD628_6DIG_CMD			0x02
-						FD628_7DIG_CMD			0x03
- *	返回值: 				void
+ *	函数的名称:	FD628_SET_DISPLAY_MODE
+ *	描述:		FD628设置显示模式
+ *	参数:		cmd
+				FD628_4DIG_CMD		0x00
+				FD628_5DIG_CMD		0x01
+				FD628_6DIG_CMD		0x02
+				FD628_7DIG_CMD		0x03
+ *	返回值:		void
 ****************************************************************/
 static void FD628_SET_DISPLAY_MODE(u_int8 cmd, struct fd628_dev *dev)
 {
@@ -252,27 +253,26 @@ static void FD628_SET_DISPLAY_MODE(u_int8 cmd, struct fd628_dev *dev)
 }
 
 /****************************************************************
- *	函数的名称: 			FD628_SET_BRIGHTNESS
- *	描述:							FD628设置显示亮度
+ *	函数的名称: 		FD628_SET_BRIGHTNESS
+ *	描述:			FD628设置显示亮度
  *	参数:
- cmd:
- FD628_Brightness_1 					 0x00
-FD628_Brightness_2        				0x01
-FD628_Brightness_3        				0x02
-FD628_Brightness_4        				0x03
-FD628_Brightness_5        				0x04
-FD628_Brightness_6        				0x05
-FD628_Brightness_7        				0x06
-FD628_Brightness_8        				0x07             显示亮度等级为8
-status  :
-		FD628_DISP_ON               打开显示
-		FD628_DISP_OFF              关闭显示
- *	返回值: 				void
+cmd:
+	FD628_Brightness_1	0x00
+	FD628_Brightness_2	0x01
+	FD628_Brightness_3	0x02
+	FD628_Brightness_4	0x03
+	FD628_Brightness_5	0x04
+	FD628_Brightness_6	0x05
+	FD628_Brightness_7	0x06
+	FD628_Brightness_8	0x07	显示亮度等级为8
+status:
+	FD628_DISP_ON		打开显示
+	FD628_DISP_OFF		关闭显示
+ *	返回值:			void
 ****************************************************************/
 static void FD628_SET_BRIGHTNESS(u_int8 cmd, struct fd628_dev *dev,
 				 u_int8 status)
 {
-
 	cmd |= status;
 	cmd &= 0x0f;
 	cmd |= FD628_DISP_STATUE_WRCMD;
@@ -280,10 +280,10 @@ static void FD628_SET_BRIGHTNESS(u_int8 cmd, struct fd628_dev *dev,
 }
 
 /****************************************************************
- *	函数的名称:				FD628_Init
- *	描述:							FD628初始化，用户可以根据需要修改显示
- *	参数:		          void
- *	返回值:				    void
+ *	函数的名称:		FD628_Init
+ *	描述:			FD628初始化，用户可以根据需要修改显示
+ *	参数:			void
+ *	返回值:			void
 ****************************************************************/
 static void FD628_Init(struct fd628_dev *dev)
 {
@@ -297,22 +297,12 @@ static void FD628_Init(struct fd628_dev *dev)
 	/* 设置CLK为输出方向 */
 	/* 设置DIO为输入方向 */
 	gpio_direction_input(dev->dat_pin);
-	FD628_DELAY_BUF;	/* 通信结束到下一次通信开始的间隔 */
-
-/*    FD628_SET_DISPLAY_MODE(FD628_7DIG_CMD,dev);
-	FD628_SET_BRIGHTNESS(FD628_Brightness_8,dev,FD628_DISP_ON);
-	FD628_DispData[0]=NEGA_LED_1;
-	FD628_DispData[2]=NEGA_LED_2;
-	FD628_DispData[4]=NEGA_LED_3;
-	FD628_DispData[6]=NEGA_LED_4;
-	FD628_DispData[8]=NEGA_LED_5;
-	FD628_WrDisp_AddrINC(0x00,10,dev);*/
-
+	/* 通信结束到下一次通信开始的间隔 */
+	FD628_DELAY_BUF;
 }
 
 static int fd628_dev_open(struct inode *inode, struct file *file)
 {
-
 	struct fd628_dev *dev = NULL;
 	file->private_data = pdata->dev;
 	dev = file->private_data;
@@ -330,9 +320,6 @@ static int fd628_dev_release(struct inode *inode, struct file *file)
 	pr_dbg("succes to close  fd628_dev.............\n");
 	return 0;
 }
-
-//ssize_t (*read) (struct file *, char __user *, size_t, loff_t *);
-//ssize_t (*write) (struct file *, const char __user *, size_t, loff_t *);
 
 static ssize_t fd628_dev_read(struct file *filp, char __user * buf,
 				  size_t count, loff_t * f_pos)
@@ -360,19 +347,17 @@ static ssize_t fd628_dev_read(struct file *filp, char __user * buf,
 		return sizeof(rbuf);
 	else
 		return ret;
-
 }
 
 /**
  * @param buf:传入LED码
- * 			  [3-0]代表右往左LED1234灯显示的7段管掩码
- * 			  [4]  代表wifi灯、eth灯、usb灯、闹钟灯、play、pause灯等6个灯的掩码
+ * 		  [3-0]代表右往左LED1234灯显示的7段管掩码
+ * 		  [4]  代表wifi灯、eth灯、usb灯、闹钟灯、play、pause灯等6个灯的掩码
  * @return
  */
 static ssize_t fd628_dev_write(struct file *filp, const char __user * buf,
 				   size_t count, loff_t * f_pos)
 {
-
 	struct fd628_dev *dev;
 	unsigned long missing;
 	int status = 0;
@@ -387,7 +372,7 @@ static ssize_t fd628_dev_write(struct file *filp, const char __user * buf,
 
 	missing = copy_from_user(data, buf, count);
 	if (missing == 0) {
-		// 状态灯能否点亮，取决于led mask
+		//状态灯能否点亮，取决于led mask
 		//data[0] |= dev->status_led_mask;
 		data[0] |= dev->status_led_mask;
 		if (data[0] & ledDots[LED_DOT_SEC]) {
@@ -404,7 +389,7 @@ static ssize_t fd628_dev_write(struct file *filp, const char __user * buf,
 		dev->wbuf[dev->dat_index[3] * 2] = data[3];
 		dev->wbuf[dev->dat_index[4] * 2] = data[4];
 	
-			//采用递增模式写入显示数据
+		//采用递增模式写入显示数据
 		FD628_WrDisp_AddrINC(0x00, 2 * count, dev);
 		status = count;
 	}
@@ -492,7 +477,6 @@ static unsigned int fd628_dev_poll(struct file *filp, poll_table * wait)
 	if (dev->key_respond_status)
 		mask |= POLLIN | POLLRDNORM;
 	return mask;
-
 }
 
 static struct file_operations fd628_fops = {
@@ -503,7 +487,6 @@ static struct file_operations fd628_fops = {
 	.write = fd628_dev_write,
 	.unlocked_ioctl = fd628_dev_ioctl,
 	.poll = fd628_dev_poll,
-
 };
 
 static struct miscdevice fd628_device = {
@@ -530,8 +513,7 @@ static void deregister_fd628_driver(void)
 	if (ret)
 		pr_dbg("%s: failed to deregister fd628 module\n", __func__);
 	else
-		pr_dbg("%s: Successed to deregister fd628  module \n",
-			   __func__);
+		pr_dbg("%s: Successed to deregister fd628  module \n", __func__);
 }
 
 
@@ -541,13 +523,12 @@ static void fd628_brightness_set(struct led_classdev *cdev,
 	pr_info("brightness = %d\n", brightness);
 
 	if(pdata == NULL) 
-		return ;
-//	pdata->dev->brightness = brightness;
-//	FD628_SET_BRIGHTNESS(pdata->dev->brightness, pdata->dev, FD628_DISP_ON);
-//	pdata->dev->wbuf[8] = brightness;
+		return;
+	//pdata->dev->brightness = brightness;
+	//FD628_SET_BRIGHTNESS(pdata->dev->brightness, pdata->dev, FD628_DISP_ON);
+	//pdata->dev->wbuf[8] = brightness;
 	//采用递增模式写入显示数据
-//	FD628_WrDisp_AddrINC(0x00, 2*5, pdata->dev);
-
+	//FD628_WrDisp_AddrINC(0x00, 2*5, pdata->dev);
 }
 
 
@@ -561,7 +542,7 @@ static ssize_t led_on_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t size)
 {
 	if(pdata == NULL) 
-		return size ;
+		return size;
 	
 	if (strncmp(buf,"alarm",5) == 0) {
 		pdata->dev->status_led_mask |= pdata->dev->led_dots[LED_DOT_ALARM];
@@ -576,7 +557,7 @@ static ssize_t led_on_store(struct device *dev,
 	} else if (strncmp(buf,"wifi",4) == 0) {
 		pdata->dev->status_led_mask |= pdata->dev->led_dots[LED_DOT_WIFI];
 	} else {
-//		pr_info("echo wifi | usb | play | pause | eth > led_on\n");
+		//pr_info("echo wifi | usb | play | pause | eth > led_on\n");
 	}
 
 	return size;
@@ -618,9 +599,8 @@ static ssize_t led_off_show(struct device *dev,
 static ssize_t led_off_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t size)
 {
-
 	if(pdata == NULL) 
-		return size ;
+		return size;
 
 	if (strncmp(buf,"alarm",5) == 0) {
 		pdata->dev->status_led_mask &= ~pdata->dev->led_dots[LED_DOT_ALARM];
@@ -635,7 +615,7 @@ static ssize_t led_off_store(struct device *dev,
 	} else if (strncmp(buf,"wifi",4) == 0) {
 		pdata->dev->status_led_mask &= ~pdata->dev->led_dots[LED_DOT_WIFI];
 	} else {
-//		pr_info("echo wifi | usb | play | pause | eth > led_off\n");
+		//pr_info("echo wifi | usb | play | pause | eth > led_off\n");
 	}
 
 	return size;
@@ -691,7 +671,7 @@ static int fd628_driver_probe(struct platform_device *pdev)
 	}
 
 	clk_desc = of_get_named_gpiod_flags(pdev->dev.of_node,
-					 "fd628_gpio_clk", 0, NULL);
+					    "fd628_gpio_clk", 0, NULL);
 	pdata->dev->clk_pin = desc_to_gpio(clk_desc);
 	ret = gpio_request(pdata->dev->clk_pin, DEV_NAME);
 	if (ret) {
@@ -700,7 +680,7 @@ static int fd628_driver_probe(struct platform_device *pdev)
 	}
 
 	dat_desc = of_get_named_gpiod_flags(pdev->dev.of_node,
-					 "fd628_gpio_dat", 0, NULL);
+					    "fd628_gpio_dat", 0, NULL);
 	pdata->dev->dat_pin = desc_to_gpio(dat_desc);
 	ret = gpio_request(pdata->dev->dat_pin, DEV_NAME);
 	if (ret) {
@@ -709,7 +689,7 @@ static int fd628_driver_probe(struct platform_device *pdev)
 	}
 
 	stb_desc = of_get_named_gpiod_flags(pdev->dev.of_node,
-					 "fd628_gpio_stb", 0, NULL);
+					    "fd628_gpio_stb", 0, NULL);
 	pdata->dev->stb_pin = desc_to_gpio(stb_desc);
 	ret = gpio_request(pdata->dev->stb_pin, DEV_NAME);
 	if (ret) {

@@ -69,6 +69,7 @@ static uint8_t char_to_mask(uint8_t ch) {
 			return ledCodes[index].mask;
 		}
 	}
+
 	return LED_MASK_VOID;
 }
 
@@ -178,7 +179,7 @@ static void *display_thread_handler(void *arg)
 
 int main(void)
 {
-	//	pthread_t check_usb_id,check_sd_id;
+	//pthread_t check_usb_id,check_sd_id;
 	pthread_t disp_id,check_dev_id = 0;
 	int ret;
 	fd628_fd = open(DEV_NAME, O_RDWR);
