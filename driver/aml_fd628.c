@@ -211,7 +211,7 @@ static u_int32 FD628_GetKey(struct fd628_dev *dev)
  *	描述:					以地址递增模式发送显示内容
  *	参数:					INT8U Addr发送显示内容的起始地址；具体地址和显示对应的表格见datasheet
  *						INT8U DataLen 发送显示内容的位数
- *	返回值:				        BOOLEAN；如果地址超出将返回1；如果执行成功返回0。
+ *	返回值:					BOOLEAN；如果地址超出将返回1；如果执行成功返回0。
  *	使用方法：				先将数据写入FD628_DispData[]的相应位置，再调用FD628_WrDisp_AddrINC（）函数。
 ****************************************************************/
 static int FD628_WrDisp_AddrINC(u_int8 Addr, u_int8 DataLen,
