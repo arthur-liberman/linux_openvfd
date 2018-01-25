@@ -1,3 +1,7 @@
+#include "gxl_p212_2g.dts"
+
+/ {
+	le-dt-id = "gxl_p212_2g_t95m";
 	fd628_dev {
 		compatible = "amlogic,fd628_dev";
 		status = "okay";
@@ -9,4 +13,10 @@
 		/* Dot enumeration */
 		/* Alarm = 0, USB = 1, Play = 2, Pause = 3, Col = 4, Eth = 5, Wifi = 6 */
 		fd628_dot_bits = /bits/ 8 <0 1 2 3 4 5 6>;
+		/* Display type: 0 = Unknown, 1 = Common Cathode, 2 = Common Anode */
+		/* Type 1 usually has Alarm, USB, Play, Pause, Col, Ethernet, Wifi dots */
+		/* Type 2 usually has APPS, USB, SETUP, CARD, Col, HDMI, CVBS dots */
+		fd628_display_type = /bits/ 32 <1>;
 	};
+
+};

@@ -219,9 +219,11 @@ static int FD628_WrDisp_AddrINC(u_int8 Addr, u_int8 DataLen,
 {
 	u_int8 i;
 	u_int8 val;
+	u_int8 *buf;
 
 	val = FD628_DIGADDR_WRCMD;
 	val |= Addr;
+	buf = (u_int8*)dev->wbuf;
 
 	if (DataLen + Addr > 14)
 		return (1);
@@ -230,8 +232,8 @@ static int FD628_WrDisp_AddrINC(u_int8 Addr, u_int8 DataLen,
 	FD628_Start(dev);
 	FD628_WrByte(val, dev);
 	for (i = Addr; i != (Addr + DataLen); i++) {
-		FD628_WrByte(dev->wbuf[i], dev);
-		pr_dbg("FD628_WrDisp_AddrINC buf: %x \r\n", dev->wbuf[i]);
+		FD628_WrByte(buf[i], dev);
+		pr_dbg("FD628_WrDisp_AddrINC buf: %x \r\n", buf[i]);
 	}
 	FD628_Stop(dev);
 	return (0);
@@ -307,6 +309,7 @@ static int fd628_dev_open(struct inode *inode, struct file *file)
 	file->private_data = pdata->dev;
 	dev = file->private_data;
 	memset(dev->wbuf, 0x00, sizeof(dev->wbuf));
+	FD628_SET_BRIGHTNESS(pdata->dev->brightness, dev, FD628_DISP_ON);
 	pr_dbg("fd628_dev_open now.............................\r\n");
 	return 0;
 }
@@ -349,6 +352,25 @@ static ssize_t fd628_dev_read(struct file *filp, char __user * buf,
 		return ret;
 }
 
+// Source for the transpose algorithm:
+// http://www.hackersdelight.org/hdcodetxt/transpose8.c.txt
+void transpose8rS64(unsigned char* A, unsigned char* B) {
+	unsigned long long x = 0, t;
+	int i;
+
+	for (i = 0; i <= 7; i++)	// Load 8 bytes from the input
+		x = x << 8 | A[i];	// array and pack them into x.
+
+	t = (x ^ (x >> 7)) & 0x00AA00AA00AA00AALL;
+	x = x ^ t ^ (t << 7);
+	t = (x ^ (x >> 14)) & 0x0000CCCC0000CCCCLL;
+	x = x ^ t ^ (t << 14);
+	t = (x ^ (x >> 28)) & 0x00000000F0F0F0F0LL;
+	x = x ^ t ^ (t << 28);
+
+	memcpy(B, &x, sizeof(x));	// Store result into output array B.
+}
+
 /**
  * @param buf:传入LED码
  * 		  [3-0]代表右往左LED1234灯显示的7段管掩码
@@ -363,33 +385,47 @@ static ssize_t fd628_dev_write(struct file *filp, const char __user * buf,
 	int status = 0;
 	int i = 0;
 	const int dataMaxLen = 7;
-	char data[dataMaxLen];
+	char data[8];
+	char trans[8];
 
 	dev = filp->private_data;
 
 	if (count > dataMaxLen)
 		count = dataMaxLen;
 
+	memset(data, 0, sizeof(data));
 	missing = copy_from_user(data, buf, count);
 	if (missing == 0) {
 		//状态灯能否点亮，取决于led mask
-		//data[0] |= dev->status_led_mask;
 		data[0] |= dev->status_led_mask;
 		if (data[0] & ledDots[LED_DOT_SEC]) {
 			data[0] &= ~ledDots[LED_DOT_SEC];
 			data[0] |= dev->led_dots[LED_DOT_SEC];
 		}
-		for (i = 0; i < count; i++) {
-			dev->wbuf[dev->dat_index[i] * 2] = data[i];
+
+		switch (dev->display_type) {
+			case DISPLAY_UNKNOWN:
+			case DISPLAY_COMMON_CATHODE:
+			default:
+				for (i = 0; i < count; i++)
+					dev->wbuf[dev->dat_index[i]] = data[i];
+				break;
+			case DISPLAY_COMMON_ANODE:
+				// Common Anode displays require us
+				// to transpose the memory in order for it
+				// display data correctly on the screen.
+				count = dataMaxLen;
+				memset(trans, 0, sizeof(trans));
+				memset(dev->wbuf, 0x00, sizeof(dev->wbuf));
+				for (i = 0; i < count; i++)
+					trans[dev->dat_index[i]] = data[i] << 1;
+				transpose8rS64(trans, data);
+				for (i = 0; i < dataMaxLen; i++) {
+					dev->wbuf[i] = data[i+1];
+				}
+				break;
 		}
 
-		dev->wbuf[dev->dat_index[0] * 2] = data[0];
-		dev->wbuf[dev->dat_index[1] * 2] = data[1];
-		dev->wbuf[dev->dat_index[2] * 2] = data[2];
-		dev->wbuf[dev->dat_index[3] * 2] = data[3];
-		dev->wbuf[dev->dat_index[4] * 2] = data[4];
-	
-		//采用递增模式写入显示数据
 		FD628_WrDisp_AddrINC(0x00, 2 * count, dev);
 		status = count;
 	}
@@ -410,16 +446,16 @@ static long fd628_dev_ioctl(struct file *filp, unsigned int cmd,
 	if (_IOC_NR(cmd) > FD628_IOC_MAXNR)
 		return -ENOTTY;
 	if (_IOC_DIR(cmd) & _IOC_READ)
-		err =
-			!access_ok(VERIFY_WRITE, (void __user *)arg,
-				   _IOC_SIZE(cmd));
+		err = !access_ok(VERIFY_WRITE, (void __user *)arg, _IOC_SIZE(cmd));
 	else if (_IOC_DIR(cmd) & _IOC_WRITE)
-		err =
-			!access_ok(VERIFY_READ, (void __user *)arg, _IOC_SIZE(cmd));
+		err = !access_ok(VERIFY_READ, (void __user *)arg, _IOC_SIZE(cmd));
 	if (err)
 		return -EFAULT;
 
 	switch (cmd) {
+	case FD628_IOC_DISPLAY_TYPE:
+		ret = __put_user(dev->display_type, (int __user *)arg);
+		break;
 	case FD628_IOC_SMODE:	/* Set: arg points to the value */
 		ret = __get_user(dev->mode, (int __user *)arg);
 		FD628_SET_DISPLAY_MODE(dev->mode, dev);
@@ -526,11 +562,10 @@ static void fd628_brightness_set(struct led_classdev *cdev,
 		return;
 	//pdata->dev->brightness = brightness;
 	//FD628_SET_BRIGHTNESS(pdata->dev->brightness, pdata->dev, FD628_DISP_ON);
-	//pdata->dev->wbuf[8] = brightness;
+	//pdata->dev->wbuf[4] = brightness;
 	//采用递增模式写入显示数据
 	//FD628_WrDisp_AddrINC(0x00, 2*5, pdata->dev);
 }
-
 
 static ssize_t led_on_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
@@ -544,20 +579,32 @@ static ssize_t led_on_store(struct device *dev,
 	if(pdata == NULL) 
 		return size;
 	
-	if (strncmp(buf,"alarm",5) == 0) {
-		pdata->dev->status_led_mask |= pdata->dev->led_dots[LED_DOT_ALARM];
-	} else if (strncmp(buf,"usb",3) == 0) {
-		pdata->dev->status_led_mask |= pdata->dev->led_dots[LED_DOT_USB];
-	} else if (strncmp(buf,"play",4) == 0) {
-		pdata->dev->status_led_mask |= pdata->dev->led_dots[LED_DOT_PLAY];
-	} else if (strncmp(buf,"pause",5) == 0) {
-		pdata->dev->status_led_mask |= pdata->dev->led_dots[LED_DOT_PAUSE];
-	} else if (strncmp(buf,"eth",3) == 0) {
-		pdata->dev->status_led_mask |= pdata->dev->led_dots[LED_DOT_ETH];
-	} else if (strncmp(buf,"wifi",4) == 0) {
-		pdata->dev->status_led_mask |= pdata->dev->led_dots[LED_DOT_WIFI];
+	if (pdata->dev->display_type == DISPLAY_COMMON_ANODE) {
+		if (strncmp(buf,"sd",2) == 0) {
+			pdata->dev->status_led_mask |= pdata->dev->led_dots[LED_DOT_PAUSE_CARD];
+		} else if (strncmp(buf,"usb",3) == 0) {
+			pdata->dev->status_led_mask |= pdata->dev->led_dots[LED_DOT_PLAY_USB];
+		} else if (strncmp(buf,"hdmi",4) == 0) {
+			pdata->dev->status_led_mask |= pdata->dev->led_dots[LED_DOT_ETH_HDMI];
+		} else {
+			//pr_info("echo wifi | usb | play | pause | eth > led_on\n");
+		}
 	} else {
-		//pr_info("echo wifi | usb | play | pause | eth > led_on\n");
+		if (strncmp(buf,"alarm",5) == 0) {
+			pdata->dev->status_led_mask |= pdata->dev->led_dots[LED_DOT_ALARM_APPS];
+		} else if (strncmp(buf,"usb",3) == 0) {
+			pdata->dev->status_led_mask |= pdata->dev->led_dots[LED_DOT_USB_SETUP];
+		} else if (strncmp(buf,"play",4) == 0) {
+			pdata->dev->status_led_mask |= pdata->dev->led_dots[LED_DOT_PLAY_USB];
+		} else if (strncmp(buf,"pause",5) == 0) {
+			pdata->dev->status_led_mask |= pdata->dev->led_dots[LED_DOT_PAUSE_CARD];
+		} else if (strncmp(buf,"eth",3) == 0) {
+			pdata->dev->status_led_mask |= pdata->dev->led_dots[LED_DOT_ETH_HDMI];
+		} else if (strncmp(buf,"wifi",4) == 0) {
+			pdata->dev->status_led_mask |= pdata->dev->led_dots[LED_DOT_WIFI_CVBS];
+		} else {
+			//pr_info("echo wifi | usb | play | pause | eth > led_on\n");
+		}
 	}
 
 	return size;
@@ -588,8 +635,6 @@ static ssize_t led_light_store(struct device *dev,
 	return size;
 }
 
-
-
 static ssize_t led_off_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
@@ -602,25 +647,36 @@ static ssize_t led_off_store(struct device *dev,
 	if(pdata == NULL) 
 		return size;
 
-	if (strncmp(buf,"alarm",5) == 0) {
-		pdata->dev->status_led_mask &= ~pdata->dev->led_dots[LED_DOT_ALARM];
-	} else if (strncmp(buf,"usb",3) == 0) {
-		pdata->dev->status_led_mask &= ~pdata->dev->led_dots[LED_DOT_USB];
-	} else if (strncmp(buf,"play",4) == 0) {
-		pdata->dev->status_led_mask &= ~pdata->dev->led_dots[LED_DOT_PLAY];
-	} else if (strncmp(buf,"pause",5) == 0) {
-		pdata->dev->status_led_mask &= ~pdata->dev->led_dots[LED_DOT_PAUSE];
-	} else if (strncmp(buf,"eth",3) == 0) {
-		pdata->dev->status_led_mask &= ~pdata->dev->led_dots[LED_DOT_ETH];
-	} else if (strncmp(buf,"wifi",4) == 0) {
-		pdata->dev->status_led_mask &= ~pdata->dev->led_dots[LED_DOT_WIFI];
+	if (pdata->dev->display_type == DISPLAY_COMMON_ANODE) {
+		if (strncmp(buf,"sd",2) == 0) {
+			pdata->dev->status_led_mask &= ~pdata->dev->led_dots[LED_DOT_PAUSE_CARD];
+		} else if (strncmp(buf,"usb",3) == 0) {
+			pdata->dev->status_led_mask &= ~pdata->dev->led_dots[LED_DOT_PLAY_USB];
+		} else if (strncmp(buf,"hdmi",4) == 0) {
+			pdata->dev->status_led_mask &= ~pdata->dev->led_dots[LED_DOT_ETH_HDMI];
+		} else {
+			//pr_info("echo wifi | usb | play | pause | eth > led_on\n");
+		}
 	} else {
-		//pr_info("echo wifi | usb | play | pause | eth > led_off\n");
+		if (strncmp(buf,"alarm",5) == 0) {
+			pdata->dev->status_led_mask &= ~pdata->dev->led_dots[LED_DOT_ALARM_APPS];
+		} else if (strncmp(buf,"usb",3) == 0) {
+			pdata->dev->status_led_mask &= ~pdata->dev->led_dots[LED_DOT_USB_SETUP];
+		} else if (strncmp(buf,"play",4) == 0) {
+			pdata->dev->status_led_mask &= ~pdata->dev->led_dots[LED_DOT_PLAY_USB];
+		} else if (strncmp(buf,"pause",5) == 0) {
+			pdata->dev->status_led_mask &= ~pdata->dev->led_dots[LED_DOT_PAUSE_CARD];
+		} else if (strncmp(buf,"eth",3) == 0) {
+			pdata->dev->status_led_mask &= ~pdata->dev->led_dots[LED_DOT_ETH_HDMI];
+		} else if (strncmp(buf,"wifi",4) == 0) {
+			pdata->dev->status_led_mask &= ~pdata->dev->led_dots[LED_DOT_WIFI_CVBS];
+		} else {
+			//pr_info("echo wifi | usb | play | pause | eth > led_on\n");
+		}
 	}
 
 	return size;
 }
-
 
 static DEVICE_ATTR(led_on , 0666, led_on_show , led_on_store);
 static DEVICE_ATTR(led_off , 0666, led_off_show , led_off_store);
@@ -646,6 +702,7 @@ static int fd628_driver_probe(struct platform_device *pdev)
 	struct gpio_desc *stb_desc = NULL;
 	struct property *chars = NULL;
 	struct property *dot_bits = NULL;
+	struct property *display_type = NULL;
 	int ret;
 
 	pr_dbg("%s get in\n", __func__);
@@ -742,6 +799,12 @@ static int fd628_driver_probe(struct platform_device *pdev)
 		}
 	}
 
+	pdata->dev->display_type = DISPLAY_UNKNOWN;
+	display_type = of_find_property(pdev->dev.of_node, "fd628_display_type", NULL);
+	if (display_type && display_type->value)
+		of_property_read_u32(pdev->dev.of_node, "fd628_display_type", &pdata->dev->display_type);
+	pr_dbg2("display_type = %d\n", pdata->dev->display_type);
+
 	pdata->dev->brightness = FD628_Brightness_8;
 
 	register_fd628_driver();
@@ -772,12 +835,12 @@ static int fd628_driver_probe(struct platform_device *pdev)
 	//  1 0 0  0 1 1 1  t => 0x47
 	__u8 data[7];
 	data[0] = 0x00;
-	data[1] = 0x67;
-	data[2] = 0x63;
-	data[3] = 0x63;
-	data[4] = 0x47;
+	data[1] = pdata->dev->display_type != DISPLAY_COMMON_ANODE ? 0x67 : 0x7C;
+	data[2] = pdata->dev->display_type != DISPLAY_COMMON_ANODE ? 0x63 : 0x5C;
+	data[3] = pdata->dev->display_type != DISPLAY_COMMON_ANODE ? 0x63 : 0x5C;
+	data[4] = pdata->dev->display_type != DISPLAY_COMMON_ANODE ? 0x47 : 0x78;
 	for (i = 0; i < 5; i++) {
-		pdata->dev->wbuf[pdata->dev->dat_index[i] * 2] = data[i];
+		pdata->dev->wbuf[pdata->dev->dat_index[i]] = data[i];
 	}
 	//采用递增模式写入显示数据
 	FD628_WrDisp_AddrINC(0x00, 2*5, pdata->dev);
