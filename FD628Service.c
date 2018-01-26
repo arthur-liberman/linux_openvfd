@@ -152,8 +152,9 @@ void led_test_codes()
 	}
 }
 
-static void lcd_test_loop()
+static void led_test_loop()
 {
+	int i;
 	pid_t pid = getpid();
 	printf("Initializing...\n");
 	printf("Process ID = %d\n", pid);
@@ -162,18 +163,33 @@ static void lcd_test_loop()
 		unsigned char wb[7];
 		const size_t sz = sizeof(wb[0])*len;
 
+		// Light up all sections and cycle
+		// through display brightness levels.
+		memset(wb, 0xFF, sz);
+		write(fd628_fd,wb,sz);
+		for (i = FD628_Brightness_1; i <= FD628_Brightness_8; i++) {
+			ioctl(fd628_fd, FD628_IOC_SBRIGHT, &i);
+			mdelay(1000);
+		}
+
+		// Clear display for a second.
+		memset(wb, 0x00, sz);
+		write(fd628_fd,wb,sz);
+		mdelay(1000);
+
+		// Run original test codes.
 		led_test_codes();
 
 		// Cycle through fully lit characters.
-		for (int i = 0; i < len; i++) {
-			memset(wb, 0, sz);
+		for (i = 0; i < len; i++) {
+			memset(wb, 0x00, sz);
 			wb[i] = 0xFF;
 			write(fd628_fd,wb,sz);
 			mdelay(1000);
 		}
 
 		// Cycle through bits in each character.
-		for (int i = 0; i < 8; i++) {
+		for (i = 0; i < len; i++) {
 			memset(wb, (1 << i), sz);
 			write(fd628_fd,wb,sz);
 			mdelay(1000);
@@ -181,12 +197,17 @@ static void lcd_test_loop()
 	}
 }
 
-static void *display_thread_handler(void *arg)
+static void *display_time_thread_handler(void *arg)
 {
-	if (arg)
-		lcd_test_loop();
-	else
-		led_show_time_loop();
+	UNUSED(arg);
+	led_show_time_loop();
+	pthread_exit(NULL);
+}
+
+static void *display_test_thread_handler(void *arg)
+{
+	UNUSED(arg);
+	led_test_loop();
 	pthread_exit(NULL);
 }
 
@@ -212,7 +233,6 @@ void selectDisplayType()
 int main(int argc, char *argv[])
 {
 	pthread_t disp_id,check_dev_id = 0;
-	void *thread_param = NULL;
 	int ret;
 	fd628_fd = open(DEV_NAME, O_RDWR);
 	if (fd628_fd < 0) {
@@ -221,8 +241,9 @@ int main(int argc, char *argv[])
 	}
 	selectDisplayType();
 	if (argc >= 2 && strstr(argv[1], "-t"))
-		thread_param = argv;
-	ret = pthread_create(&disp_id, NULL, display_thread_handler, thread_param);
+		ret = pthread_create(&disp_id, NULL, display_test_thread_handler, NULL);
+	else
+		ret = pthread_create(&disp_id, NULL, display_time_thread_handler, NULL);
 	if(ret != 0) {
 		perror("Create disp_id thread error\n");
 		return ret;

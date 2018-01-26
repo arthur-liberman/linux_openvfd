@@ -413,7 +413,7 @@ static ssize_t fd628_dev_write(struct file *filp, const char __user * buf,
 			case DISPLAY_COMMON_ANODE:
 				// Common Anode displays require us
 				// to transpose the memory in order for it
-				// display data correctly on the screen.
+				// to display data correctly on the screen.
 				count = dataMaxLen;
 				memset(trans, 0, sizeof(trans));
 				memset(dev->wbuf, 0x00, sizeof(dev->wbuf));
@@ -522,6 +522,7 @@ static struct file_operations fd628_fops = {
 	.read = fd628_dev_read,
 	.write = fd628_dev_write,
 	.unlocked_ioctl = fd628_dev_ioctl,
+	.compat_ioctl = fd628_dev_ioctl,
 	.poll = fd628_dev_poll,
 };
 
@@ -580,12 +581,18 @@ static ssize_t led_on_store(struct device *dev,
 		return size;
 	
 	if (pdata->dev->display_type == DISPLAY_COMMON_ANODE) {
-		if (strncmp(buf,"sd",2) == 0) {
-			pdata->dev->status_led_mask |= pdata->dev->led_dots[LED_DOT_PAUSE_CARD];
+		if (strncmp(buf,"apps",4) == 0) {
+			pdata->dev->status_led_mask |= pdata->dev->led_dots[LED_DOT_ALARM_APPS];
+		} else if (strncmp(buf,"setup",5) == 0) {
+			pdata->dev->status_led_mask |= pdata->dev->led_dots[LED_DOT_USB_SETUP];
 		} else if (strncmp(buf,"usb",3) == 0) {
 			pdata->dev->status_led_mask |= pdata->dev->led_dots[LED_DOT_PLAY_USB];
+		} else if (strncmp(buf,"sd",2) == 0) {
+			pdata->dev->status_led_mask |= pdata->dev->led_dots[LED_DOT_PAUSE_CARD];
 		} else if (strncmp(buf,"hdmi",4) == 0) {
 			pdata->dev->status_led_mask |= pdata->dev->led_dots[LED_DOT_ETH_HDMI];
+		} else if (strncmp(buf,"cvbs",4) == 0) {
+			pdata->dev->status_led_mask |= pdata->dev->led_dots[LED_DOT_WIFI_CVBS];
 		} else {
 			//pr_info("echo wifi | usb | play | pause | eth > led_on\n");
 		}
@@ -648,12 +655,18 @@ static ssize_t led_off_store(struct device *dev,
 		return size;
 
 	if (pdata->dev->display_type == DISPLAY_COMMON_ANODE) {
-		if (strncmp(buf,"sd",2) == 0) {
-			pdata->dev->status_led_mask &= ~pdata->dev->led_dots[LED_DOT_PAUSE_CARD];
+		if (strncmp(buf,"apps",4) == 0) {
+			pdata->dev->status_led_mask &= ~pdata->dev->led_dots[LED_DOT_ALARM_APPS];
+		} else if (strncmp(buf,"setup",5) == 0) {
+			pdata->dev->status_led_mask &= ~pdata->dev->led_dots[LED_DOT_USB_SETUP];
 		} else if (strncmp(buf,"usb",3) == 0) {
 			pdata->dev->status_led_mask &= ~pdata->dev->led_dots[LED_DOT_PLAY_USB];
+		} else if (strncmp(buf,"sd",2) == 0) {
+			pdata->dev->status_led_mask &= ~pdata->dev->led_dots[LED_DOT_PAUSE_CARD];
 		} else if (strncmp(buf,"hdmi",4) == 0) {
 			pdata->dev->status_led_mask &= ~pdata->dev->led_dots[LED_DOT_ETH_HDMI];
+		} else if (strncmp(buf,"cvbs",4) == 0) {
+			pdata->dev->status_led_mask &= ~pdata->dev->led_dots[LED_DOT_WIFI_CVBS];
 		} else {
 			//pr_info("echo wifi | usb | play | pause | eth > led_on\n");
 		}
