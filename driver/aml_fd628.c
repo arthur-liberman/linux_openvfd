@@ -396,12 +396,13 @@ static ssize_t fd628_dev_write(struct file *filp, const char __user * buf,
 	memset(data, 0, sizeof(data));
 	missing = copy_from_user(data, buf, count);
 	if (missing == 0) {
-		//状态灯能否点亮，取决于led mask
-		data[0] |= dev->status_led_mask;
+		// Apply dot remap for column.
 		if (data[0] & ledDots[LED_DOT_SEC]) {
 			data[0] &= ~ledDots[LED_DOT_SEC];
 			data[0] |= dev->led_dots[LED_DOT_SEC];
 		}
+		// Apply LED indicators mask (usb, eth, wifi etc.)
+		data[0] |= dev->status_led_mask;
 
 		switch (dev->display_type) {
 			case DISPLAY_UNKNOWN:
