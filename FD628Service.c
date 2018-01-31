@@ -64,7 +64,7 @@ static void mdelay(int n)
 
 static void led_show_time_loop()
 {
-	unsigned char write_buffer[LED_DOT_MAX];
+	unsigned short write_buffer[LED_DOT_MAX];
 	int ret = -1;
 	int hours;
 
@@ -92,7 +92,7 @@ static void led_show_time_loop()
 
 void led_test_codes()
 {
-	unsigned char write_buffer[8];
+	unsigned short write_buffer[7];
 	int ret = -1;
 	unsigned char val = ':';
 	unsigned int i = 0;
@@ -154,13 +154,13 @@ void led_test_codes()
 
 static void led_test_loop()
 {
-	int i;
 	pid_t pid = getpid();
 	printf("Initializing...\n");
 	printf("Process ID = %d\n", pid);
 	while (1) {
+		int i;
 		const int len = 7;
-		unsigned char wb[7];
+		unsigned short wb[7];
 		const size_t sz = sizeof(wb[0])*len;
 
 		// Light up all sections and cycle

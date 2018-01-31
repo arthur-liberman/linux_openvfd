@@ -385,16 +385,17 @@ static ssize_t fd628_dev_write(struct file *filp, const char __user * buf,
 	int status = 0;
 	int i = 0;
 	const int dataMaxLen = 7;
-	char data[8];
-	char trans[8];
+	unsigned short data[7];
+	unsigned char trans[8];
 
 	dev = filp->private_data;
 
+	count /= sizeof(data[0]);
 	if (count > dataMaxLen)
 		count = dataMaxLen;
 
 	memset(data, 0, sizeof(data));
-	missing = copy_from_user(data, buf, count);
+	missing = copy_from_user(data, buf, count*sizeof(data[0]));
 	if (missing == 0) {
 		// Apply dot remap for column.
 		if (data[0] & ledDots[LED_DOT_SEC]) {
@@ -419,10 +420,10 @@ static ssize_t fd628_dev_write(struct file *filp, const char __user * buf,
 				memset(trans, 0, sizeof(trans));
 				memset(dev->wbuf, 0x00, sizeof(dev->wbuf));
 				for (i = 0; i < count; i++)
-					trans[dev->dat_index[i]] = data[i] << 1;
-				transpose8rS64(trans, data);
+					trans[dev->dat_index[i]] = (unsigned char)data[i] << 1;
+				transpose8rS64(trans, trans);
 				for (i = 0; i < dataMaxLen; i++) {
-					dev->wbuf[i] = data[i+1];
+					dev->wbuf[i] = trans[i+1];
 				}
 				break;
 		}
