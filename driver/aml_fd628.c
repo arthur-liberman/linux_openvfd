@@ -354,7 +354,7 @@ static ssize_t fd628_dev_read(struct file *filp, char __user * buf,
 
 // Source for the transpose algorithm:
 // http://www.hackersdelight.org/hdcodetxt/transpose8.c.txt
-void transpose8rS64(unsigned char* A, unsigned char* B) {
+static void transpose8rS64(unsigned char* A, unsigned char* B) {
 	unsigned long long x = 0, t;
 	int i;
 
@@ -407,12 +407,12 @@ static ssize_t fd628_dev_write(struct file *filp, const char __user * buf,
 
 		switch (dev->display_type) {
 			case DISPLAY_UNKNOWN:
-			case DISPLAY_COMMON_CATHODE:
+			case DISPLAY_COMMON_CATHODE_FD628:
 			default:
 				for (i = 0; i < count; i++)
 					dev->wbuf[dev->dat_index[i]] = data[i];
 				break;
-			case DISPLAY_COMMON_ANODE:
+			case DISPLAY_COMMON_ANODE_FD628:
 				// Common Anode displays require us
 				// to transpose the memory in order for it
 				// to display data correctly on the screen.
@@ -426,6 +426,35 @@ static ssize_t fd628_dev_write(struct file *filp, const char __user * buf,
 					dev->wbuf[i] = trans[i+1];
 				}
 				break;
+			case DISPLAY_COMMON_CATHODE_5D_FD620:
+				// Memory map:
+				// S1 S2 S3 S4 S5 S6 S7 xx xx xx xx xx xx S8 xx xx
+				// b0 b1 b2 b3 b4 b5 b6 b7 b0 b1 b2 b3 b4 b5 b6 b7
+				if (count > 5)	// This controller can hold 5 words.
+					count = 5;
+				for (i = 0; i < count; i++)
+					dev->wbuf[dev->dat_index[i]] = data[i];
+				break;
+			case DISPLAY_COMMON_CATHODE_4D_FD620:
+				if (count > 5)
+					count = 5;
+				// Apply column LED state to 8th bit of each digit, as 'dp'.
+				data[0] = (data[0] & dev->led_dots[LED_DOT_SEC] ? 0x2000 : 0);
+				for (i = 1; i < count; i++)
+					dev->wbuf[dev->dat_index[i]] = data[i] | data[0];
+				break;
+			case DISPLAY_COMMON_CATHODE_5D_TM1618:
+				// Memory map:
+				// S1 S2 S3 S4 S5 xx xx xx xx xx xx S12 S13 S14 xx xx
+				// b0 b1 b2 b3 b4 b5 b6 b7 b0 b1 b2 b3  b4  b5  b6 b7
+				for (i = 0; i < count; i++)
+					dev->wbuf[dev->dat_index[i]] = data[i] | ((data[i] & 0xE0) << 6);
+				break;
+			case DISPLAY_COMMON_CATHODE_4D_TM1618:
+				data[0] = (data[0] & dev->led_dots[LED_DOT_SEC] ? 0x2000 : 0);
+				for (i = 1; i < count; i++)
+					dev->wbuf[dev->dat_index[i]] = data[i] | ((data[i] & 0x60) << 6) | data[0];
+				break;
 		}
 
 		FD628_WrDisp_AddrINC(0x00, 2 * count, dev);
@@ -433,6 +462,27 @@ static ssize_t fd628_dev_write(struct file *filp, const char __user * buf,
 	}
 	pr_dbg("fd628_dev_write count : %d\n", count);
 	return status;
+}
+
+static void applyDisplayType(struct fd628_dev *dev)
+{
+	switch (dev->display_type) {
+		case DISPLAY_COMMON_CATHODE_FD628:
+		case DISPLAY_COMMON_ANODE_FD628:
+		default:
+			FD628_SET_DISPLAY_MODE(FD628_7DIG_CMD, dev);
+			break;
+		case DISPLAY_COMMON_CATHODE_5D_FD620:
+		case DISPLAY_COMMON_CATHODE_5D_TM1618:
+			FD628_SET_DISPLAY_MODE(FD628_5DIG_CMD, dev);
+			break;
+		case DISPLAY_COMMON_CATHODE_4D_FD620:
+		case DISPLAY_COMMON_CATHODE_4D_TM1618:
+			FD628_SET_DISPLAY_MODE(FD628_4DIG_CMD, dev);
+			break;
+	}
+	FD628_SET_BRIGHTNESS(dev->brightness, dev, FD628_DISP_ON);
+	memset(dev->wbuf, 0x00, sizeof(dev->wbuf));
 }
 
 static long fd628_dev_ioctl(struct file *filp, unsigned int cmd,
@@ -455,8 +505,12 @@ static long fd628_dev_ioctl(struct file *filp, unsigned int cmd,
 		return -EFAULT;
 
 	switch (cmd) {
-	case FD628_IOC_DISPLAY_TYPE:
+	case FD628_IOC_GDISPLAY_TYPE:
 		ret = __put_user(dev->display_type, (int __user *)arg);
+		break;
+	case FD628_IOC_SDISPLAY_TYPE:
+		ret = __get_user(dev->display_type, (int __user *)arg);
+		applyDisplayType(dev);
 		break;
 	case FD628_IOC_SMODE:	/* Set: arg points to the value */
 		ret = __get_user(dev->mode, (int __user *)arg);
@@ -582,7 +636,7 @@ static ssize_t led_on_store(struct device *dev,
 	if(pdata == NULL) 
 		return size;
 	
-	if (pdata->dev->display_type == DISPLAY_COMMON_ANODE) {
+	if (pdata->dev->display_type == DISPLAY_COMMON_ANODE_FD628) {
 		if (strncmp(buf,"apps",4) == 0) {
 			pdata->dev->status_led_mask |= pdata->dev->led_dots[LED_DOT_ALARM_APPS];
 		} else if (strncmp(buf,"setup",5) == 0) {
@@ -656,7 +710,7 @@ static ssize_t led_off_store(struct device *dev,
 	if(pdata == NULL) 
 		return size;
 
-	if (pdata->dev->display_type == DISPLAY_COMMON_ANODE) {
+	if (pdata->dev->display_type == DISPLAY_COMMON_ANODE_FD628) {
 		if (strncmp(buf,"apps",4) == 0) {
 			pdata->dev->status_led_mask &= ~pdata->dev->led_dots[LED_DOT_ALARM_APPS];
 		} else if (strncmp(buf,"setup",5) == 0) {
@@ -840,20 +894,19 @@ static int fd628_driver_probe(struct platform_device *pdev)
 	device_create_file(kp->cdev.dev, &dev_attr_led_off);
 	device_create_file(kp->cdev.dev, &dev_attr_led_light);
 	FD628_Init(pdata->dev);
-	FD628_SET_DISPLAY_MODE(FD628_7DIG_CMD, pdata->dev);
-	FD628_SET_BRIGHTNESS(pdata->dev->brightness, pdata->dev, FD628_DISP_ON);
+	applyDisplayType(pdata->dev);
 #if 0
 	// TODO:初始化，boot阶段显示'boot字符'
 	// 'boot'
-	//  1 1 0  0 1 1 1  b => 0x67
-	//  1 1 0  0 0 1 1  o => 0x63
-	//  1 0 0  0 1 1 1  t => 0x47
+	//  1 1 0  0 1 1 1  b => 0x7C
+	//  1 1 0  0 0 1 1  o => 0x5C
+	//  1 0 0  0 1 1 1  t => 0x78
 	__u8 data[7];
 	data[0] = 0x00;
-	data[1] = pdata->dev->display_type != DISPLAY_COMMON_ANODE ? 0x67 : 0x7C;
-	data[2] = pdata->dev->display_type != DISPLAY_COMMON_ANODE ? 0x63 : 0x5C;
-	data[3] = pdata->dev->display_type != DISPLAY_COMMON_ANODE ? 0x63 : 0x5C;
-	data[4] = pdata->dev->display_type != DISPLAY_COMMON_ANODE ? 0x47 : 0x78;
+	data[1] = pdata->dev->display_type != DISPLAY_COMMON_CATHODE_FD628 ? 0x7C : 0x67;
+	data[2] = pdata->dev->display_type != DISPLAY_COMMON_CATHODE_FD628 ? 0x5C : 0x63;
+	data[3] = pdata->dev->display_type != DISPLAY_COMMON_CATHODE_FD628 ? 0x5C : 0x63;
+	data[4] = pdata->dev->display_type != DISPLAY_COMMON_CATHODE_FD628 ? 0x78 : 0x47;
 	for (i = 0; i < 5; i++) {
 		pdata->dev->wbuf[pdata->dev->dat_index[i]] = data[i];
 	}

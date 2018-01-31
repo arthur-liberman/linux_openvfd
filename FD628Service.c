@@ -154,14 +154,20 @@ void led_test_codes()
 
 static void led_test_loop()
 {
-	pid_t pid = getpid();
+	int current_type = DISPLAY_COMMON_CATHODE_FD628;
+	const pid_t pid = getpid();
 	printf("Initializing...\n");
-	printf("Process ID = %d\n", pid);
 	while (1) {
 		int i;
 		const int len = 7;
 		unsigned short wb[7];
 		const size_t sz = sizeof(wb[0])*len;
+
+		printf("Process ID = %d\n", pid);
+		printf("Set display type to %d\n", current_type);
+		if (ioctl(fd628_fd, FD628_IOC_SDISPLAY_TYPE, &current_type))
+			printf("Failed.\n");
+		selectDisplayType();
 
 		// Light up all sections and cycle
 		// through display brightness levels.
@@ -194,6 +200,8 @@ static void led_test_loop()
 			write(fd628_fd,wb,sz);
 			mdelay(1000);
 		}
+
+		current_type = (++current_type) % DISPLAY_TYPE_MAX;
 	}
 }
 
@@ -213,15 +221,19 @@ static void *display_test_thread_handler(void *arg)
 
 void selectDisplayType()
 {
-	if (!ioctl(fd628_fd, FD628_IOC_DISPLAY_TYPE, &display_type)) {
+	if (!ioctl(fd628_fd, FD628_IOC_GDISPLAY_TYPE, &display_type)) {
 		switch(display_type) {
 			case DISPLAY_UNKNOWN:
-			case DISPLAY_COMMON_CATHODE:
+			case DISPLAY_COMMON_ANODE_FD628:
+			case DISPLAY_COMMON_CATHODE_5D_FD620:
+			case DISPLAY_COMMON_CATHODE_4D_FD620:
+			case DISPLAY_COMMON_CATHODE_5D_TM1618:
+			case DISPLAY_COMMON_CATHODE_4D_TM1618:
 			default:
-				ledCodes = LED_decode_tab1;
-				break;
-			case DISPLAY_COMMON_ANODE:
 				ledCodes = LED_decode_tab2;
+				break;
+			case DISPLAY_COMMON_CATHODE_FD628:
+				ledCodes = LED_decode_tab1;
 				break;
 		}
 	} else {
