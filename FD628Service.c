@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -20,6 +21,11 @@
 
 #define UNUSED(x)	(void*)(x)
 #define DEV_NAME	"/dev/fd628_dev"
+
+bool set_display_type(int new_display_type);
+bool is_test_mode(int argc, char *argv[]);
+int get_cmd_display_type(int argc, char *argv[]);
+bool print_usage(int argc, char *argv[]);
 
 typedef struct _DotLedBitMap {
 	uint8_t on;
@@ -43,7 +49,7 @@ static int display_type = DISPLAY_UNKNOWN;
 
 int fd628_fd;
 
-static uint8_t char_to_mask(uint8_t ch)
+uint8_t char_to_mask(uint8_t ch)
 {
 	unsigned int index = 0;
 	for (index = 0; index < LEDCODES_LEN; index++) {
@@ -55,14 +61,14 @@ static uint8_t char_to_mask(uint8_t ch)
 	return LED_MASK_VOID;
 }
 
-static void mdelay(int n)
+void mdelay(int n)
 {
 	unsigned long msec=(n);
 	while (msec--)
 		usleep(1000);
 }
 
-static void led_show_time_loop()
+void led_show_time_loop()
 {
 	unsigned short write_buffer[LED_DOT_MAX];
 	int ret = -1;
@@ -152,23 +158,26 @@ void led_test_codes()
 	}
 }
 
-static void led_test_loop()
+void led_test_loop(bool cycle_display_types)
 {
 	int current_type = DISPLAY_UNKNOWN;
 	const pid_t pid = getpid();
 	printf("Initializing...\n");
+	if (!cycle_display_types)
+		printf("Process ID = %d\n", pid);
 	while (1) {
 		int i;
 		const int len = 7;
 		unsigned short wb[7];
 		const size_t sz = sizeof(wb[0])*len;
 
-		printf("Process ID = %d\n", pid);
-		current_type = (++current_type) % DISPLAY_TYPE_MAX;
-		printf("Set display type to %d\n", current_type);
-		if (ioctl(fd628_fd, FD628_IOC_SDISPLAY_TYPE, &current_type))
-			printf("Failed.\n");
-		selectDisplayType();
+		if (cycle_display_types) {
+			printf("Process ID = %d\n", pid);
+			current_type = (++current_type) % DISPLAY_TYPE_MAX;
+			printf("Set display type to %d\n", current_type);
+			set_display_type(current_type);
+			select_display_type();
+		}
 
 		// Light up all sections and cycle
 		// through display brightness levels.
@@ -204,21 +213,21 @@ static void led_test_loop()
 	}
 }
 
-static void *display_time_thread_handler(void *arg)
+void *display_time_thread_handler(void *arg)
 {
 	UNUSED(arg);
 	led_show_time_loop();
 	pthread_exit(NULL);
 }
 
-static void *display_test_thread_handler(void *arg)
+void *display_test_thread_handler(void *arg)
 {
-	UNUSED(arg);
-	led_test_loop();
+	bool cycle_display_types = *(bool*)arg;
+	led_test_loop(cycle_display_types);
 	pthread_exit(NULL);
 }
 
-void selectDisplayType()
+void select_display_type()
 {
 	if (!ioctl(fd628_fd, FD628_IOC_GDISPLAY_TYPE, &display_type)) {
 		switch(display_type) {
@@ -241,18 +250,41 @@ void selectDisplayType()
 	}
 }
 
+bool set_display_type(int new_display_type)
+{
+	long ret = ioctl(fd628_fd, FD628_IOC_SDISPLAY_TYPE, &new_display_type);
+	if (ret) {
+		printf("Failed setting a new display type.\n");
+		if (ret == ERANGE)
+			printf("Unsupported display type. (out of range)\n");
+	}
+
+	return ret == 0;
+}
+
 int main(int argc, char *argv[])
 {
-	pthread_t disp_id,check_dev_id = 0;
 	int ret;
+	bool test_mode = false;
+	bool cycle_display_types = true;
+	pthread_t disp_id, check_dev_id = 0;
+
+	if (print_usage(argc, argv))
+		return 0;
 	fd628_fd = open(DEV_NAME, O_RDWR);
 	if (fd628_fd < 0) {
 		perror("Open device fd628_fd\n");
 		exit(1);
 	}
-	selectDisplayType();
-	if (argc >= 2 && strstr(argv[1], "-t"))
-		ret = pthread_create(&disp_id, NULL, display_test_thread_handler, NULL);
+
+	display_type = get_cmd_display_type(argc, argv);
+	if (display_type >= 0)
+		cycle_display_types = !set_display_type(display_type);
+	select_display_type();
+
+	test_mode = is_test_mode(argc, argv);
+	if (test_mode)
+		ret = pthread_create(&disp_id, NULL, display_test_thread_handler, &cycle_display_types);
 	else
 		ret = pthread_create(&disp_id, NULL, display_time_thread_handler, NULL);
 	if(ret != 0) {
@@ -263,4 +295,59 @@ int main(int argc, char *argv[])
 	pthread_join(check_dev_id, NULL);
 	close(fd628_fd);
 	return 0;
+}
+
+bool is_test_mode(int argc, char *argv[])
+{
+	bool ret = false;
+	int i;
+	for (i = 1; i < argc; i++) {
+		if (!strncmp(argv[i], "-t", 2)) {
+			ret = true;
+			break;
+		}
+	}
+
+	return ret;
+}
+
+int get_cmd_display_type(int argc, char *argv[])
+{
+	int ret = -1;
+	int i;
+	for (i = 1; i < argc; i++) {
+		if (!strncmp(argv[i], "-dt", 3)) {
+			if (argc >= (i + 2)) {
+				long temp = -1;
+				char *end;
+				temp = strtol(argv[i+1], &end, 10);
+				if (end == argv[i+1] || *end != '\0' || errno == ERANGE)
+					printf("Error parsing display type index.\n");
+				else
+					ret = (int)temp;
+			} else {
+				printf("Error parsing display type index, missing argument.\n");
+			}
+			break;
+		}
+	}
+
+	return ret;
+}
+
+bool print_usage(int argc, char *argv[])
+{
+	bool ret = false;
+	int i;
+	for (i = 1; i < argc; i++) {
+		if (!strncmp(argv[i], "-h", 2) || !strncmp(argv[i], "--help", 6)) {
+			ret = true;
+			printf("\nUsage: FD628Service [-t] [-dt INDEX] [-h]\n\n");
+			printf("\t-t\tRun FD628Service in display test mode.\n");
+			printf("\t-dt N\tSpecifies which display type to use.\n");
+			printf("\t-h\tThis text.\n\n");
+		}
+	}
+
+	return ret;
 }

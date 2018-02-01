@@ -488,7 +488,7 @@ static void applyDisplayType(struct fd628_dev *dev)
 static long fd628_dev_ioctl(struct file *filp, unsigned int cmd,
 				unsigned long arg)
 {
-	int err = 0, ret = 0;
+	int err = 0, ret = 0, temp = 0;
 	struct fd628_dev *dev;
 	__u8 val = 1, icmd = FD628_Brightness_8;
 	dev = filp->private_data;
@@ -509,8 +509,15 @@ static long fd628_dev_ioctl(struct file *filp, unsigned int cmd,
 		ret = __put_user(dev->display_type, (int __user *)arg);
 		break;
 	case FD628_IOC_SDISPLAY_TYPE:
-		ret = __get_user(dev->display_type, (int __user *)arg);
-		applyDisplayType(dev);
+		ret = __get_user(temp, (int __user *)arg);
+		if (!ret) {
+			if (temp >= 0 && temp < DISPLAY_TYPE_MAX) {
+				dev->display_type = temp;
+				applyDisplayType(dev);
+			} else {
+				ret = ERANGE;
+			}
+		}
 		break;
 	case FD628_IOC_SMODE:	/* Set: arg points to the value */
 		ret = __get_user(dev->mode, (int __user *)arg);
