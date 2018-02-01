@@ -154,7 +154,7 @@ void led_test_codes()
 
 static void led_test_loop()
 {
-	int current_type = DISPLAY_COMMON_CATHODE_FD628;
+	int current_type = DISPLAY_UNKNOWN;
 	const pid_t pid = getpid();
 	printf("Initializing...\n");
 	while (1) {
@@ -164,6 +164,7 @@ static void led_test_loop()
 		const size_t sz = sizeof(wb[0])*len;
 
 		printf("Process ID = %d\n", pid);
+		current_type = (++current_type) % DISPLAY_TYPE_MAX;
 		printf("Set display type to %d\n", current_type);
 		if (ioctl(fd628_fd, FD628_IOC_SDISPLAY_TYPE, &current_type))
 			printf("Failed.\n");
@@ -200,8 +201,6 @@ static void led_test_loop()
 			write(fd628_fd,wb,sz);
 			mdelay(1000);
 		}
-
-		current_type = (++current_type) % DISPLAY_TYPE_MAX;
 	}
 }
 
