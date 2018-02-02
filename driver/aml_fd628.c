@@ -491,6 +491,7 @@ static long fd628_dev_ioctl(struct file *filp, unsigned int cmd,
 	int err = 0, ret = 0, temp = 0;
 	struct fd628_dev *dev;
 	__u8 val = 1, icmd = FD628_Brightness_8;
+	__u8 temp_chars_order[sizeof(dev->dat_index)];
 	dev = filp->private_data;
 
 	if (_IOC_TYPE(cmd) != FD628_IOC_MAGIC)
@@ -519,11 +520,15 @@ static long fd628_dev_ioctl(struct file *filp, unsigned int cmd,
 			}
 		}
 		break;
+	case FD628_IOC_SCHARS_ORDER:
+		ret = __copy_from_user(temp_chars_order, (__u8 __user *)arg, sizeof(dev->dat_index));
+		if (!ret)
+			memcpy(dev->dat_index, temp_chars_order, sizeof(dev->dat_index));
+		break;
 	case FD628_IOC_SMODE:	/* Set: arg points to the value */
 		ret = __get_user(dev->mode, (int __user *)arg);
 		FD628_SET_DISPLAY_MODE(dev->mode, dev);
 		break;
-
 	case FD628_IOC_GMODE:	/* Get: arg is pointer to result */
 		ret = __put_user(dev->mode, (int __user *)arg);
 		break;
@@ -533,7 +538,6 @@ static long fd628_dev_ioctl(struct file *filp, unsigned int cmd,
 				 FD628_DRIVER_VERSION,
 				 sizeof(FD628_DRIVER_VERSION));
 		break;
-
 	case FD628_IOC_SBRIGHT:
 		ret = __get_user(dev->brightness, (int __user *)arg);
 		FD628_SET_BRIGHTNESS(dev->brightness, dev, FD628_DISP_ON);
@@ -556,11 +560,9 @@ static long fd628_dev_ioctl(struct file *filp, unsigned int cmd,
 			FD628_Command(icmd, dev);
 		}
 		break;
-	case FD628_IOC_STATUS_LED:{
-			// 设置状态灯的mask
-			ret = __get_user(dev->status_led_mask, (int __user *)arg);
-			break;
-		}
+	case FD628_IOC_STATUS_LED:
+		ret = __get_user(dev->status_led_mask, (int __user *)arg);
+		break;
 	default:		/* redundant, as cmd was checked against MAXNR */
 		return -ENOTTY;
 	}

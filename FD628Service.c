@@ -25,6 +25,7 @@
 bool set_display_type(int new_display_type);
 bool is_test_mode(int argc, char *argv[]);
 int get_cmd_display_type(int argc, char *argv[]);
+int get_cmd_chars_order(int argc, char *argv[], u_int8 chars[], const int sz);
 bool print_usage(int argc, char *argv[]);
 
 typedef struct _DotLedBitMap {
@@ -264,7 +265,8 @@ bool set_display_type(int new_display_type)
 
 int main(int argc, char *argv[])
 {
-	int ret;
+	u_int8 char_indexes[7];
+	int ret, char_order_count;
 	bool test_mode = false;
 	bool cycle_display_types = true;
 	pthread_t disp_id, check_dev_id = 0;
@@ -276,6 +278,11 @@ int main(int argc, char *argv[])
 		perror("Open device fd628_fd\n");
 		exit(1);
 	}
+
+	char_order_count = get_cmd_chars_order(argc, argv, char_indexes, (int)sizeof(char_indexes));
+	if (char_order_count)
+		if (ioctl(fd628_fd, FD628_IOC_SCHARS_ORDER, char_indexes))
+			printf("Error setting new character order.\n");
 
 	display_type = get_cmd_display_type(argc, argv);
 	if (display_type >= 0)
@@ -313,8 +320,7 @@ bool is_test_mode(int argc, char *argv[])
 
 int get_cmd_display_type(int argc, char *argv[])
 {
-	int ret = -1;
-	int i;
+	int ret = -1, i;
 	for (i = 1; i < argc; i++) {
 		if (!strncmp(argv[i], "-dt", 3)) {
 			if (argc >= (i + 2)) {
@@ -335,6 +341,38 @@ int get_cmd_display_type(int argc, char *argv[])
 	return ret;
 }
 
+int get_cmd_chars_order(int argc, char *argv[], u_int8 chars[], const int sz)
+{
+	int ret = 0, i, j;
+	for (i = 0; i < sz; i++)
+		chars[i] = i;
+	for (i = 1; i < argc; i++) {
+		if (!strncmp(argv[i], "-co", 3)) {
+			for (i++, j = 0; i < argc && j < sz; i++) {
+				long temp = -1;
+				char *end;
+				temp = strtol(argv[i], &end, 10);
+				if (end == argv[i] || *end != '\0' || errno == ERANGE)
+					break;
+				else
+					chars[j++] = temp;
+			}
+
+			ret = j;
+			break;
+		}
+	}
+
+	if (ret) {
+		printf("Got %d char indexes.\n", ret);
+		for (i = 0; i < ret; i++) {
+			printf("index[%d] = %d\n", i, chars[i]);
+		}
+	}
+
+	return ret;
+}
+
 bool print_usage(int argc, char *argv[])
 {
 	bool ret = false;
@@ -343,9 +381,10 @@ bool print_usage(int argc, char *argv[])
 		if (!strncmp(argv[i], "-h", 2) || !strncmp(argv[i], "--help", 6)) {
 			ret = true;
 			printf("\nUsage: FD628Service [-t] [-dt INDEX] [-h]\n\n");
-			printf("\t-t\tRun FD628Service in display test mode.\n");
-			printf("\t-dt N\tSpecifies which display type to use.\n");
-			printf("\t-h\tThis text.\n\n");
+			printf("\t-t\t\tRun FD628Service in display test mode.\n");
+			printf("\t-dt N\t\tSpecifies which display type to use.\n");
+			printf("\t-co N...\t< D HH:MM > Order of display chars.\n\t\t\t(D=dots, represented by a single char)\n");
+			printf("\t-h\t\tThis text.\n\n");
 		}
 	}
 
