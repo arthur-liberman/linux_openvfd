@@ -354,7 +354,7 @@ int get_cmd_chars_order(int argc, char *argv[], u_int8 chars[], const int sz)
 				temp = strtol(argv[i], &end, 10);
 				if (end == argv[i] || *end != '\0' || errno == ERANGE)
 					break;
-				else
+				else if (temp >= 0 && temp < sz)
 					chars[j++] = temp;
 			}
 
@@ -383,7 +383,7 @@ bool print_usage(int argc, char *argv[])
 			printf("\nUsage: FD628Service [-t] [-dt INDEX] [-h]\n\n");
 			printf("\t-t\t\tRun FD628Service in display test mode.\n");
 			printf("\t-dt N\t\tSpecifies which display type to use.\n");
-			printf("\t-co N...\t< D HH:MM > Order of display chars.\n\t\t\t(D=dots, represented by a single char)\n");
+			printf("\t-co N...\t< D HH:MM > Order of display chars.\n\t\t\tValid values are 0 - 6.\n\t\t\t(D=dots, represented by a single char)\n");
 			printf("\t-h\t\tThis text.\n\n");
 		}
 	}
