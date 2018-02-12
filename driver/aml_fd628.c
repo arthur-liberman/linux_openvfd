@@ -539,8 +539,15 @@ static long fd628_dev_ioctl(struct file *filp, unsigned int cmd,
 				 sizeof(FD628_DRIVER_VERSION));
 		break;
 	case FD628_IOC_SBRIGHT:
-		ret = __get_user(dev->brightness, (int __user *)arg);
-		FD628_SET_BRIGHTNESS(dev->brightness, dev, FD628_DISP_ON);
+		ret = __get_user(temp, (int __user *)arg);
+		if (!ret) {
+			if (temp >= FD628_Brightness_1 && temp <= FD628_Brightness_8) {
+				dev->brightness = temp;
+				FD628_SET_BRIGHTNESS(dev->brightness, dev, FD628_DISP_ON);
+			} else {
+				ret = ERANGE;
+			}
+		}
 		break;
 	case FD628_IOC_GBRIGHT:
 		ret = __put_user(dev->brightness, (int __user *)arg);
@@ -552,7 +559,6 @@ static long fd628_dev_ioctl(struct file *filp, unsigned int cmd,
 			icmd &= 0x0f;
 			icmd |= FD628_DISP_STATUE_WRCMD;
 			FD628_Command(icmd, dev);
-
 		} else {
 			icmd = FD628_DISP_OFF;
 			icmd &= 0x0f;

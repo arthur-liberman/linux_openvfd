@@ -55,8 +55,9 @@ typedef struct _led_bitmap {
 
 static const led_bitmap LED_decode_tab1[] = {
 /*
- * amlogic905的LED包含5个位，1-4位为第1-4个数码管，第5位其他的灯（5A-5G）
- * amlogic905的LED七段管顺序如下图
+ * Most displays have 5 sections, 1 - 4 are the digits,
+ * the 5th is mapped to indicators (5A-5G).
+ * The 7 segment sequences are shown below.
  *
  *  dp
  *       +--d/08--+

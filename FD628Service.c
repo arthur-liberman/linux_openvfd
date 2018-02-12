@@ -309,7 +309,7 @@ bool is_test_mode(int argc, char *argv[])
 	bool ret = false;
 	int i;
 	for (i = 1; i < argc; i++) {
-		if (!strncmp(argv[i], "-t", 2)) {
+		if (!strcmp(argv[i], "-t")) {
 			ret = true;
 			break;
 		}
@@ -322,7 +322,7 @@ int get_cmd_display_type(int argc, char *argv[])
 {
 	int ret = -1, i;
 	for (i = 1; i < argc; i++) {
-		if (!strncmp(argv[i], "-dt", 3)) {
+		if (!strcmp(argv[i], "-dt")) {
 			if (argc >= (i + 2)) {
 				long temp = -1;
 				char *end;
@@ -347,7 +347,7 @@ int get_cmd_chars_order(int argc, char *argv[], u_int8 chars[], const int sz)
 	for (i = 0; i < sz; i++)
 		chars[i] = i;
 	for (i = 1; i < argc; i++) {
-		if (!strncmp(argv[i], "-co", 3)) {
+		if (!strcmp(argv[i], "-co")) {
 			for (i++, j = 0; i < argc && j < sz; i++) {
 				long temp = -1;
 				char *end;
@@ -378,7 +378,7 @@ bool print_usage(int argc, char *argv[])
 	bool ret = false;
 	int i;
 	for (i = 1; i < argc; i++) {
-		if (!strncmp(argv[i], "-h", 2) || !strncmp(argv[i], "--help", 6)) {
+		if (!strcmp(argv[i], "-h") || !strcmp(argv[i], "--help")) {
 			ret = true;
 			printf("\nUsage: FD628Service [-t] [-dt INDEX] [-h]\n\n");
 			printf("\t-t\t\tRun FD628Service in display test mode.\n");
