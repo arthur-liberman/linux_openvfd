@@ -464,7 +464,7 @@ static ssize_t fd628_dev_write(struct file *filp, const char __user * buf,
 	return status;
 }
 
-static void applyDisplayType(struct fd628_dev *dev)
+static void apply_display_type(struct fd628_dev *dev)
 {
 	switch (dev->display_type) {
 		case DISPLAY_COMMON_CATHODE_FD628:
@@ -514,9 +514,9 @@ static long fd628_dev_ioctl(struct file *filp, unsigned int cmd,
 		if (!ret) {
 			if (temp >= 0 && temp < DISPLAY_TYPE_MAX) {
 				dev->display_type = temp;
-				applyDisplayType(dev);
+				apply_display_type(dev);
 			} else {
-				ret = ERANGE;
+				ret = -ERANGE;
 			}
 		}
 		break;
@@ -542,10 +542,10 @@ static long fd628_dev_ioctl(struct file *filp, unsigned int cmd,
 		ret = __get_user(temp, (int __user *)arg);
 		if (!ret) {
 			if (temp >= FD628_Brightness_1 && temp <= FD628_Brightness_8) {
-				dev->brightness = temp;
+				dev->brightness = (u_int8)temp;
 				FD628_SET_BRIGHTNESS(dev->brightness, dev, FD628_DISP_ON);
 			} else {
-				ret = ERANGE;
+				ret = -ERANGE;
 			}
 		}
 		break;
@@ -554,17 +554,13 @@ static long fd628_dev_ioctl(struct file *filp, unsigned int cmd,
 		break;
 	case FD628_IOC_POWER:
 		ret = __get_user(val, (int __user *)arg);
-		if (val == 1) {
-			icmd = FD628_DISP_ON;
-			icmd &= 0x0f;
-			icmd |= FD628_DISP_STATUE_WRCMD;
-			FD628_Command(icmd, dev);
-		} else {
+		if (val)
+			icmd = FD628_DISP_ON | dev->brightness;
+		else
 			icmd = FD628_DISP_OFF;
-			icmd &= 0x0f;
-			icmd |= FD628_DISP_STATUE_WRCMD;
-			FD628_Command(icmd, dev);
-		}
+		icmd &= 0x0f;
+		icmd |= FD628_DISP_STATUE_WRCMD;
+		FD628_Command(icmd, dev);
 		break;
 	case FD628_IOC_STATUS_LED:
 		ret = __get_user(dev->status_led_mask, (int __user *)arg);
@@ -642,7 +638,7 @@ static void fd628_brightness_set(struct led_classdev *cdev,
 static ssize_t led_on_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
-	return sprintf(buf, "led status is 0x%x\n", pdata->dev->status_led_mask);
+	return snprintf(buf, PAGE_SIZE, "led status is 0x%x\n", pdata->dev->status_led_mask);
 }
 
 static ssize_t led_on_store(struct device *dev,
@@ -688,35 +684,105 @@ static ssize_t led_on_store(struct device *dev,
 	return size;
 }
 
-static ssize_t led_light_show(struct device *dev,
+static int led_cmd_ioc = 0;
+
+static ssize_t led_cmd_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
-	return sprintf(buf, "%d\n", pdata->dev->brightness);
+	ssize_t ret = 0;
+	*buf = '\0';
+
+	switch(led_cmd_ioc) {
+		case FD628_IOC_GMODE:
+			ret = snprintf(buf, PAGE_SIZE, "%d", pdata->dev->mode);
+			break;
+		case FD628_IOC_GBRIGHT:
+			ret = snprintf(buf, PAGE_SIZE, "%d", pdata->dev->brightness);
+			break;
+		case FD628_IOC_GVER:
+			ret = snprintf(buf, PAGE_SIZE, "%s", FD628_DRIVER_VERSION);
+			break;
+		case FD628_IOC_GDISPLAY_TYPE:
+			ret = snprintf(buf, PAGE_SIZE, "%d", pdata->dev->display_type);
+			break;
+	}
+
+	led_cmd_ioc = 0;
+	return ret;
 }
 
-static ssize_t led_light_store(struct device *dev,
+static ssize_t led_cmd_store(struct device *_dev,
 		struct device_attribute *attr, const char *buf, size_t size)
 {
-	int ret;
-	unsigned int val;
+	struct fd628_dev *dev = pdata->dev;
+	int cmd, temp;
+	u_int8 icmd;
+	led_cmd_ioc = 0;
+	
+	if (size < 2*sizeof(int))
+		return -EFAULT;
+	memcpy(&cmd, buf, sizeof(int));
+	if (_IOC_TYPE(cmd) != FD628_IOC_MAGIC)
+		return -ENOTTY;
+	if (_IOC_NR(cmd) > FD628_IOC_MAXNR)
+		return -ENOTTY;
 
-	ret = kstrtouint(buf, 16, &val);
-	if (ret)
-		return ret;
-	if(pdata == NULL) 
-		return ret ;
-	
-	pr_info("val = %x\n", val);
-	pdata->dev->brightness = val;
-	FD628_SET_BRIGHTNESS(pdata->dev->brightness, pdata->dev, FD628_DISP_ON);
-	
+	buf += sizeof(int);
+	memcpy(&temp, buf, sizeof(int));
+	switch (cmd) {
+		case FD628_IOC_SMODE:
+			dev->mode = (u_int8)temp;
+			FD628_SET_DISPLAY_MODE(dev->mode, dev);
+			break;
+		case FD628_IOC_SBRIGHT:
+			if (temp >= FD628_Brightness_1 && temp <= FD628_Brightness_8) {
+				dev->brightness = (u_int8)temp;
+				FD628_SET_BRIGHTNESS(dev->brightness, dev, FD628_DISP_ON);
+			} else {
+				size = -ERANGE;
+			}
+			break;
+		case FD628_IOC_POWER:
+			if (temp)
+				icmd = FD628_DISP_ON | dev->brightness;
+			else
+				icmd = FD628_DISP_OFF;
+			icmd &= 0x0f;
+			icmd |= FD628_DISP_STATUE_WRCMD;
+			FD628_Command(icmd, dev);
+			break;
+		case FD628_IOC_STATUS_LED:
+			dev->status_led_mask = (u_int8)temp;
+			break;
+		case FD628_IOC_SDISPLAY_TYPE:
+			if (temp >= 0 && temp < DISPLAY_TYPE_MAX) {
+				dev->display_type = temp;
+				apply_display_type(dev);
+			} else {
+				size = -ERANGE;
+			}
+			break;
+		case FD628_IOC_SCHARS_ORDER:
+			if (size >= sizeof(dev->dat_index)+sizeof(int))
+				memcpy(dev->dat_index, buf, sizeof(dev->dat_index));
+			else
+				size = -EFAULT;
+			break;
+		case FD628_IOC_GMODE:
+		case FD628_IOC_GBRIGHT:
+		case FD628_IOC_GVER:
+		case FD628_IOC_GDISPLAY_TYPE:
+			led_cmd_ioc = cmd;
+			break;
+	}
+
 	return size;
 }
 
 static ssize_t led_off_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
-	return sprintf(buf, "led status is 0x%x\n", pdata->dev->status_led_mask);
+	return snprintf(buf, PAGE_SIZE, "led status is 0x%x\n", pdata->dev->status_led_mask);
 }
 
 static ssize_t led_off_store(struct device *dev,
@@ -764,7 +830,7 @@ static ssize_t led_off_store(struct device *dev,
 
 static DEVICE_ATTR(led_on , 0666, led_on_show , led_on_store);
 static DEVICE_ATTR(led_off , 0666, led_off_show , led_off_store);
-static DEVICE_ATTR(led_light , 0666, led_light_show , led_light_store);
+static DEVICE_ATTR(led_cmd , 0666, led_cmd_show , led_cmd_store);
 
 static void fd628_suspend(struct early_suspend *h)
 {
@@ -907,9 +973,9 @@ static int fd628_driver_probe(struct platform_device *pdev)
 
 	device_create_file(kp->cdev.dev, &dev_attr_led_on);
 	device_create_file(kp->cdev.dev, &dev_attr_led_off);
-	device_create_file(kp->cdev.dev, &dev_attr_led_light);
+	device_create_file(kp->cdev.dev, &dev_attr_led_cmd);
 	FD628_Init(pdata->dev);
-	applyDisplayType(pdata->dev);
+	apply_display_type(pdata->dev);
 #if 0
 	// TODO:初始化，boot阶段显示'boot字符'
 	// 'boot'

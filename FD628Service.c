@@ -84,6 +84,7 @@ void led_show_time_loop()
 		timenow = localtime(&now);
 		hours = timenow->tm_hour;
 
+		select_display_type();
 		write_buffer[1] = char_to_mask(hours / 10);
 		write_buffer[2] = char_to_mask(hours % 10);
 		write_buffer[3] = char_to_mask(timenow->tm_min / 10);
