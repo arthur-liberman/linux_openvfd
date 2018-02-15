@@ -60,7 +60,8 @@
 #define FD628_IOC_GDISPLAY_TYPE _IOR(FD628_IOC_MAGIC, 8, int)
 #define FD628_IOC_SDISPLAY_TYPE _IOW(FD628_IOC_MAGIC, 9, int)
 #define FD628_IOC_SCHARS_ORDER _IOW(FD628_IOC_MAGIC, 10, u_int8[7])
-#define FD628_IOC_MAXNR 11
+#define FD628_IOC_USE_DTB_CONFIG _IOW(FD628_IOC_MAGIC, 11, int)
+#define FD628_IOC_MAXNR 12
 
 #ifdef MODULE
 
@@ -69,14 +70,19 @@
 #define MOD_NAME_STB       "fd628_stb"
 #define DEV_NAME           "fd628_dev"
 
+struct fd628_dtb_config {
+	u_int8 dat_index[7];
+	u_int8 led_dots[8];
+	int display_type;
+};
+
 struct fd628_dev {
 	int clk_pin;
 	int dat_pin;
 	int stb_pin;
 	u_int16 wbuf[7];
-	u_int8 dat_index[7];
-	u_int8 led_dots[8];
-	int display_type;
+	struct fd628_dtb_config dtb_active;
+	struct fd628_dtb_config dtb_default;
 	u_int8 mode;
 	u_int8 brightness;
 	struct semaphore sem;
