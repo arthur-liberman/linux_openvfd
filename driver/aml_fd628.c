@@ -889,39 +889,39 @@ static int fd628_driver_probe(struct platform_device *pdev)
 	}
 
 	clk_desc = of_get_named_gpiod_flags(pdev->dev.of_node,
-					    "fd628_gpio_clk", 0, NULL);
+					    MOD_NAME_CLK, 0, NULL);
 	pdata->dev->clk_pin = desc_to_gpio(clk_desc);
 	ret = gpio_request(pdata->dev->clk_pin, DEV_NAME);
 	if (ret) {
-		pr_error("can't request gpio of fd628_clk");
+		pr_error("can't request gpio of %s", MOD_NAME_CLK);
 		goto get_param_mem_fail;
 	}
 
 	dat_desc = of_get_named_gpiod_flags(pdev->dev.of_node,
-					    "fd628_gpio_dat", 0, NULL);
+					    MOD_NAME_DAT, 0, NULL);
 	pdata->dev->dat_pin = desc_to_gpio(dat_desc);
 	ret = gpio_request(pdata->dev->dat_pin, DEV_NAME);
 	if (ret) {
-		pr_error("can't request gpio of fd628_dat");
+		pr_error("can't request gpio of %s", MOD_NAME_DAT);
 		goto get_param_mem_fail;
 	}
 
 	stb_desc = of_get_named_gpiod_flags(pdev->dev.of_node,
-					    "fd628_gpio_stb", 0, NULL);
+					    MOD_NAME_STB, 0, NULL);
 	pdata->dev->stb_pin = desc_to_gpio(stb_desc);
 	ret = gpio_request(pdata->dev->stb_pin, DEV_NAME);
 	if (ret) {
-		pr_error("can't request gpio of fd628_stb");
+		pr_error("can't request gpio of %s", MOD_NAME_STB);
 		goto get_param_mem_fail;
 	}
 
-	chars_prop = of_find_property(pdev->dev.of_node, "fd628_chars", NULL);
+	chars_prop = of_find_property(pdev->dev.of_node, MOD_NAME_CHARS, NULL);
 	if (!chars_prop || !chars_prop->value) {
-		pr_error("can't find fd628_chars list, falling back to defaults.");
+		pr_error("can't find %s list, falling back to defaults.", MOD_NAME_CHARS);
 		chars_prop = NULL;
 	}
 	else if (chars_prop->length < 5) {
-		pr_error("fd628_chars list is too short, falling back to defaults.");
+		pr_error("%s list is too short, falling back to defaults.", MOD_NAME_CHARS);
 		chars_prop = NULL;
 	}
 
@@ -938,13 +938,13 @@ static int fd628_driver_probe(struct platform_device *pdev)
 		}
 	}
 
-	dot_bits_prop = of_find_property(pdev->dev.of_node, "fd628_dot_bits", NULL);
+	dot_bits_prop = of_find_property(pdev->dev.of_node, MOD_NAME_DOTS, NULL);
 	if (!dot_bits_prop || !dot_bits_prop->value) {
-		pr_error("can't find fd628_dot_bits list, falling back to defaults.");
+		pr_error("can't find %s list, falling back to defaults.", MOD_NAME_DOTS);
 		dot_bits_prop = NULL;
 	}
 	else if (dot_bits_prop->length < LED_DOT_MAX) {
-		pr_error("fd628_dot_bits list is too short, falling back to defaults.");
+		pr_error("%s list is too short, falling back to defaults.", MOD_NAME_DOTS);
 		dot_bits_prop = NULL;
 	}
 
@@ -961,9 +961,9 @@ static int fd628_driver_probe(struct platform_device *pdev)
 	}
 
 	pdata->dev->dtb_active.display_type = DISPLAY_UNKNOWN;
-	display_type_prop = of_find_property(pdev->dev.of_node, "fd628_display_type", NULL);
+	display_type_prop = of_find_property(pdev->dev.of_node, MOD_NAME_TYPE, NULL);
 	if (display_type_prop && display_type_prop->value)
-		of_property_read_u32(pdev->dev.of_node, "fd628_display_type", &pdata->dev->dtb_active.display_type);
+		of_property_read_u32(pdev->dev.of_node, MOD_NAME_TYPE, &pdata->dev->dtb_active.display_type);
 	pr_dbg2("display_type = %d\n", pdata->dev->dtb_active.display_type);
 
 	pdata->dev->dtb_default = pdata->dev->dtb_active;

@@ -65,9 +65,12 @@
 
 #ifdef MODULE
 
-#define MOD_NAME_CLK       "fd628"
-#define MOD_NAME_DAT       "fd628_dat"
-#define MOD_NAME_STB       "fd628_stb"
+#define MOD_NAME_CLK       "fd628_gpio_clk"
+#define MOD_NAME_DAT       "fd628_gpio_dat"
+#define MOD_NAME_STB       "fd628_gpio_stb"
+#define MOD_NAME_CHARS     "fd628_chars"
+#define MOD_NAME_DOTS      "fd628_dot_bits"
+#define MOD_NAME_TYPE      "fd628_display_type"
 #define DEV_NAME           "fd628_dev"
 
 struct fd628_dtb_config {
