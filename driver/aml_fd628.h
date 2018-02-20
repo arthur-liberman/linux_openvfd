@@ -77,9 +77,9 @@
 
 struct fd628_display {
 	u_int8 type;
-	u_int8 controller;
-	u_int8 flags;
 	u_int8 reserved;
+	u_int8 flags;
+	u_int8 controller;
 };
 
 #ifdef MODULE
