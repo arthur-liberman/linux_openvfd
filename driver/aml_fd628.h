@@ -73,10 +73,21 @@
 #define MOD_NAME_TYPE      "fd628_display_type"
 #define DEV_NAME           "fd628_dev"
 
+#endif
+
+struct fd628_display {
+	u_int8 type;
+	u_int8 controller;
+	u_int8 flags;
+	u_int8 reserved;
+};
+
+#ifdef MODULE
+
 struct fd628_dtb_config {
 	u_int8 dat_index[7];
 	u_int8 led_dots[8];
-	int display_type;
+	struct fd628_display display;
 };
 
 struct fd628_dev {
@@ -111,6 +122,70 @@ struct fd628_platform_data {
 #else
 #define FD628_Drive_EXT extern
 #endif
+
+enum {
+	CONTROLLER_FD628,
+	CONTROLLER_FD620,
+	CONTROLLER_TM1618,
+	CONTROLLER_MAX
+};
+
+enum {
+	DISPLAY_TYPE_5D_7S_NORMAL,
+	DISPLAY_TYPE_5D_7S_T95,
+	DISPLAY_TYPE_5D_7S_X92,
+	DISPLAY_TYPE_5D_7S_ABOX,
+	DISPLAY_TYPE_MAX,
+};
+
+#define DISPLAY_FLAG_TRANSPOSED	0x01
+#define DISPLAY_FLAG_TRANSPOSED_INT	0x00010000
+
+enum {
+	LED_DOT1_ALARM,
+	LED_DOT1_USB,
+	LED_DOT1_PLAY,
+	LED_DOT1_PAUSE,
+	LED_DOT1_SEC,
+	LED_DOT1_ETH,
+	LED_DOT1_WIFI,
+	LED_DOT1_MAX
+};
+
+enum {
+	LED_DOT2_APPS,
+	LED_DOT2_SETUP,
+	LED_DOT2_USB,
+	LED_DOT2_CARD,
+	LED_DOT2_SEC,
+	LED_DOT2_HDMI,
+	LED_DOT2_CVBS,
+	LED_DOT2_MAX
+};
+
+enum {
+	LED_DOT3_UNUSED1,
+	LED_DOT3_UNUSED2,
+	LED_DOT3_POWER,
+	LED_DOT3_LAN,
+	LED_DOT3_SEC,
+	LED_DOT3_WIFIHI,
+	LED_DOT3_WIFILO,
+	LED_DOT3_MAX
+};
+
+#define LED_DOT_SEC	LED_DOT1_SEC
+#define LED_DOT_MAX	LED_DOT1_MAX
+
+static const u_int8 ledDots[LED_DOT1_MAX] = {
+	0x01,
+	0x02,
+	0x04,
+	0x08,
+	0x10,
+	0x20,
+	0x40
+};
 
 #define KEYBOARD_SCAN_FRE	2
 #define KEYBOARD_MARK		0x00

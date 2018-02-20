@@ -46,7 +46,7 @@ static DotLedBitMap dotLeds[LED_DOT_MAX] = {
 
 #define LEDCODES_LEN	(sizeof(LED_decode_tab1)/sizeof(LED_decode_tab1[0]))
 static const led_bitmap *ledCodes = LED_decode_tab1;
-static int display_type = DISPLAY_UNKNOWN;
+static struct fd628_display display_type;
 
 int fd628_fd;
 
@@ -162,7 +162,8 @@ void led_test_codes()
 
 void led_test_loop(bool cycle_display_types)
 {
-	int current_type = DISPLAY_UNKNOWN;
+	int current_type = DISPLAY_TYPE_5D_7S_NORMAL;
+	int transposed = 0;
 	const pid_t pid = getpid();
 	printf("Initializing...\n");
 	if (!cycle_display_types)
@@ -176,8 +177,10 @@ void led_test_loop(bool cycle_display_types)
 		if (cycle_display_types) {
 			printf("Process ID = %d\n", pid);
 			current_type = (++current_type) % DISPLAY_TYPE_MAX;
-			printf("Set display type to %d\n", current_type);
-			set_display_type(current_type);
+			if (!current_type)
+				transposed = (~transposed & DISPLAY_FLAG_TRANSPOSED_INT);
+			printf("Set display type to 0x%08X\n", current_type | transposed);
+			set_display_type(current_type | transposed);
 			select_display_type();
 		}
 
@@ -232,22 +235,16 @@ void *display_test_thread_handler(void *arg)
 void select_display_type()
 {
 	if (!ioctl(fd628_fd, FD628_IOC_GDISPLAY_TYPE, &display_type)) {
-		switch(display_type) {
-			case DISPLAY_UNKNOWN:
-			case DISPLAY_COMMON_ANODE_FD628:
-			case DISPLAY_COMMON_CATHODE_5D_FD620:
-			case DISPLAY_COMMON_CATHODE_4D_FD620:
-			case DISPLAY_COMMON_CATHODE_5D_TM1618:
-			case DISPLAY_COMMON_CATHODE_4D_TM1618:
+		switch(display_type.type) {
+			case DISPLAY_TYPE_5D_7S_T95:
+				ledCodes = LED_decode_tab1;
+				break;
 			default:
 				ledCodes = LED_decode_tab2;
 				break;
-			case DISPLAY_COMMON_CATHODE_FD628:
-				ledCodes = LED_decode_tab1;
-				break;
 		}
 	} else {
-		display_type = DISPLAY_UNKNOWN;
+		memset(&display_type, 0, sizeof(display_type));
 		perror("Failed to read display type, using default.");
 	}
 }
@@ -267,7 +264,7 @@ bool set_display_type(int new_display_type)
 int main(int argc, char *argv[])
 {
 	u_int8 char_indexes[7];
-	int ret, char_order_count;
+	int ret, type, char_order_count;
 	bool test_mode = false;
 	bool cycle_display_types = true;
 	pthread_t disp_id, check_dev_id = 0;
@@ -285,9 +282,9 @@ int main(int argc, char *argv[])
 		if (ioctl(fd628_fd, FD628_IOC_SCHARS_ORDER, char_indexes))
 			printf("Error setting new character order.\n");
 
-	display_type = get_cmd_display_type(argc, argv);
-	if (display_type >= 0)
-		cycle_display_types = !set_display_type(display_type);
+	type = get_cmd_display_type(argc, argv);
+	if (type >= 0)
+		cycle_display_types = !set_display_type(type);
 	select_display_type();
 
 	test_mode = is_test_mode(argc, argv);
@@ -326,9 +323,10 @@ int get_cmd_display_type(int argc, char *argv[])
 		if (!strcmp(argv[i], "-dt")) {
 			if (argc >= (i + 2)) {
 				long temp = -1;
-				char *end;
-				temp = strtol(argv[i+1], &end, 10);
-				if (end == argv[i+1] || *end != '\0' || errno == ERANGE)
+				char *start, *end;
+				start = !strncmp(argv[i+1], "0x", 2) ? argv[i+1] + 2 : argv[i+1];
+				temp = strtol(start, &end, 0x10);
+				if (end == start || *end != '\0' || errno == ERANGE)
 					printf("Error parsing display type index.\n");
 				else
 					ret = (int)temp;
@@ -381,7 +379,7 @@ bool print_usage(int argc, char *argv[])
 	for (i = 1; i < argc; i++) {
 		if (!strcmp(argv[i], "-h") || !strcmp(argv[i], "--help")) {
 			ret = true;
-			printf("\nUsage: FD628Service [-t] [-dt INDEX] [-h]\n\n");
+			printf("\nUsage: FD628Service [-t] [-dt TYPE] [-h]\n\n");
 			printf("\t-t\t\tRun FD628Service in display test mode.\n");
 			printf("\t-dt N\t\tSpecifies which display type to use.\n");
 			printf("\t-co N...\t< D HH:MM > Order of display chars.\n\t\t\tValid values are 0 - 6.\n\t\t\t(D=dots, represented by a single char)\n");
