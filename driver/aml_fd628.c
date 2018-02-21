@@ -48,7 +48,6 @@
 #include <linux/amlogic/aml_gpio_consumer.h>
 #include <linux/of_gpio.h>
 #include <linux/amlogic/iomap.h>
-//#include <linux/input/vfd.h>
 
 #include "aml_fd628.h"
 
@@ -56,7 +55,6 @@
 #include <linux/earlysuspend.h>
 static struct early_suspend fd628_early_suspend;
 #endif
-
 
 static struct fd628_platform_data *pdata = NULL;
 struct kp {
@@ -66,106 +64,86 @@ struct kp {
 static struct kp *kp;
 
 /****************************************************************
- *	函数的名称:			FD628_Start
- *	描述:				FD628通信的起始准备
- *	参数：				void
- *	返回值:				void
+ *	Function Name:		FD628_Start
+ *	Description:		FD628 Communication start
+ *	Parameters:		void
+ *	Return value:		void
 ****************************************************************/
 static void FD628_Start(struct fd628_dev *dev)
 {
-	//FD628_STB_CLR;                                  /* 设置STB为低电平 */
-	gpio_direction_output(dev->stb_pin, 0);
-	//FD628_STB_D_OUT;                                /* 设置STB为输出方向 */
-	//FD628_CLK_D_OUT;                                /* 设置CLK为输出方向 */
+	gpio_direction_output(dev->stb_pin, 0);		/* Set STB low */
 	FD628_DELAY_STB;
 }
 
 /****************************************************************
- *	函数的名称:			FD628_Stop
- *	描述:				FD628通信的结束准备
- *	参数：				void
- *	返回值:				void
+ *	Function Name:		FD628_Stop
+ *	Description:		FD628 Communication end
+ *	Parameters:		void
+ *	Return value:		void
 ****************************************************************/
 static void FD628_Stop(struct fd628_dev *dev)
 {
-	//FD628_CLK_SET;				/* 设置CLK为高电平 */
-	gpio_direction_output(dev->clk_pin, 1);
+	gpio_direction_output(dev->clk_pin, 1);		/* Set CLK high */
 	FD628_DELAY_STB;
-	//FD628_STB_SET;				/* 设置STB为高电平 */
-	gpio_direction_output(dev->stb_pin, 1);
-	//FD628_DIO_SET;				/* 设置DIO为高电平 */
-	gpio_direction_output(dev->dat_pin, 1);
-	//FD628_DIO_D_IN;				/* 设置DIO为输入方向 */
-	gpio_direction_input(dev->dat_pin);
-	FD628_DELAY_BUF;				/* 通信结束到下一次通信开始的间隔 */
+	gpio_direction_output(dev->stb_pin, 1);		/* Set STB high */
+	gpio_direction_output(dev->dat_pin, 1);		/* Set DIO high */
+	gpio_direction_input(dev->dat_pin);		/* Set DIO as input */
+	FD628_DELAY_BUF;				/* Interval between the end of the communication and the start of the next communication */
 }
 
 /****************************************************************
- *	函数的名称:			FD628_WrByte
- *	描述:				向FD628写入一个字节的数据
- *	参数：				INT8U  发送的数据
- *	返回值:				void
- *	注意:				数据从低位到高位传输
+ *	Function Name:		FD628_WrByte
+ *	Description:		Write one byte of data to FD628
+ *	Parameters:		INT8U data to be written
+ *	Return value:		void
+ *	Note:			Data is transmitted on clock rise
 ****************************************************************/
 static void FD628_WrByte(u_int8 dat, struct fd628_dev *dev)
 {
-	u_int8 i;						/* 移位控制变量 */
-	//FD628_DIO_D_OUT;                                	/* 设置DIO为输出方向 */
-	for (i = 0; i != 8; i++) {				/* 输出8 bit的数据 */
-		//FD628_CLK_CLR;				/* 设置CLK为低电平 */
-		gpio_direction_output(dev->clk_pin, 0);
-		if (dat & 0x01) {				/* 数据从低位到高位输出 */
-			//FD628_DIO_SET;			/* 设置DIO为高电平 */
-			gpio_direction_output(dev->dat_pin, 1);
-
+	u_int8 i;
+	for (i = 0; i != 8; i++) {				/* Shift out 8 bits */
+		gpio_direction_output(dev->clk_pin, 0);		/* Set CLK low */
+		if (dat & 0x01) {				/* Write 1 or 0 */
+			gpio_direction_output(dev->dat_pin, 1);	/* Set DIO high */
 		} else {
-			//FD628_DIO_CLR;			/* 设置DIO为低电平 */
-			gpio_direction_output(dev->dat_pin, 0);
+			gpio_direction_output(dev->dat_pin, 0);	/* Set DIO low */
 		}
-		FD628_DELAY_LOW;				/* 时钟低电平时间 */
-		//FD628_CLK_SET;
-		//设置SCL为高电平 上升沿写入
-		gpio_direction_output(dev->clk_pin, 1);
-		dat >>= 1;					/* 输出数据右移一位，数据从低到高的输出 */
-		FD628_DELAY_HIGH;				/* 时钟高电平时间 */
+		FD628_DELAY_LOW;				/* Clock low delay */
+		gpio_direction_output(dev->clk_pin, 1);		/* Set CLK high, write on clock rise */
+		dat >>= 1;					/* Shift right, select next bit */
+		FD628_DELAY_HIGH;				/* Clock high delay */
 	}
 }
 
 /****************************************************************
- *	函数的名称:			FD628_RdByte
- *	描述:				从FD628读一个字节的数据
- *	参数：				void
- *	返回值:				INT8U 读到的数据
- *	注意:				数据从低位到高位传输
+ *	Function Name:		FD628_RdByte
+ *	Description:		Read one byte of data from FD628
+ *	Parameters:		void
+ *	Return value:		INT8U Data read
+ *	Note:			Data is transmitted on clock fall
 ****************************************************************/
 static u_int8 FD628_RdByte(struct fd628_dev *dev)
 {
-	u_int8 i, dat = 0;					/* 移位控制变量i;读取数据暂存变量dat */
-	//FD628_DIO_SET;					/* 设置DIO为高电平 */
-	gpio_direction_output(dev->dat_pin, 1);
-	//FD628_DIO_D_IN;					/* 设置DIO为输出方向 */
-	gpio_direction_input(dev->dat_pin);
-	for (i = 0; i != 8; i++) {				/* 输出8 bit的数据 */
-		//FD628_CLK_CLR;				/* 设置CLK为低电平 */
-		gpio_direction_output(dev->clk_pin, 0);
-		FD628_DELAY_LOW;				/* 时钟低电平时间 */
-		dat >>= 1;					/* 读入数据右移一位，数据从低到高的读入 */
-		//if( FD628_DIO_IN ) dat|=0X80;			/* 读入1 bit值 */
+	u_int8 i, dat = 0;
+	gpio_direction_output(dev->dat_pin, 1);			/* Set DIO high */
+	gpio_direction_input(dev->dat_pin);			/* Set DIO as input */
+	for (i = 0; i != 8; i++) {				/* Shift in 8 bits */
+		gpio_direction_output(dev->clk_pin, 0);		/* Set CLK low */
+		FD628_DELAY_LOW;				/* Clock low delay */
+		dat >>= 1;					/* Shift right existing data */
 		if (gpio_get_value(dev->dat_pin))
-			dat |= 0X80;				/* 读入1 bit值 */
-		//FD628_CLK_SET;				/* 设置CLK为高电平 */
-		gpio_direction_output(dev->clk_pin, 1);
-		FD628_DELAY_HIGH;				/* 时钟高电平时间 */
+			dat |= 0X80;				/* Read '1' bit */
+		gpio_direction_output(dev->clk_pin, 1);		/* Set CLK high */
+		FD628_DELAY_HIGH;				/* Clock high delay */
 	}
-	return dat;						/* 返回接收到的数据 */
+	return dat;						/* Return received data */
 }
 
-/****************************************FD628操作函数*********************************************/
 /****************************************************************
- *	函数的名称:				FD628_Command
- *	描述:					发送控制命令
- *	参数:					INT8U 控制命令
- *	返回值:					void
+ *	Function Name:		FD628_Command
+ *	Description:		Send control command
+ *	Parameters:		INT8U control command
+ *	Return value:		void
 ****************************************************************/
 static void FD628_Command(u_int8 cmd, struct fd628_dev *dev)
 {
@@ -175,13 +153,13 @@ static void FD628_Command(u_int8 cmd, struct fd628_dev *dev)
 }
 
 /****************************************************************
- *	函数的名称:				FD628_GetKey
- *	描述:					读按键码值
- *	参数:					void
- *	返回值:					INT32U 返回按键值
+ *	Function Name:		FD628_GetKey
+ *	Description:		Read key code value
+ *	Parameters:		void
+ *	Return value:		INT32U returns the key value
  **************************************************************************************************************************************
-返回的按键值编码
-				| 0			| 0			| 0			| 0			| 0			| 0			| KS10	| KS9		| KS8		| KS7		| KS6		| KS5		| KS4		| KS3		| KS2		| KS1		|
+Key value encoding
+	| 0	| 0	| 0	| 0	| 0	| 0	| KS10	| KS9	| KS8	| KS7	| KS6	| KS5	| KS4	| KS3	| KS2	| KS1	|
 KEYI1 	| bit15	| bit14	| bit13	| bit12	| bit11	| bit10	| bit9	| bit8	| bit7	| bit6	| bit5	| bit4	| bit3	| bit2	| bit1	| bit0	|
 KEYI2 	| bit31	| bit30	| bit29	| bit28	| bit27	| bit26	| bit25	| bit24	| bit23	| bit22	| bit21	| bit20	| bit19	| bit18	| bit17	| bit16	|
 ***************************************************************************************************************************************/
@@ -192,7 +170,7 @@ static u_int32 FD628_GetKey(struct fd628_dev *dev)
 	FD628_Start(dev);
 	FD628_WrByte(FD628_KEY_RDCMD, dev);
 	for (i = 0; i != 5; i++) {
-		KeyDataTemp = FD628_RdByte(dev);		/*将5字节的按键码值转化成2字节的码值 */
+		KeyDataTemp = FD628_RdByte(dev);	/* Pack 5 bytes of key code values into 2 words */
 		if (KeyDataTemp & 0x01)
 			FD628_KeyData |= (0x00000001 << i * 2);
 		if (KeyDataTemp & 0x02)
@@ -207,12 +185,12 @@ static u_int32 FD628_GetKey(struct fd628_dev *dev)
 }
 
 /****************************************************************
- *	函数的名称:				FD628_WrDisp_AddrINC
- *	描述:					以地址递增模式发送显示内容
- *	参数:					INT8U Addr发送显示内容的起始地址；具体地址和显示对应的表格见datasheet
- *						INT8U DataLen 发送显示内容的位数
- *	返回值:					BOOLEAN；如果地址超出将返回1；如果执行成功返回0。
- *	使用方法：				先将数据写入FD628_DispData[]的相应位置，再调用FD628_WrDisp_AddrINC（）函数。
+ *	Function Name:		FD628_WrDisp_AddrINC
+ *	Description:		Write to display in address increment mode
+ *	Parameters:		INT8U Addr - Start address in FD628 RAM; See address table in controller datasheet.
+ *				INT8U DataLen - Length of data to be written in bytes.
+ *	Return value:		BOOLEAN; Returns 0 if successful; Returns 1 if data will not fit in RAM at a given address.
+ *	Usage:			First, write data into the buffer (dev->wbuf), afterwards call FD628_WrDisp_AddrINC() function.
 ****************************************************************/
 static int FD628_WrDisp_AddrINC(u_int8 Addr, u_int8 DataLen,
 				struct fd628_dev *dev)
@@ -240,14 +218,15 @@ static int FD628_WrDisp_AddrINC(u_int8 Addr, u_int8 DataLen,
 }
 
 /****************************************************************
- *	函数的名称:	FD628_SET_DISPLAY_MODE
- *	描述:		FD628设置显示模式
- *	参数:		cmd
-				FD628_4DIG_CMD		0x00
-				FD628_5DIG_CMD		0x01
-				FD628_6DIG_CMD		0x02
-				FD628_7DIG_CMD		0x03
- *	返回值:		void
+ *	Function Name:		FD628_SET_DISPLAY_MODE
+ *	Description:		Sets display mode
+ *	Parameters:		cmd
+					FD628_4DIG_CMD		0x00	4 digits
+					FD628_5DIG_CMD		0x01	5 digits
+					FD628_6DIG_CMD		0x02	6 digits
+					FD628_7DIG_CMD		0x03	7 digits
+					Segment count is controller dependent
+ *	Return value:		void
 ****************************************************************/
 static void FD628_SET_DISPLAY_MODE(u_int8 cmd, struct fd628_dev *dev)
 {
@@ -255,22 +234,22 @@ static void FD628_SET_DISPLAY_MODE(u_int8 cmd, struct fd628_dev *dev)
 }
 
 /****************************************************************
- *	函数的名称: 		FD628_SET_BRIGHTNESS
- *	描述:			FD628设置显示亮度
- *	参数:
+ *	Function Name: 		FD628_SET_BRIGHTNESS
+ *	Description:		Set display brightness
+ *	Parameters:
 cmd:
-	FD628_Brightness_1	0x00
-	FD628_Brightness_2	0x01
-	FD628_Brightness_3	0x02
-	FD628_Brightness_4	0x03
-	FD628_Brightness_5	0x04
-	FD628_Brightness_6	0x05
-	FD628_Brightness_7	0x06
-	FD628_Brightness_8	0x07	显示亮度等级为8
+	FD628_Brightness_1	0x00	 1/16 pulse width
+	FD628_Brightness_2	0x01	 2/16 pulse width
+	FD628_Brightness_3	0x02	 4/16 pulse width
+	FD628_Brightness_4	0x03	10/16 pulse width
+	FD628_Brightness_5	0x04	11/16 pulse width
+	FD628_Brightness_6	0x05	12/16 pulse width
+	FD628_Brightness_7	0x06	13/16 pulse width
+	FD628_Brightness_8	0x07	14/16 pulse width
 status:
-	FD628_DISP_ON		打开显示
-	FD628_DISP_OFF		关闭显示
- *	返回值:			void
+	FD628_DISP_ON		Turn display on
+	FD628_DISP_OFF		Turn display off
+ *	Return value:		void
 ****************************************************************/
 static void FD628_SET_BRIGHTNESS(u_int8 cmd, struct fd628_dev *dev,
 				 u_int8 status)
@@ -282,25 +261,18 @@ static void FD628_SET_BRIGHTNESS(u_int8 cmd, struct fd628_dev *dev,
 }
 
 /****************************************************************
- *	函数的名称:		FD628_Init
- *	描述:			FD628初始化，用户可以根据需要修改显示
- *	参数:			void
- *	返回值:			void
+ *	Function Name:		FD628_Init
+ *	Description:		FD628 initialization sequence
+ *	Parameters:		void
+ *	Return value:		void
 ****************************************************************/
 static void FD628_Init(struct fd628_dev *dev)
 {
-	/* 设置CLK为高电平 */
-	gpio_direction_output(dev->clk_pin, 1);
-	/* 设置STB为高电平 */
-	gpio_direction_output(dev->stb_pin, 1);
-	/* 设置DIO为高电平 */
-	gpio_direction_output(dev->dat_pin, 1);
-	/* 设置STB为输出方向 */
-	/* 设置CLK为输出方向 */
-	/* 设置DIO为输入方向 */
-	gpio_direction_input(dev->dat_pin);
-	/* 通信结束到下一次通信开始的间隔 */
-	FD628_DELAY_BUF;
+	gpio_direction_output(dev->clk_pin, 1);	/* Set CLK high */
+	gpio_direction_output(dev->stb_pin, 1);	/* Set STB high */
+	gpio_direction_output(dev->dat_pin, 1);	/* Set DIO high */
+	gpio_direction_input(dev->dat_pin);	/* Set DIO as input */
+	FD628_DELAY_BUF;			/* The interval between the end of the communication and the start of the next communication */
 }
 
 static int fd628_dev_open(struct inode *inode, struct file *file)
@@ -352,8 +324,10 @@ static ssize_t fd628_dev_read(struct file *filp, char __user * buf,
 		return ret;
 }
 
-// Source for the transpose algorithm:
-// http://www.hackersdelight.org/hdcodetxt/transpose8.c.txt
+/**
+ * Source for the transpose algorithm:
+   http://www.hackersdelight.org/hdcodetxt/transpose8.c.txt
+ */
 static void transpose8rS64(unsigned char* A, unsigned char* B) {
 	unsigned long long x = 0, t;
 	int i;
@@ -372,9 +346,9 @@ static void transpose8rS64(unsigned char* A, unsigned char* B) {
 }
 
 /**
- * @param buf:传入LED码
- * 		  [3-0]代表右往左LED1234灯显示的7段管掩码
- * 		  [4]  代表wifi灯、eth灯、usb灯、闹钟灯、play、pause灯等6个灯的掩码
+ * @param buf: Incoming LED codes.
+ * 		  [0]	Display indicators mask (wifi, eth, usb, etc.)
+ * 		  [1-4]	7 segment characters, to be displayed left to right.
  * @return
  */
 static ssize_t fd628_dev_write(struct file *filp, const char __user * buf,
@@ -635,11 +609,6 @@ static void fd628_brightness_set(struct led_classdev *cdev,
 
 	if(pdata == NULL) 
 		return;
-	//pdata->dev->brightness = brightness;
-	//FD628_SET_BRIGHTNESS(pdata->dev->brightness, pdata->dev, FD628_DISP_ON);
-	//pdata->dev->wbuf[4] = brightness;
-	//采用递增模式写入显示数据
-	//FD628_WrDisp_AddrINC(0x00, 2*5, pdata->dev);
 }
 
 static int led_cmd_ioc = 0;
@@ -1007,7 +976,7 @@ static int fd628_driver_probe(struct platform_device *pdev)
 	memcpy(&ret, &pdata->dev->dtb_active.display, sizeof(int));
 	set_display_type(pdata->dev, ret);
 #if 0
-	// TODO:初始化，boot阶段显示'boot字符'
+	// TODO: Display 'boot' during POST/boot.
 	// 'boot'
 	//  1 1 0  0 1 1 1  b => 0x7C
 	//  1 1 0  0 0 1 1  o => 0x5C
@@ -1021,7 +990,7 @@ static int fd628_driver_probe(struct platform_device *pdev)
 	for (i = 0; i < 5; i++) {
 		pdata->dev->wbuf[pdata->dev->dtb_active.dat_index[i]] = data[i];
 	}
-	//采用递增模式写入显示数据
+	// Write data in incremental mode
 	FD628_WrDisp_AddrINC(0x00, 2*5, pdata->dev);
 #endif
 
@@ -1119,6 +1088,6 @@ static void __exit fd628_driver_exit(void)
 module_init(fd628_driver_init);
 module_exit(fd628_driver_exit);
 
-MODULE_AUTHOR("chenmy");
+MODULE_AUTHOR("Arthur L., chenmy");
 MODULE_DESCRIPTION("fd628 Driver");
 MODULE_LICENSE("GPL");
