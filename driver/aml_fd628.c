@@ -391,6 +391,12 @@ static ssize_t fd628_dev_write(struct file *filp, const char __user * buf,
 			for (i = 0; i < count; i++)
 				dev->wbuf[dtb->dat_index[i]] = data[i];
 			break;
+		case DISPLAY_TYPE_FD620_REF:
+			for (i = 0; i < count; i++)
+				dev->wbuf[dtb->dat_index[i]] = data[i];
+			if (data[0] & dtb->led_dots[LED_DOT_SEC])
+				dev->wbuf[2] |= 0x80;				// Digit 3 DP is the column.
+			break;
 		}
 
 		if (dtb->display.flags & DISPLAY_FLAG_TRANSPOSED) {
@@ -452,18 +458,28 @@ static int set_display_brightness(struct fd628_dev *dev, u_int8 new_brightness)
 static int set_display_type(struct fd628_dev *dev, int new_display_type)
 {
 	int ret = 0;
-	struct fd628_display temp;
-	memcpy(&temp, &new_display_type, sizeof(struct fd628_display));
-	if (temp.type < DISPLAY_TYPE_MAX && temp.controller < CONTROLLER_MAX) {
-		dev->dtb_active.display = temp;
-		switch (dev->dtb_active.display.controller) {
+	struct fd628_display display;
+	memcpy(&display, &new_display_type, sizeof(struct fd628_display));
+	if (display.type < DISPLAY_TYPE_MAX && display.controller < CONTROLLER_MAX) {
+		dev->dtb_active.display = display;
+		switch (display.controller) {
 			case CONTROLLER_FD628:
 			default:
-				FD628_SET_DISPLAY_MODE(FD628_7DIG_CMD, dev);
+				if (display.flags & DISPLAY_FLAG_TRANSPOSED)
+					FD628_SET_DISPLAY_MODE(FD628_7DIG_CMD, dev);
+				else
+					FD628_SET_DISPLAY_MODE(FD628_5DIG_CMD, dev);
 				break;
 			case CONTROLLER_FD620:
 			case CONTROLLER_TM1618:
-				FD628_SET_DISPLAY_MODE(FD628_5DIG_CMD, dev);
+				switch (display.type) {
+				case DISPLAY_TYPE_FD620_REF:
+					FD628_SET_DISPLAY_MODE(FD628_4DIG_CMD, dev);
+					break;
+				default:
+					FD628_SET_DISPLAY_MODE(FD628_5DIG_CMD, dev);
+					break;
+				}
 				break;
 		}
 		FD628_SET_BRIGHTNESS(dev->brightness, dev, FD628_DISP_ON);

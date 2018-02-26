@@ -114,12 +114,6 @@ struct fd628_platform_data {
 
 #endif
 
-#ifdef  FD628_Drive_GLOBALS
-#define FD628_Drive_EXT
-#else
-#define FD628_Drive_EXT extern
-#endif
-
 enum {
 	CONTROLLER_FD628,
 	CONTROLLER_FD620,
@@ -129,9 +123,10 @@ enum {
 
 enum {
 	DISPLAY_TYPE_5D_7S_NORMAL,
-	DISPLAY_TYPE_5D_7S_T95,
+	DISPLAY_TYPE_5D_7S_T95,		// T95K is different.
 	DISPLAY_TYPE_5D_7S_X92,
 	DISPLAY_TYPE_5D_7S_ABOX,
+	DISPLAY_TYPE_FD620_REF,
 	DISPLAY_TYPE_MAX,
 };
 
@@ -174,7 +169,7 @@ enum {
 #define LED_DOT_SEC	LED_DOT1_SEC
 #define LED_DOT_MAX	LED_DOT1_MAX
 
-static const u_int8 ledDots[LED_DOT1_MAX] = {
+static const u_int8 ledDots[LED_DOT_MAX] = {
 	0x01,
 	0x02,
 	0x04,
