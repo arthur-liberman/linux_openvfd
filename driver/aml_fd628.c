@@ -374,7 +374,7 @@ static ssize_t fd628_dev_write(struct file *filp, const char __user * buf,
 	memset(dev->wbuf, 0x00, sizeof(dev->wbuf));
 	missing = copy_from_user(data, buf, count*sizeof(data[0]));
 	if (missing == 0) {
-		// Apply dot remap for column.
+		// Apply dot remap for colon.
 		if (data[0] & ledDots[LED_DOT_SEC]) {
 			data[0] &= ~ledDots[LED_DOT_SEC];
 			data[0] |= dtb->led_dots[LED_DOT_SEC];
@@ -395,7 +395,7 @@ static ssize_t fd628_dev_write(struct file *filp, const char __user * buf,
 			for (i = 0; i < count; i++)
 				dev->wbuf[dtb->dat_index[i]] = data[i];
 			if (data[0] & dtb->led_dots[LED_DOT_SEC])
-				dev->wbuf[2] |= 0x80;				// Digit 3 DP is the column.
+				dev->wbuf[2] |= 0x80;				// Digit 3 DP is the colon.
 			break;
 		}
 
@@ -744,6 +744,8 @@ static ssize_t led_on_store(struct device *dev,
 			pdata->dev->status_led_mask |= dtb->led_dots[LED_DOT1_PLAY];
 		} else if (strncmp(buf,"pause",5) == 0) {
 			pdata->dev->status_led_mask |= dtb->led_dots[LED_DOT1_PAUSE];
+		} else if (strncmp(buf,"colon",5) == 0) {
+			pdata->dev->status_led_mask |= dtb->led_dots[LED_DOT1_SEC];
 		} else if (strncmp(buf,"eth",3) == 0) {
 			pdata->dev->status_led_mask |= dtb->led_dots[LED_DOT1_ETH];
 		} else if (strncmp(buf,"wifi",4) == 0) {
@@ -759,6 +761,8 @@ static ssize_t led_on_store(struct device *dev,
 			pdata->dev->status_led_mask |= dtb->led_dots[LED_DOT2_USB];
 		} else if (strncmp(buf,"sd",2) == 0) {
 			pdata->dev->status_led_mask |= dtb->led_dots[LED_DOT2_CARD];
+		} else if (strncmp(buf,"colon",5) == 0) {
+			pdata->dev->status_led_mask |= dtb->led_dots[LED_DOT2_SEC];
 		} else if (strncmp(buf,"hdmi",4) == 0) {
 			pdata->dev->status_led_mask |= dtb->led_dots[LED_DOT2_HDMI];
 		} else if (strncmp(buf,"cvbs",4) == 0) {
@@ -770,6 +774,8 @@ static ssize_t led_on_store(struct device *dev,
 			pdata->dev->status_led_mask |= dtb->led_dots[LED_DOT3_POWER];
 		} else if (strncmp(buf,"eth",3) == 0) {
 			pdata->dev->status_led_mask |= dtb->led_dots[LED_DOT3_LAN];
+		} else if (strncmp(buf,"colon",5) == 0) {
+			pdata->dev->status_led_mask |= dtb->led_dots[LED_DOT3_SEC];
 		} else if (strncmp(buf,"wifi",4) == 0) {
 			pdata->dev->status_led_mask |= dtb->led_dots[LED_DOT3_WIFIHI] | dtb->led_dots[LED_DOT3_WIFILO];
 		}
@@ -805,6 +811,8 @@ static ssize_t led_off_store(struct device *dev,
 			pdata->dev->status_led_mask &= ~dtb->led_dots[LED_DOT1_PLAY];
 		} else if (strncmp(buf,"pause",5) == 0) {
 			pdata->dev->status_led_mask &= ~dtb->led_dots[LED_DOT1_PAUSE];
+		} else if (strncmp(buf,"colon",5) == 0) {
+			pdata->dev->status_led_mask &= ~dtb->led_dots[LED_DOT1_SEC];
 		} else if (strncmp(buf,"eth",3) == 0) {
 			pdata->dev->status_led_mask &= ~dtb->led_dots[LED_DOT1_ETH];
 		} else if (strncmp(buf,"wifi",4) == 0) {
@@ -820,6 +828,8 @@ static ssize_t led_off_store(struct device *dev,
 			pdata->dev->status_led_mask &= ~dtb->led_dots[LED_DOT2_USB];
 		} else if (strncmp(buf,"sd",2) == 0) {
 			pdata->dev->status_led_mask &= ~dtb->led_dots[LED_DOT2_CARD];
+		} else if (strncmp(buf,"colon",5) == 0) {
+			pdata->dev->status_led_mask &= ~dtb->led_dots[LED_DOT2_SEC];
 		} else if (strncmp(buf,"hdmi",4) == 0) {
 			pdata->dev->status_led_mask &= ~dtb->led_dots[LED_DOT2_HDMI];
 		} else if (strncmp(buf,"cvbs",4) == 0) {
@@ -831,6 +841,8 @@ static ssize_t led_off_store(struct device *dev,
 			pdata->dev->status_led_mask &= ~dtb->led_dots[LED_DOT3_POWER];
 		} else if (strncmp(buf,"eth",3) == 0) {
 			pdata->dev->status_led_mask &= ~dtb->led_dots[LED_DOT3_LAN];
+		} else if (strncmp(buf,"colon",5) == 0) {
+			pdata->dev->status_led_mask &= ~dtb->led_dots[LED_DOT3_SEC];
 		} else if (strncmp(buf,"wifi",4) == 0) {
 			pdata->dev->status_led_mask &= ~(dtb->led_dots[LED_DOT3_WIFIHI] | dtb->led_dots[LED_DOT3_WIFILO]);
 		}
