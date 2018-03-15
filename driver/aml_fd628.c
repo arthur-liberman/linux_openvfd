@@ -637,16 +637,16 @@ static ssize_t led_cmd_show(struct device *dev,
 
 	switch(led_cmd_ioc) {
 		case FD628_IOC_GMODE:
-			ret = snprintf(buf, PAGE_SIZE, "%d", pdata->dev->mode);
+			ret = scnprintf(buf, PAGE_SIZE, "%d", pdata->dev->mode);
 			break;
 		case FD628_IOC_GBRIGHT:
-			ret = snprintf(buf, PAGE_SIZE, "%d", pdata->dev->brightness);
+			ret = scnprintf(buf, PAGE_SIZE, "%d", pdata->dev->brightness);
 			break;
 		case FD628_IOC_GVER:
-			ret = snprintf(buf, PAGE_SIZE, "%s", FD628_DRIVER_VERSION);
+			ret = scnprintf(buf, PAGE_SIZE, "%s", FD628_DRIVER_VERSION);
 			break;
 		case FD628_IOC_GDISPLAY_TYPE:
-			ret = snprintf(buf, PAGE_SIZE, "0x%02X%02X%02X%02X", pdata->dev->dtb_active.display.reserved, pdata->dev->dtb_active.display.flags,
+			ret = scnprintf(buf, PAGE_SIZE, "0x%02X%02X%02X%02X", pdata->dev->dtb_active.display.reserved, pdata->dev->dtb_active.display.flags,
 				pdata->dev->dtb_active.display.controller, pdata->dev->dtb_active.display.type);
 			break;
 	}
@@ -721,7 +721,7 @@ static ssize_t led_cmd_store(struct device *_dev,
 static ssize_t led_on_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
-	return snprintf(buf, PAGE_SIZE, "led status is 0x%x\n", pdata->dev->status_led_mask);
+	return scnprintf(buf, PAGE_SIZE, "led status is 0x%x\n", pdata->dev->status_led_mask);
 }
 
 static ssize_t led_on_store(struct device *dev,
@@ -788,7 +788,7 @@ static ssize_t led_on_store(struct device *dev,
 static ssize_t led_off_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
-	return snprintf(buf, PAGE_SIZE, "led status is 0x%x\n", pdata->dev->status_led_mask);
+	return scnprintf(buf, PAGE_SIZE, "led status is 0x%x\n", pdata->dev->status_led_mask);
 }
 
 static ssize_t led_off_store(struct device *dev,
@@ -868,6 +868,105 @@ static void fd628_resume(struct early_suspend *h)
 	FD628_SET_BRIGHTNESS(pdata->dev->brightness, pdata->dev, FD628_DISP_ON);
 }
 
+static unsigned char fd628_gpio_clk[3];
+static unsigned char fd628_gpio_dat[3];
+static unsigned char fd628_gpio_stb[3];
+static unsigned char fd628_chars[7] = { 0, 1, 2, 3, 4, 5, 6 };
+static unsigned char fd628_dot_bits[8] = { 0, 1, 2, 3, 4, 5, 6, 0 };
+static unsigned char fd628_display_type[4] = { 0x00, 0x00, 0x00, 0x00 };
+static int fd628_gpio_clk_argc = 0;
+static int fd628_gpio_dat_argc = 0;
+static int fd628_gpio_stb_argc = 0;
+static int fd628_chars_argc = 0;
+static int fd628_dot_bits_argc = 0;
+static int fd628_display_type_argc = 0;
+
+module_param_array(fd628_gpio_clk, byte, &fd628_gpio_clk_argc, 0000);
+module_param_array(fd628_gpio_dat, byte, &fd628_gpio_dat_argc, 0000);
+module_param_array(fd628_gpio_stb, byte, &fd628_gpio_stb_argc, 0000);
+module_param_array(fd628_chars, byte, &fd628_chars_argc, 0000);
+module_param_array(fd628_dot_bits, byte, &fd628_dot_bits_argc, 0000);
+module_param_array(fd628_display_type, byte, &fd628_display_type_argc, 0000);
+
+static void print_param_debug(const char *label, int argc, unsigned char param[])
+{
+	int i, len = 0;
+	char buffer[1024];
+	len = scnprintf(buffer, sizeof(buffer), "%s", label);
+	if (argc)
+		for (i = 0; i < argc; i++)
+			len += scnprintf(buffer + len, sizeof(buffer), "#%d = 0x%02X; ", i, param[i]);
+	else
+		len += scnprintf(buffer + len, sizeof(buffer), "Empty.");
+	pr_dbg2("%s\n", buffer);
+}
+
+static int is_right_chip(struct gpio_chip *chip, void *data)
+{
+	pr_dbg("is_right_chip %s | %s | %d\n", chip->label, (char*)data, strcmp(data, chip->label));
+	if (strcmp(data, chip->label) == 0)
+		return 1;
+	return 0;
+}
+
+static int get_chip_pin_number(const unsigned char gpio[])
+{
+	int pin = -1;
+	if (gpio[0] < 2) {
+		struct gpio_chip *chip;
+		const char *pin_banks[] = { "banks", "ao-bank" };
+		const char *bank_name = pin_banks[gpio[0]];
+
+		chip = gpiochip_find((char *)bank_name, is_right_chip);
+		if (chip) {
+			if (chip->ngpio > gpio[1])
+				pin = chip->base + gpio[1];
+			pr_dbg2("\"%s\" chip found.\tbase = %d, pin count = %d, pin = %d, offset = %d\n", bank_name, chip->base, chip->ngpio, gpio[1], pin);
+		} else {
+			pr_dbg2("\"%s\" chip was not found\n", bank_name);
+		}
+	}
+
+	return pin;
+}
+
+static int verify_module_params(struct fd628_dev *dev)
+{
+	int ret = (fd628_gpio_clk_argc == 3 && fd628_gpio_dat_argc == 3 && fd628_gpio_stb_argc == 3 &&
+			fd628_chars_argc >= 5 && fd628_dot_bits_argc >= 7 && fd628_display_type_argc == 4) ? 1 : -1;
+
+	print_param_debug("fd628_gpio_clk:\t\t", fd628_gpio_clk_argc, fd628_gpio_clk);
+	print_param_debug("fd628_gpio_dat:\t\t", fd628_gpio_dat_argc, fd628_gpio_dat);
+	print_param_debug("fd628_gpio_stb:\t\t", fd628_gpio_stb_argc, fd628_gpio_stb);
+	print_param_debug("fd628_chars:\t\t", fd628_chars_argc, fd628_chars);
+	print_param_debug("fd628_dot_bits:\t\t", fd628_dot_bits_argc, fd628_dot_bits);
+	print_param_debug("fd628_display_type:\t", fd628_display_type_argc, fd628_display_type);
+
+	if (ret >= 0)
+		if ((ret = dev->clk_pin = get_chip_pin_number(fd628_gpio_clk)) < 0)
+			pr_error("Could not get pin number for fd628_gpio_clk\n");
+	if (ret >= 0)
+		if ((ret = dev->dat_pin = get_chip_pin_number(fd628_gpio_dat)) < 0)
+			pr_error("Could not get pin number for fd628_gpio_dat\n");
+	if (ret >= 0)
+		if ((ret = dev->stb_pin = get_chip_pin_number(fd628_gpio_stb)) < 0)
+			pr_error("Could not get pin number for fd628_gpio_stb\n");
+
+	if (ret >= 0) {
+		int i;
+		for (i = 0; i < 7; i++)
+			dev->dtb_active.dat_index[i] = fd628_chars[i];
+		for (i = 0; i < 8; i++)
+			dev->dtb_active.led_dots[i] = ledDots[fd628_dot_bits[i]];
+		dev->dtb_active.display.type = fd628_display_type[0];
+		dev->dtb_active.display.reserved = fd628_display_type[1];
+		dev->dtb_active.display.flags = fd628_display_type[2];
+		dev->dtb_active.display.controller = fd628_display_type[3];
+	}
+
+	return ret >= 0;
+}
+
 static int fd628_driver_probe(struct platform_device *pdev)
 {
 	int state = -EINVAL;
@@ -901,84 +1000,90 @@ static int fd628_driver_probe(struct platform_device *pdev)
 		goto get_param_mem_fail;
 	}
 
-	clk_desc = of_get_named_gpiod_flags(pdev->dev.of_node,
-					    MOD_NAME_CLK, 0, NULL);
-	pdata->dev->clk_pin = desc_to_gpio(clk_desc);
+	if (!verify_module_params(pdata->dev)) {
+		pr_error("Failed to verify FD628 configuration file, attempt using device tree as fallback.\n");
+		clk_desc = of_get_named_gpiod_flags(pdev->dev.of_node, MOD_NAME_CLK, 0, NULL);
+		pdata->dev->clk_pin = desc_to_gpio(clk_desc);
+		pr_dbg2("fd628_gpio_clk pin = %d\n", pdata->dev->clk_pin);
+
+		dat_desc = of_get_named_gpiod_flags(pdev->dev.of_node, MOD_NAME_DAT, 0, NULL);
+		pdata->dev->dat_pin = desc_to_gpio(dat_desc);
+		pr_dbg2("fd628_gpio_dat pin = %d\n", pdata->dev->dat_pin);
+
+		stb_desc = of_get_named_gpiod_flags(pdev->dev.of_node, MOD_NAME_STB, 0, NULL);
+		pdata->dev->stb_pin = desc_to_gpio(stb_desc);
+		pr_dbg2("fd628_gpio_stb pin = %d\n", pdata->dev->stb_pin);
+
+		chars_prop = of_find_property(pdev->dev.of_node, MOD_NAME_CHARS, NULL);
+		if (!chars_prop || !chars_prop->value) {
+			pr_error("can't find %s list, falling back to defaults.", MOD_NAME_CHARS);
+			chars_prop = NULL;
+		}
+		else if (chars_prop->length < 5) {
+			pr_error("%s list is too short, falling back to defaults.", MOD_NAME_CHARS);
+			chars_prop = NULL;
+		}
+
+		for (__u8 i = 0; i < (sizeof(pdata->dev->dtb_active.dat_index) / sizeof(char)); i++)
+			pdata->dev->dtb_active.dat_index[i] = i;
+		pr_dbg2("chars_prop = %p\n", chars_prop);
+		if (chars_prop) {
+			__u8 *c = (__u8*)chars_prop->value;
+			const int length = min(chars_prop->length, (int)(sizeof(pdata->dev->dtb_active.dat_index) / sizeof(char)));
+			pr_dbg2("chars_prop->length = %d\n", chars_prop->length);
+			for (int i = 0; i < length; i++) {
+				pdata->dev->dtb_active.dat_index[i] = c[i];
+				pr_dbg2("char #%d: %d\n", i, c[i]);
+			}
+		}
+
+		dot_bits_prop = of_find_property(pdev->dev.of_node, MOD_NAME_DOTS, NULL);
+		if (!dot_bits_prop || !dot_bits_prop->value) {
+			pr_error("can't find %s list, falling back to defaults.", MOD_NAME_DOTS);
+			dot_bits_prop = NULL;
+		}
+		else if (dot_bits_prop->length < LED_DOT_MAX) {
+			pr_error("%s list is too short, falling back to defaults.", MOD_NAME_DOTS);
+			dot_bits_prop = NULL;
+		}
+
+		for (int i = 0; i < LED_DOT_MAX; i++)
+			pdata->dev->dtb_active.led_dots[i] = ledDots[i];
+		pr_dbg2("dot_bits_prop = %p\n", dot_bits_prop);
+		if (dot_bits_prop) {
+			__u8 *d = (__u8*)dot_bits_prop->value;
+			pr_dbg2("dot_bits_prop->length = %d\n", dot_bits_prop->length);
+			for (int i = 0; i < dot_bits_prop->length; i++) {
+				pdata->dev->dtb_active.led_dots[i] = ledDots[d[i]];
+				pr_dbg2("dot_bit #%d: %d\n", i, d[i]);
+			}
+		}
+
+		memset(&pdata->dev->dtb_active.display, 0, sizeof(struct fd628_display));
+		display_type_prop = of_find_property(pdev->dev.of_node, MOD_NAME_TYPE, NULL);
+		if (display_type_prop && display_type_prop->value)
+			of_property_read_u32(pdev->dev.of_node, MOD_NAME_TYPE, (int*)&pdata->dev->dtb_active.display);
+		pr_dbg2("display.type = %d, display.controller = %d, pdata->dev->dtb_active.display.flags = 0x%02X\n",
+			pdata->dev->dtb_active.display.type, pdata->dev->dtb_active.display.controller, pdata->dev->dtb_active.display.flags);
+	}
+
 	ret = gpio_request(pdata->dev->clk_pin, DEV_NAME);
 	if (ret) {
 		pr_error("can't request gpio of %s", MOD_NAME_CLK);
 		goto get_param_mem_fail;
 	}
 
-	dat_desc = of_get_named_gpiod_flags(pdev->dev.of_node,
-					    MOD_NAME_DAT, 0, NULL);
-	pdata->dev->dat_pin = desc_to_gpio(dat_desc);
 	ret = gpio_request(pdata->dev->dat_pin, DEV_NAME);
 	if (ret) {
 		pr_error("can't request gpio of %s", MOD_NAME_DAT);
 		goto get_param_mem_fail;
 	}
 
-	stb_desc = of_get_named_gpiod_flags(pdev->dev.of_node,
-					    MOD_NAME_STB, 0, NULL);
-	pdata->dev->stb_pin = desc_to_gpio(stb_desc);
 	ret = gpio_request(pdata->dev->stb_pin, DEV_NAME);
 	if (ret) {
 		pr_error("can't request gpio of %s", MOD_NAME_STB);
 		goto get_param_mem_fail;
 	}
-
-	chars_prop = of_find_property(pdev->dev.of_node, MOD_NAME_CHARS, NULL);
-	if (!chars_prop || !chars_prop->value) {
-		pr_error("can't find %s list, falling back to defaults.", MOD_NAME_CHARS);
-		chars_prop = NULL;
-	}
-	else if (chars_prop->length < 5) {
-		pr_error("%s list is too short, falling back to defaults.", MOD_NAME_CHARS);
-		chars_prop = NULL;
-	}
-
-	for (__u8 i = 0; i < (sizeof(pdata->dev->dtb_active.dat_index) / sizeof(char)); i++)
-		pdata->dev->dtb_active.dat_index[i] = i;
-	pr_dbg2("chars_prop = %p\n", chars_prop);
-	if (chars_prop) {
-		__u8 *c = (__u8*)chars_prop->value;
-		const int length = min(chars_prop->length, (int)(sizeof(pdata->dev->dtb_active.dat_index) / sizeof(char)));
-		pr_dbg2("chars_prop->length = %d\n", chars_prop->length);
-		for (int i = 0; i < length; i++) {
-			pdata->dev->dtb_active.dat_index[i] = c[i];
-			pr_dbg2("char #%d: %d\n", i, c[i]);
-		}
-	}
-
-	dot_bits_prop = of_find_property(pdev->dev.of_node, MOD_NAME_DOTS, NULL);
-	if (!dot_bits_prop || !dot_bits_prop->value) {
-		pr_error("can't find %s list, falling back to defaults.", MOD_NAME_DOTS);
-		dot_bits_prop = NULL;
-	}
-	else if (dot_bits_prop->length < LED_DOT_MAX) {
-		pr_error("%s list is too short, falling back to defaults.", MOD_NAME_DOTS);
-		dot_bits_prop = NULL;
-	}
-
-	for (int i = 0; i < LED_DOT_MAX; i++)
-		pdata->dev->dtb_active.led_dots[i] = ledDots[i];
-	pr_dbg2("dot_bits_prop = %p\n", dot_bits_prop);
-	if (dot_bits_prop) {
-		__u8 *d = (__u8*)dot_bits_prop->value;
-		pr_dbg2("dot_bits_prop->length = %d\n", dot_bits_prop->length);
-		for (int i = 0; i < dot_bits_prop->length; i++) {
-			pdata->dev->dtb_active.led_dots[i] = ledDots[d[i]];
-			pr_dbg2("dot_bit #%d: %d\n", i, d[i]);
-		}
-	}
-
-	memset(&pdata->dev->dtb_active.display, 0, sizeof(struct fd628_display));
-	display_type_prop = of_find_property(pdev->dev.of_node, MOD_NAME_TYPE, NULL);
-	if (display_type_prop && display_type_prop->value)
-		of_property_read_u32(pdev->dev.of_node, MOD_NAME_TYPE, (int*)&pdata->dev->dtb_active.display);
-	pr_dbg2("display.type = %d, display.controller = %d, pdata->dev->dtb_active.display.flags = 0x%02X\n",
-		pdata->dev->dtb_active.display.type, pdata->dev->dtb_active.display.controller, pdata->dev->dtb_active.display.flags);
 
 	pdata->dev->dtb_default = pdata->dev->dtb_active;
 	pdata->dev->brightness = FD628_Brightness_8;
