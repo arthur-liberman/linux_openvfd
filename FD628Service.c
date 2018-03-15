@@ -15,18 +15,29 @@
 #include <sys/ipc.h>
 #include <dirent.h>
 #include <stdint.h>
+#include <signal.h>
 
 #include <time.h>
 #include "driver/aml_fd628.h"
 
 #define UNUSED(x)	(void*)(x)
 #define DEV_NAME	"/dev/fd628_dev"
+#define PIPE_PATH	"/tmp/fd628_service"
 
 bool set_display_type(int new_display_type);
 bool is_test_mode(int argc, char *argv[]);
 int get_cmd_display_type(int argc, char *argv[]);
 int get_cmd_chars_order(int argc, char *argv[], u_int8 chars[], const int sz);
 bool print_usage(int argc, char *argv[]);
+
+struct sync_data {
+	bool isActive;
+	pthread_mutex_t mutex;
+	pthread_cond_t cond;
+	struct timespec abs_time;
+	bool useBuffer;
+	char buffer[LED_DOT_MAX];
+};
 
 typedef struct _DotLedBitMap {
 	uint8_t on;
@@ -69,32 +80,52 @@ void mdelay(int n)
 		usleep(1000);
 }
 
-void led_show_time_loop()
+struct sync_data sync_data;
+
+void led_display_loop()
 {
 	unsigned short write_buffer[LED_DOT_MAX];
-	int ret = -1;
-	int hours;
+	int ret = -1, i;
 
 	time_t now;
 	struct tm *timenow;
 
-	while(1) {
-		// Get current time
-		time(&now);
-		timenow = localtime(&now);
-		hours = timenow->tm_hour;
+	while(sync_data.isActive) {
+		if (!pthread_mutex_lock(&sync_data.mutex)) {
+			ret = pthread_cond_timedwait(&sync_data.cond, &sync_data.mutex, &sync_data.abs_time);
+			if (!ret || ret == ETIMEDOUT) {
+				clock_gettime(CLOCK_REALTIME, &sync_data.abs_time);
+				sync_data.abs_time.tv_nsec += (long)5E8;
+				if (sync_data.abs_time.tv_nsec >= (long)1E9) {
+					sync_data.abs_time.tv_nsec -= (long)1E9;
+					sync_data.abs_time.tv_sec++;
+				}
 
-		select_display_type();
-		write_buffer[1] = char_to_mask(hours / 10);
-		write_buffer[2] = char_to_mask(hours % 10);
-		write_buffer[3] = char_to_mask(timenow->tm_min / 10);
-		write_buffer[4] = char_to_mask(timenow->tm_min % 10);
+				if (sync_data.useBuffer) {
+					write_buffer[0] = 0;
+					for (i = 0; i < 4; i++)
+						write_buffer[i+1] = char_to_mask(sync_data.buffer[i]);
+				} else {
+					// Get current time
+					time(&now);
+					timenow = localtime(&now);
 
-		// Toggle colon LED on/off every 500ms.
-		dotLeds[LED_DOT_SEC].on = ~dotLeds[LED_DOT_SEC].on;
-		write_buffer[0] = dotLeds[LED_DOT_SEC].on ? dotLeds[LED_DOT_SEC].bitmap : LED_MASK_VOID;
-		ret = write(fd628_fd,write_buffer,sizeof(write_buffer[0])*5);
-		mdelay(500);
+					select_display_type();
+					write_buffer[1] = char_to_mask(timenow->tm_hour / 10);
+					write_buffer[2] = char_to_mask(timenow->tm_hour % 10);
+					write_buffer[3] = char_to_mask(timenow->tm_min / 10);
+					write_buffer[4] = char_to_mask(timenow->tm_min % 10);
+
+					// Toggle colon LED on/off every 500ms.
+					dotLeds[LED_DOT_SEC].on = ~dotLeds[LED_DOT_SEC].on;
+					write_buffer[0] = dotLeds[LED_DOT_SEC].on ? dotLeds[LED_DOT_SEC].bitmap : LED_MASK_VOID;
+				}
+				ret = write(fd628_fd,write_buffer,sizeof(write_buffer[0])*5);
+			}
+			pthread_mutex_unlock(&sync_data.mutex);
+		} else {
+			mdelay(500);
+		}
 	}
 }
 
@@ -218,10 +249,10 @@ void led_test_loop(bool cycle_display_types)
 	}
 }
 
-void *display_time_thread_handler(void *arg)
+void *display_thread_handler(void *arg)
 {
 	UNUSED(arg);
-	led_show_time_loop();
+	led_display_loop();
 	pthread_exit(NULL);
 }
 
@@ -229,6 +260,58 @@ void *display_test_thread_handler(void *arg)
 {
 	bool cycle_display_types = *(bool*)arg;
 	led_test_loop(cycle_display_types);
+	pthread_exit(NULL);
+}
+
+void *named_pipe_thread_handler(void *arg)
+{
+	FILE *file;
+	char buf[1024];
+	int ret = 0, i;
+
+	unlink(PIPE_PATH);
+	if ((mkfifo(PIPE_PATH, 0666)) != 0) {
+		printf("Unable to create a fifo; errno=%d\n",errno);
+		pthread_exit(NULL);                    /* Print error message and return */
+	}
+
+	while (sync_data.isActive) {
+		file = open(PIPE_PATH, O_RDONLY);
+		ret = read(file, buf, sizeof(buf));
+		close(file);
+		buf[ret] = NULL;
+		printf("ret = %d, %s\n", ret, buf);
+			for (i = 1; i < ret; i++)
+				printf("0x%02X, ", buf[i]);
+			printf("\n");
+		if (ret > 0 && !pthread_mutex_lock(&sync_data.mutex)) {
+			switch ((unsigned char)buf[0]) {
+			case 0:
+			default:
+				printf("case 0, default\n");
+				sync_data.useBuffer = false;
+				break;
+			case 1:
+				// Refresh display. Will signal the led_loop to update display.
+				break;
+			case 2:
+				printf("case 2\n");
+				ret = (--ret > LED_DOT_MAX) ? LED_DOT_MAX : ret;
+				sync_data.useBuffer = true;
+				memset(sync_data.buffer, ' ', sizeof(sync_data.buffer));
+				for (i = 0; i < ret; i++)
+					sync_data.buffer[i] = buf[i+1];
+				break;
+			case 3:
+				sync_data.useBuffer = true;
+				break;
+			}
+			pthread_cond_signal(&sync_data.cond);
+			pthread_mutex_unlock(&sync_data.mutex);
+		}
+	}
+
+	unlink(PIPE_PATH);
 	pthread_exit(NULL);
 }
 
@@ -261,13 +344,22 @@ bool set_display_type(int new_display_type)
 	return ret == 0;
 }
 
+void handle_signal(int signal)
+{
+	FILE *file;
+	sync_data.isActive = false;
+	file = open(PIPE_PATH, O_WRONLY);
+	write(file, "\1", 1);
+	close(file);
+}
+
 int main(int argc, char *argv[])
 {
 	u_int8 char_indexes[7];
 	int ret, type, char_order_count;
 	bool test_mode = false;
 	bool cycle_display_types = true;
-	pthread_t disp_id, check_dev_id = 0;
+	pthread_t disp_id, npipe_id = 0;
 
 	if (print_usage(argc, argv))
 		return 0;
@@ -290,14 +382,24 @@ int main(int argc, char *argv[])
 	test_mode = is_test_mode(argc, argv);
 	if (test_mode)
 		ret = pthread_create(&disp_id, NULL, display_test_thread_handler, &cycle_display_types);
-	else
-		ret = pthread_create(&disp_id, NULL, display_time_thread_handler, NULL);
+	else {
+		struct sigaction sig_handler = {.sa_handler=handle_signal};
+		memset(&sync_data, 0, sizeof(struct sync_data));
+		sync_data.isActive = true;
+		sigaction(SIGTERM, &sig_handler, 0);
+		sigaction(SIGINT, &sig_handler, 0);
+		ret = pthread_create(&disp_id, NULL, display_thread_handler, NULL);
+		if (ret == 0)
+			ret = pthread_create(&npipe_id, NULL, named_pipe_thread_handler, NULL);
+	}
 	if(ret != 0) {
-		perror("Create disp_id thread error\n");
+		perror("Create disp_id or npipe_id thread error\n");
 		return ret;
 	}
+
+	if (npipe_id)
+		pthread_join(npipe_id, NULL);
 	pthread_join(disp_id, NULL);
-	pthread_join(check_dev_id, NULL);
 	close(fd628_fd);
 	return 0;
 }
