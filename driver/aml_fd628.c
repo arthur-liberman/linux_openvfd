@@ -868,25 +868,25 @@ static void fd628_resume(struct early_suspend *h)
 	FD628_SET_BRIGHTNESS(pdata->dev->brightness, pdata->dev, FD628_DISP_ON);
 }
 
-static unsigned char fd628_gpio_clk[3];
-static unsigned char fd628_gpio_dat[3];
-static unsigned char fd628_gpio_stb[3];
-static unsigned char fd628_chars[7] = { 0, 1, 2, 3, 4, 5, 6 };
-static unsigned char fd628_dot_bits[8] = { 0, 1, 2, 3, 4, 5, 6, 0 };
-static unsigned char fd628_display_type[4] = { 0x00, 0x00, 0x00, 0x00 };
-static int fd628_gpio_clk_argc = 0;
-static int fd628_gpio_dat_argc = 0;
-static int fd628_gpio_stb_argc = 0;
-static int fd628_chars_argc = 0;
-static int fd628_dot_bits_argc = 0;
-static int fd628_display_type_argc = 0;
+static unsigned char vfd_gpio_clk[3];
+static unsigned char vfd_gpio_dat[3];
+static unsigned char vfd_gpio_stb[3];
+static unsigned char vfd_chars[7] = { 0, 1, 2, 3, 4, 5, 6 };
+static unsigned char vfd_dot_bits[8] = { 0, 1, 2, 3, 4, 5, 6, 0 };
+static unsigned char vfd_display_type[4] = { 0x00, 0x00, 0x00, 0x00 };
+static int vfd_gpio_clk_argc = 0;
+static int vfd_gpio_dat_argc = 0;
+static int vfd_gpio_stb_argc = 0;
+static int vfd_chars_argc = 0;
+static int vfd_dot_bits_argc = 0;
+static int vfd_display_type_argc = 0;
 
-module_param_array(fd628_gpio_clk, byte, &fd628_gpio_clk_argc, 0000);
-module_param_array(fd628_gpio_dat, byte, &fd628_gpio_dat_argc, 0000);
-module_param_array(fd628_gpio_stb, byte, &fd628_gpio_stb_argc, 0000);
-module_param_array(fd628_chars, byte, &fd628_chars_argc, 0000);
-module_param_array(fd628_dot_bits, byte, &fd628_dot_bits_argc, 0000);
-module_param_array(fd628_display_type, byte, &fd628_display_type_argc, 0000);
+module_param_array(vfd_gpio_clk, byte, &vfd_gpio_clk_argc, 0000);
+module_param_array(vfd_gpio_dat, byte, &vfd_gpio_dat_argc, 0000);
+module_param_array(vfd_gpio_stb, byte, &vfd_gpio_stb_argc, 0000);
+module_param_array(vfd_chars, byte, &vfd_chars_argc, 0000);
+module_param_array(vfd_dot_bits, byte, &vfd_dot_bits_argc, 0000);
+module_param_array(vfd_display_type, byte, &vfd_display_type_argc, 0000);
 
 static void print_param_debug(const char *label, int argc, unsigned char param[])
 {
@@ -932,36 +932,36 @@ static int get_chip_pin_number(const unsigned char gpio[])
 
 static int verify_module_params(struct fd628_dev *dev)
 {
-	int ret = (fd628_gpio_clk_argc == 3 && fd628_gpio_dat_argc == 3 && fd628_gpio_stb_argc == 3 &&
-			fd628_chars_argc >= 5 && fd628_dot_bits_argc >= 7 && fd628_display_type_argc == 4) ? 1 : -1;
+	int ret = (vfd_gpio_clk_argc == 3 && vfd_gpio_dat_argc == 3 && vfd_gpio_stb_argc == 3 &&
+			vfd_chars_argc >= 5 && vfd_dot_bits_argc >= 7 && vfd_display_type_argc == 4) ? 1 : -1;
 
-	print_param_debug("fd628_gpio_clk:\t\t", fd628_gpio_clk_argc, fd628_gpio_clk);
-	print_param_debug("fd628_gpio_dat:\t\t", fd628_gpio_dat_argc, fd628_gpio_dat);
-	print_param_debug("fd628_gpio_stb:\t\t", fd628_gpio_stb_argc, fd628_gpio_stb);
-	print_param_debug("fd628_chars:\t\t", fd628_chars_argc, fd628_chars);
-	print_param_debug("fd628_dot_bits:\t\t", fd628_dot_bits_argc, fd628_dot_bits);
-	print_param_debug("fd628_display_type:\t", fd628_display_type_argc, fd628_display_type);
+	print_param_debug("vfd_gpio_clk:\t\t", vfd_gpio_clk_argc, vfd_gpio_clk);
+	print_param_debug("vfd_gpio_dat:\t\t", vfd_gpio_dat_argc, vfd_gpio_dat);
+	print_param_debug("vfd_gpio_stb:\t\t", vfd_gpio_stb_argc, vfd_gpio_stb);
+	print_param_debug("vfd_chars:\t\t", vfd_chars_argc, vfd_chars);
+	print_param_debug("vfd_dot_bits:\t\t", vfd_dot_bits_argc, vfd_dot_bits);
+	print_param_debug("vfd_display_type:\t", vfd_display_type_argc, vfd_display_type);
 
 	if (ret >= 0)
-		if ((ret = dev->clk_pin = get_chip_pin_number(fd628_gpio_clk)) < 0)
-			pr_error("Could not get pin number for fd628_gpio_clk\n");
+		if ((ret = dev->clk_pin = get_chip_pin_number(vfd_gpio_clk)) < 0)
+			pr_error("Could not get pin number for vfd_gpio_clk\n");
 	if (ret >= 0)
-		if ((ret = dev->dat_pin = get_chip_pin_number(fd628_gpio_dat)) < 0)
-			pr_error("Could not get pin number for fd628_gpio_dat\n");
+		if ((ret = dev->dat_pin = get_chip_pin_number(vfd_gpio_dat)) < 0)
+			pr_error("Could not get pin number for vfd_gpio_dat\n");
 	if (ret >= 0)
-		if ((ret = dev->stb_pin = get_chip_pin_number(fd628_gpio_stb)) < 0)
-			pr_error("Could not get pin number for fd628_gpio_stb\n");
+		if ((ret = dev->stb_pin = get_chip_pin_number(vfd_gpio_stb)) < 0)
+			pr_error("Could not get pin number for vfd_gpio_stb\n");
 
 	if (ret >= 0) {
 		int i;
 		for (i = 0; i < 7; i++)
-			dev->dtb_active.dat_index[i] = fd628_chars[i];
+			dev->dtb_active.dat_index[i] = vfd_chars[i];
 		for (i = 0; i < 8; i++)
-			dev->dtb_active.led_dots[i] = ledDots[fd628_dot_bits[i]];
-		dev->dtb_active.display.type = fd628_display_type[0];
-		dev->dtb_active.display.reserved = fd628_display_type[1];
-		dev->dtb_active.display.flags = fd628_display_type[2];
-		dev->dtb_active.display.controller = fd628_display_type[3];
+			dev->dtb_active.led_dots[i] = ledDots[vfd_dot_bits[i]];
+		dev->dtb_active.display.type = vfd_display_type[0];
+		dev->dtb_active.display.reserved = vfd_display_type[1];
+		dev->dtb_active.display.flags = vfd_display_type[2];
+		dev->dtb_active.display.controller = vfd_display_type[3];
 	}
 
 	return ret >= 0;
