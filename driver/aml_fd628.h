@@ -69,9 +69,10 @@
 #define MOD_NAME_CHARS     "fd628_chars"
 #define MOD_NAME_DOTS      "fd628_dot_bits"
 #define MOD_NAME_TYPE      "fd628_display_type"
-#define DEV_NAME           "fd628_dev"
 
 #endif
+
+#define DEV_NAME           "le-vfd"
 
 struct fd628_display {
 	u_int8 type;

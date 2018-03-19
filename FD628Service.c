@@ -21,7 +21,7 @@
 #include "driver/aml_fd628.h"
 
 #define UNUSED(x)	(void*)(x)
-#define DEV_NAME	"/dev/fd628_dev"
+#define DRV_NAME	"/dev/" DEV_NAME
 #define PIPE_PATH	"/tmp/fd628_service"
 
 bool set_display_type(int new_display_type);
@@ -363,7 +363,7 @@ int main(int argc, char *argv[])
 
 	if (print_usage(argc, argv))
 		return 0;
-	fd628_fd = open(DEV_NAME, O_RDWR);
+	fd628_fd = open(DRV_NAME, O_RDWR);
 	if (fd628_fd < 0) {
 		perror("Open device fd628_fd\n");
 		exit(1);

@@ -1186,7 +1186,7 @@ static int fd628_driver_resume(struct platform_device *dev)
 
 #ifdef CONFIG_OF
 static const struct of_device_id fd628_dt_match[] = {
-	{.compatible = "amlogic,fd628_dev",},
+	{.compatible = "le,vfd",},
 	{},
 };
 #else
