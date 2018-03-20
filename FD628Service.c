@@ -365,7 +365,7 @@ int main(int argc, char *argv[])
 		return 0;
 	fd628_fd = open(DRV_NAME, O_RDWR);
 	if (fd628_fd < 0) {
-		perror("Open device fd628_fd\n");
+		perror("Open device failed.\n");
 		exit(1);
 	}
 

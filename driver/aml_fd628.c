@@ -1002,17 +1002,32 @@ static int fd628_driver_probe(struct platform_device *pdev)
 
 	if (!verify_module_params(pdata->dev)) {
 		pr_error("Failed to verify FD628 configuration file, attempt using device tree as fallback.\n");
-		clk_desc = of_get_named_gpiod_flags(pdev->dev.of_node, MOD_NAME_CLK, 0, NULL);
-		pdata->dev->clk_pin = desc_to_gpio(clk_desc);
-		pr_dbg2("fd628_gpio_clk pin = %d\n", pdata->dev->clk_pin);
+		if (of_find_property(pdev->dev.of_node, MOD_NAME_CLK, NULL)) {
+			clk_desc = of_get_named_gpiod_flags(pdev->dev.of_node, MOD_NAME_CLK, 0, NULL);
+			pdata->dev->clk_pin = desc_to_gpio(clk_desc);
+			pr_dbg2("fd628_gpio_clk pin = %d\n", pdata->dev->clk_pin);
+		} else {
+			pdata->dev->clk_pin = -1;
+			pr_dbg2("fd628_gpio_clk pin entry not found\n");
+		}
 
-		dat_desc = of_get_named_gpiod_flags(pdev->dev.of_node, MOD_NAME_DAT, 0, NULL);
-		pdata->dev->dat_pin = desc_to_gpio(dat_desc);
-		pr_dbg2("fd628_gpio_dat pin = %d\n", pdata->dev->dat_pin);
+		if (of_find_property(pdev->dev.of_node, MOD_NAME_DAT, NULL)) {
+			dat_desc = of_get_named_gpiod_flags(pdev->dev.of_node, MOD_NAME_DAT, 0, NULL);
+			pdata->dev->dat_pin = desc_to_gpio(dat_desc);
+			pr_dbg2("fd628_gpio_dat pin = %d\n", pdata->dev->dat_pin);
+		} else {
+			pdata->dev->dat_pin = -1;
+			pr_dbg2("fd628_gpio_dat pin entry not found\n");
+		}
 
-		stb_desc = of_get_named_gpiod_flags(pdev->dev.of_node, MOD_NAME_STB, 0, NULL);
-		pdata->dev->stb_pin = desc_to_gpio(stb_desc);
-		pr_dbg2("fd628_gpio_stb pin = %d\n", pdata->dev->stb_pin);
+		if (of_find_property(pdev->dev.of_node, MOD_NAME_STB, NULL)) {
+			stb_desc = of_get_named_gpiod_flags(pdev->dev.of_node, MOD_NAME_STB, 0, NULL);
+			pdata->dev->stb_pin = desc_to_gpio(stb_desc);
+			pr_dbg2("fd628_gpio_stb pin = %d\n", pdata->dev->stb_pin);
+		} else {
+			pdata->dev->stb_pin = -1;
+			pr_dbg2("fd628_gpio_stb pin entry not found\n");
+		}
 
 		chars_prop = of_find_property(pdev->dev.of_node, MOD_NAME_CHARS, NULL);
 		if (!chars_prop || !chars_prop->value) {
@@ -1067,21 +1082,24 @@ static int fd628_driver_probe(struct platform_device *pdev)
 			pdata->dev->dtb_active.display.type, pdata->dev->dtb_active.display.controller, pdata->dev->dtb_active.display.flags);
 	}
 
-	ret = gpio_request(pdata->dev->clk_pin, DEV_NAME);
+	if (pdata->dev->clk_pin >= 0)
+		ret = gpio_request(pdata->dev->clk_pin, DEV_NAME);
 	if (ret) {
-		pr_error("can't request gpio of %s", MOD_NAME_CLK);
+		pr_error("can't request gpio of gpio_clk");
 		goto get_param_mem_fail;
 	}
 
-	ret = gpio_request(pdata->dev->dat_pin, DEV_NAME);
+	if (pdata->dev->dat_pin >= 0)
+		ret = gpio_request(pdata->dev->dat_pin, DEV_NAME);
 	if (ret) {
-		pr_error("can't request gpio of %s", MOD_NAME_DAT);
+		pr_error("can't request gpio of gpio_dat");
 		goto get_param_mem_fail;
 	}
 
-	ret = gpio_request(pdata->dev->stb_pin, DEV_NAME);
+	if (pdata->dev->stb_pin >= 0)
+		ret = gpio_request(pdata->dev->stb_pin, DEV_NAME);
 	if (ret) {
-		pr_error("can't request gpio of %s", MOD_NAME_STB);
+		pr_error("can't request gpio of gpio_stb");
 		goto get_param_mem_fail;
 	}
 
