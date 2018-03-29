@@ -387,6 +387,7 @@ static ssize_t fd628_dev_write(struct file *filp, const char __user * buf,
 		case DISPLAY_TYPE_5D_7S_T95:
 		case DISPLAY_TYPE_5D_7S_X92:
 		case DISPLAY_TYPE_5D_7S_ABOX:
+		case DISPLAY_TYPE_TAP1:
 		default:
 			for (i = 0; i < count; i++)
 				dev->wbuf[dtb->dat_index[i]] = data[i];
@@ -395,7 +396,7 @@ static ssize_t fd628_dev_write(struct file *filp, const char __user * buf,
 			for (i = 0; i < count; i++)
 				dev->wbuf[dtb->dat_index[i]] = data[i];
 			if (data[0] & dtb->led_dots[LED_DOT_SEC])
-				dev->wbuf[2] |= 0x80;				// Digit 3 DP is the colon.
+				dev->wbuf[dtb->dat_index[0]] |= 0x80;				// DP is the colon.
 			break;
 		}
 
@@ -465,14 +466,23 @@ static int set_display_type(struct fd628_dev *dev, int new_display_type)
 		switch (display.controller) {
 			case CONTROLLER_FD628:
 			default:
-				if (display.flags & DISPLAY_FLAG_TRANSPOSED)
-					FD628_SET_DISPLAY_MODE(FD628_7DIG_CMD, dev);
-				else
-					FD628_SET_DISPLAY_MODE(FD628_5DIG_CMD, dev);
+				FD628_SET_DISPLAY_MODE(FD628_7DIG_CMD, dev);
 				break;
 			case CONTROLLER_FD620:
+				switch (display.type) {
+				case DISPLAY_TYPE_FD620_REF:
+					FD628_SET_DISPLAY_MODE(FD628_4DIG_CMD, dev);
+					break;
+				default:
+					FD628_SET_DISPLAY_MODE(FD628_5DIG_CMD, dev);
+					break;
+				}
+				break;
 			case CONTROLLER_TM1618:
 				switch (display.type) {
+				case DISPLAY_TYPE_TAP1:
+					FD628_SET_DISPLAY_MODE(FD628_7DIG_CMD, dev);
+					break;
 				case DISPLAY_TYPE_FD620_REF:
 					FD628_SET_DISPLAY_MODE(FD628_4DIG_CMD, dev);
 					break;
@@ -912,9 +922,9 @@ static int is_right_chip(struct gpio_chip *chip, void *data)
 static int get_chip_pin_number(const unsigned char gpio[])
 {
 	int pin = -1;
-	if (gpio[0] < 2) {
+	if (gpio[0] < 6) {
 		struct gpio_chip *chip;
-		const char *pin_banks[] = { "banks", "ao-bank" };
+		const char *pin_banks[] = { "banks", "ao-bank", "gpio0", "gpio1", "gpio2", "gpio3" };
 		const char *bank_name = pin_banks[gpio[0]];
 
 		chip = gpiochip_find((char *)bank_name, is_right_chip);
