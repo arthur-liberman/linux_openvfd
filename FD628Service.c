@@ -18,7 +18,7 @@
 #include <signal.h>
 
 #include <time.h>
-#include "driver/aml_fd628.h"
+#include "driver/le_vfd_drv.h"
 
 #define UNUSED(x)	(void*)(x)
 #define DRV_NAME	"/dev/" DEV_NAME

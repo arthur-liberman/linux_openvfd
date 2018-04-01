@@ -49,7 +49,9 @@
 #include <linux/of_gpio.h>
 #include <linux/amlogic/iomap.h>
 
-#include "aml_fd628.h"
+#include "le_vfd_drv.h"
+
+#include "protocols/spi_3w.h"
 
 #ifdef CONFIG_HAS_EARLYSUSPEND
 #include <linux/earlysuspend.h>
@@ -63,81 +65,7 @@ struct kp {
 
 static struct kp *kp;
 
-/****************************************************************
- *	Function Name:		FD628_Start
- *	Description:		FD628 Communication start
- *	Parameters:		void
- *	Return value:		void
-****************************************************************/
-static void FD628_Start(struct fd628_dev *dev)
-{
-	gpio_direction_output(dev->stb_pin, 0);		/* Set STB low */
-	FD628_DELAY_STB;
-}
-
-/****************************************************************
- *	Function Name:		FD628_Stop
- *	Description:		FD628 Communication end
- *	Parameters:		void
- *	Return value:		void
-****************************************************************/
-static void FD628_Stop(struct fd628_dev *dev)
-{
-	gpio_direction_output(dev->clk_pin, 1);		/* Set CLK high */
-	FD628_DELAY_STB;
-	gpio_direction_output(dev->stb_pin, 1);		/* Set STB high */
-	gpio_direction_output(dev->dat_pin, 1);		/* Set DIO high */
-	gpio_direction_input(dev->dat_pin);		/* Set DIO as input */
-	FD628_DELAY_BUF;				/* Interval between the end of the communication and the start of the next communication */
-}
-
-/****************************************************************
- *	Function Name:		FD628_WrByte
- *	Description:		Write one byte of data to FD628
- *	Parameters:		INT8U data to be written
- *	Return value:		void
- *	Note:			Data is transmitted on clock rise
-****************************************************************/
-static void FD628_WrByte(u_int8 dat, struct fd628_dev *dev)
-{
-	u_int8 i;
-	for (i = 0; i != 8; i++) {				/* Shift out 8 bits */
-		gpio_direction_output(dev->clk_pin, 0);		/* Set CLK low */
-		if (dat & 0x01) {				/* Write 1 or 0 */
-			gpio_direction_output(dev->dat_pin, 1);	/* Set DIO high */
-		} else {
-			gpio_direction_output(dev->dat_pin, 0);	/* Set DIO low */
-		}
-		FD628_DELAY_LOW;				/* Clock low delay */
-		gpio_direction_output(dev->clk_pin, 1);		/* Set CLK high, write on clock rise */
-		dat >>= 1;					/* Shift right, select next bit */
-		FD628_DELAY_HIGH;				/* Clock high delay */
-	}
-}
-
-/****************************************************************
- *	Function Name:		FD628_RdByte
- *	Description:		Read one byte of data from FD628
- *	Parameters:		void
- *	Return value:		INT8U Data read
- *	Note:			Data is transmitted on clock fall
-****************************************************************/
-static u_int8 FD628_RdByte(struct fd628_dev *dev)
-{
-	u_int8 i, dat = 0;
-	gpio_direction_output(dev->dat_pin, 1);			/* Set DIO high */
-	gpio_direction_input(dev->dat_pin);			/* Set DIO as input */
-	for (i = 0; i != 8; i++) {				/* Shift in 8 bits */
-		gpio_direction_output(dev->clk_pin, 0);		/* Set CLK low */
-		FD628_DELAY_LOW;				/* Clock low delay */
-		dat >>= 1;					/* Shift right existing data */
-		if (gpio_get_value(dev->dat_pin))
-			dat |= 0X80;				/* Read '1' bit */
-		gpio_direction_output(dev->clk_pin, 1);		/* Set CLK high */
-		FD628_DELAY_HIGH;				/* Clock high delay */
-	}
-	return dat;						/* Return received data */
-}
+static struct protocol_interface *spi = NULL;
 
 /****************************************************************
  *	Function Name:		FD628_Command
@@ -147,9 +75,7 @@ static u_int8 FD628_RdByte(struct fd628_dev *dev)
 ****************************************************************/
 static void FD628_Command(u_int8 cmd, struct fd628_dev *dev)
 {
-	FD628_Start(dev);
-	FD628_WrByte(cmd, dev);
-	FD628_Stop(dev);
+	spi->write_byte(cmd);
 }
 
 /****************************************************************
@@ -165,22 +91,21 @@ KEYI2 	| bit31	| bit30	| bit29	| bit28	| bit27	| bit26	| bit25	| bit24	| bit23	|
 ***************************************************************************************************************************************/
 static u_int32 FD628_GetKey(struct fd628_dev *dev)
 {
-	u_int8 i, KeyDataTemp;
+	u_int8 i, keyDataBytes[5];
 	u_int32 FD628_KeyData = 0;
-	FD628_Start(dev);
-	FD628_WrByte(FD628_KEY_RDCMD, dev);
-	for (i = 0; i != 5; i++) {
-		KeyDataTemp = FD628_RdByte(dev);	/* Pack 5 bytes of key code values into 2 words */
-		if (KeyDataTemp & 0x01)
+	spi->write_byte(FD628_KEY_RDCMD);
+	spi->read_data(keyDataBytes, sizeof(keyDataBytes));
+	for (i = 0; i != 5; i++) {			/* Pack 5 bytes of key code values into 2 words */
+		if (keyDataBytes[i] & 0x01)
 			FD628_KeyData |= (0x00000001 << i * 2);
-		if (KeyDataTemp & 0x02)
+		if (keyDataBytes[i] & 0x02)
 			FD628_KeyData |= (0x00010000 << i * 2);
-		if (KeyDataTemp & 0x08)
+		if (keyDataBytes[i] & 0x08)
 			FD628_KeyData |= (0x00000002 << i * 2);
-		if (KeyDataTemp & 0x10)
+		if (keyDataBytes[i] & 0x10)
 			FD628_KeyData |= (0x00020000 << i * 2);
 	}
-	FD628_Stop(dev);
+
 	return (FD628_KeyData);
 }
 
@@ -195,25 +120,15 @@ static u_int32 FD628_GetKey(struct fd628_dev *dev)
 static int FD628_WrDisp_AddrINC(u_int8 Addr, u_int8 DataLen,
 				struct fd628_dev *dev)
 {
-	u_int8 i;
-	u_int8 val;
-	u_int8 *buf;
-
-	val = FD628_DIGADDR_WRCMD;
-	val |= Addr;
-	buf = (u_int8*)dev->wbuf;
+	u_int8 buf[15];
 
 	if (DataLen + Addr > 14)
 		return (1);
+	buf[0] = FD628_DIGADDR_WRCMD | Addr;
+	memcpy(buf+1, dev->wbuf, DataLen);
 
 	FD628_Command(FD628_ADDR_INC_DIGWR_CMD, dev);
-	FD628_Start(dev);
-	FD628_WrByte(val, dev);
-	for (i = Addr; i != (Addr + DataLen); i++) {
-		FD628_WrByte(buf[i], dev);
-		pr_dbg("FD628_WrDisp_AddrINC buf: %x \r\n", buf[i]);
-	}
-	FD628_Stop(dev);
+	spi->write_data(buf, DataLen);
 	return (0);
 }
 
@@ -268,6 +183,7 @@ static void FD628_SET_BRIGHTNESS(u_int8 cmd, struct fd628_dev *dev,
 ****************************************************************/
 static void FD628_Init(struct fd628_dev *dev)
 {
+	spi = init_spi_3w(dev->clk_pin, dev->dat_pin, dev->stb_pin, SPI_DELAY_100KHz);
 	gpio_direction_output(dev->clk_pin, 1);	/* Set CLK high */
 	gpio_direction_output(dev->stb_pin, 1);	/* Set STB high */
 	gpio_direction_output(dev->dat_pin, 1);	/* Set DIO high */

@@ -10,8 +10,8 @@
  *	0c	0d	GRID7
  */
 
-#ifndef __AML_FD628H__
-#define __AML_FD628H__
+#ifndef __LE_VFD_DRV_H__
+#define __LE_VFD_DRV_H__
 
 #ifdef MODULE
 #include <linux/delay.h>
