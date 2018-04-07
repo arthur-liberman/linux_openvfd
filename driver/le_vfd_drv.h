@@ -1,15 +1,3 @@
-/**
- * FD628 address range is 00 ~ 0D
- *	Address		display byte
- *	00	01	GRID1
- *	02	03	GRID2
- *	04	05	GRID3
- *	06	07	GRID4
- *	08	09	GRID5
- *	0a	0b	GRID6
- *	0c	0d	GRID7
- */
-
 #ifndef __LE_VFD_DRV_H__
 #define __LE_VFD_DRV_H__
 
@@ -40,7 +28,7 @@
 #define CONFIG_OF
 #endif
 
-#define  FD628_DRIVER_VERSION	"V1.1.0"
+#define  FD628_DRIVER_VERSION	"V1.2.0"
 
 /*
  * Ioctl definitions
@@ -97,6 +85,7 @@ struct fd628_dev {
 	struct fd628_dtb_config dtb_active;
 	struct fd628_dtb_config dtb_default;
 	u_int8 mode;
+	u_int8 power;
 	u_int8 brightness;
 	struct semaphore sem;
 	wait_queue_head_t kb_waitq;	/* read and write queues */
@@ -116,10 +105,14 @@ struct fd628_platform_data {
 #endif
 
 enum {
-	CONTROLLER_FD628,
+	CONTROLLER_FD628	= 0x00,
 	CONTROLLER_FD620,
 	CONTROLLER_TM1618,
-	CONTROLLER_MAX
+	CONTROLLER_FD650,
+	CONTROLLER_HBS658,
+	CONTROLLER_7S_MAX,
+	CONTROLLER_SSD1306	= 0xFD,
+	CONTROLLER_HD44780,
 };
 
 enum {
@@ -128,7 +121,8 @@ enum {
 	DISPLAY_TYPE_5D_7S_X92,
 	DISPLAY_TYPE_5D_7S_ABOX,
 	DISPLAY_TYPE_FD620_REF,
-	DISPLAY_TYPE_TAP1,
+	DISPLAY_TYPE_4D_7S_COL,
+	DISPLAY_TYPE_5D_7S_M9_PRO,
 	DISPLAY_TYPE_MAX,
 };
 
@@ -168,6 +162,17 @@ enum {
 	LED_DOT3_MAX
 };
 
+enum {
+	LED_DOT4_BT,
+	LED_DOT4_ETH,
+	LED_DOT4_WIFI,
+	LED_DOT4_SPDIF,
+	LED_DOT4_SEC,
+	LED_DOT4_HDMI,
+	LED_DOT4_AV,
+	LED_DOT4_MAX
+};
+
 #define LED_DOT_SEC	LED_DOT1_SEC
 #define LED_DOT_MAX	LED_DOT1_MAX
 
@@ -180,24 +185,6 @@ static const u_int8 ledDots[LED_DOT_MAX] = {
 	0x20,
 	0x40
 };
-
-#define KEYBOARD_SCAN_FRE	2
-#define KEYBOARD_MARK		0x00
-
-/* ******************************************API******************************************* */
-/* *******************************User needs to modify part******************************** */
-/* **************Key name and the corresponding code value definition********************** */
-#define FD628_KEY10		0x00000200
-#define FD628_KEY9		0x00000100
-#define FD628_KEY8		0x00000080
-#define FD628_KEY7		0x00000040
-#define FD628_KEY6		0x00000020
-#define FD628_KEY5		0x00000010
-#define FD628_KEY4		0x00000008
-#define FD628_KEY3		0x00000004
-#define FD628_KEY2		0x00000002
-#define FD628_KEY1		0x00000001
-#define FD628_KEY_NONE_CODE	0x00
 
 /* *************************************************************************************************************************************** *
 *	Status Description	| bit7	| bit6	| bit5	| bit4	| bit3		| bit2	| bit1	| bit0	| Display_EN: Display enable bit, 1: Turn on display; 0: Turn off display
@@ -216,25 +203,5 @@ typedef enum  _Brightness {					/* FD628 Brightness levels */
 	FD628_Brightness_7,
 	FD628_Brightness_8
 }Brightness;
-
-#define		FD628_DELAY_1us		udelay(4)		/* Delay time >1us */
-/* ************************************** Do not change *********************************************** */
-/* ********************** Define FD628 write delays (see datasheet for details) *********************** */
-#define		FD628_DELAY_LOW		FD628_DELAY_1us		/* Clock Low Time >500ns*/
-#define		FD628_DELAY_HIGH	FD628_DELAY_1us		/* Clock High Time >500ns*/
-#define		FD628_DELAY_BUF		FD628_DELAY_1us		/* Interval between the end of the communication and the start of the next communication >1us*/
-#define		FD628_DELAY_STB		FD628_DELAY_1us
-
-/* ***************************** Define FD628 Commands **************************** */
-#define FD628_KEY_RDCMD			0x42			/* Read keys command */
-#define FD628_4DIG_CMD			0x00			/* Set FD628 to work in 4-digit mode */
-#define FD628_5DIG_CMD			0x01			/* Set FD628 to work in 5-digit mode */
-#define FD628_6DIG_CMD			0x02			/* Set FD628 to work in 6-digit mode */
-#define FD628_7DIG_CMD			0x03			/* Set FD628 to work in 7-digit mode */
-#define FD628_DIGADDR_WRCMD		0xC0			/* Write FD628 address */
-#define FD628_ADDR_INC_DIGWR_CMD	0x40			/* Set Address Increment Mode */
-#define FD628_ADDR_STATIC_DIGWR_CMD	0x44			/* Set Static Address Mode */
-#define FD628_DISP_STATUE_WRCMD		0x80			/* Set display brightness command */
-/* **************************************************************************************************************************** */
 
 #endif

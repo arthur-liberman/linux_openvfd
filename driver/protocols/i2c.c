@@ -2,20 +2,27 @@
 #include <linux/gpio.h>
 #include "i2c.h"
 
+#define pr_dbg2(args...) printk(KERN_DEBUG "FD628: " args)
 #define LOW	0
 #define HIGH	1
 
-static unsigned char read_data(unsigned char *data, int length);
+static unsigned char read_cmd_data(const unsigned char *cmd, unsigned int cmd_length, unsigned char *data, unsigned int data_length);
+static unsigned char read_data(unsigned char *data, unsigned int length);
 static unsigned char read_byte(unsigned char *bdata);
-static unsigned char write_data(unsigned char *data, int length);
+static unsigned char write_cmd_data(const unsigned char *cmd, unsigned int cmd_length, const unsigned char *data, unsigned int data_length);
+static unsigned char write_data(const unsigned char *data, unsigned int length);
 static unsigned char write_byte(unsigned char bdata);
 
 static struct protocol_interface i2c_interface = {
+	.read_cmd_data = read_cmd_data,
 	.read_data = read_data,
 	.read_byte = read_byte,
+	.write_cmd_data = write_cmd_data,
 	.write_data = write_data,
 	.write_byte = write_byte,
 };
+
+static void stop_condition(void);
 
 static unsigned char i2c_address = 0;
 static unsigned long i2c_delay = I2C_DELAY_100KHz;
@@ -28,6 +35,8 @@ struct protocol_interface *init_i2c(unsigned char _address, int _pin_scl, int _p
 	pin_scl = _pin_scl;
 	pin_sda = _pin_sda;
 	i2c_delay = _i2c_delay;
+	stop_condition();
+	pr_dbg2("I2C interface intialized\n");
 	return &i2c_interface;
 }
 
@@ -103,14 +112,20 @@ static unsigned char write_address(unsigned char _address, unsigned char rw)
 	return write_raw_byte(_address);
 }
 
-static unsigned char read_data(unsigned char *data, int length)
+static unsigned char read_cmd_data(const unsigned char *cmd, unsigned int cmd_length, unsigned char *data, unsigned int data_length)
 {
 	unsigned char status = 0;
 	start_condition();
 	if (i2c_address > 0)
 		status = write_address(i2c_address, 1);
+	if (!status && cmd) {
+		while (cmd_length--) {
+			status |= write_raw_byte(*cmd);
+			cmd++;
+		}
+	}
 	if (!status) {
-		while (length--) {
+		while (data_length--) {
 			status |= read_raw_byte(data);
 			data++;
 		}
@@ -119,19 +134,30 @@ static unsigned char read_data(unsigned char *data, int length)
 	return status;
 }
 
-static unsigned char read_byte(unsigned char *bdata)
+static unsigned char read_data(unsigned char *data, unsigned int length)
 {
-	return read_data(bdata, 1);
+	return read_cmd_data(NULL, 0, data, length);
 }
 
-static unsigned char write_data(unsigned char *data, int length)
+static unsigned char read_byte(unsigned char *bdata)
+{
+	return read_cmd_data(NULL, 0, bdata, 1);
+}
+
+static unsigned char write_cmd_data(const unsigned char *cmd, unsigned int cmd_length, const unsigned char *data, unsigned int data_length)
 {
 	unsigned char status = 0;
 	start_condition();
 	if (i2c_address > 0)
 		status = write_address(i2c_address, 0);
+	if (!status && cmd) {
+		while (cmd_length--) {
+			status |= write_raw_byte(*cmd);
+			cmd++;
+		}
+	}
 	if (!status) {
-		while (length--) {
+		while (data_length--) {
 			status |= write_raw_byte(*data);
 			data++;
 		}
@@ -140,7 +166,12 @@ static unsigned char write_data(unsigned char *data, int length)
 	return status;
 }
 
+static unsigned char write_data(const unsigned char *data, unsigned int length)
+{
+	return write_cmd_data(NULL, 0, data, length);
+}
+
 static unsigned char write_byte(unsigned char bdata)
 {
-	return write_data(&bdata, 1);
+	return write_cmd_data(NULL, 0, &bdata, 1);
 }

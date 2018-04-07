@@ -64,9 +64,13 @@ int fd628_fd;
 uint8_t char_to_mask(uint8_t ch)
 {
 	unsigned int index = 0;
-	for (index = 0; index < LEDCODES_LEN; index++) {
-		if (ledCodes[index].character == ch) {
-			return ledCodes[index].bitmap;
+	if (display_type.controller > CONTROLLER_7S_MAX)
+		return ch;
+	else {
+		for (index = 0; index < LEDCODES_LEN; index++) {
+			if (ledCodes[index].character == ch) {
+				return ledCodes[index].bitmap;
+			}
 		}
 	}
 
@@ -101,6 +105,7 @@ void led_display_loop()
 					sync_data.abs_time.tv_sec++;
 				}
 
+				select_display_type();
 				if (sync_data.useBuffer) {
 					write_buffer[0] = 0;
 					for (i = 0; i < 4; i++)
@@ -110,11 +115,17 @@ void led_display_loop()
 					time(&now);
 					timenow = localtime(&now);
 
-					select_display_type();
-					write_buffer[1] = char_to_mask(timenow->tm_hour / 10);
-					write_buffer[2] = char_to_mask(timenow->tm_hour % 10);
-					write_buffer[3] = char_to_mask(timenow->tm_min / 10);
-					write_buffer[4] = char_to_mask(timenow->tm_min % 10);
+					if (display_type.controller > CONTROLLER_7S_MAX) {
+						write_buffer[1] = 0x30 + (timenow->tm_hour / 10);
+						write_buffer[2] = 0x30 + (timenow->tm_hour % 10);
+						write_buffer[3] = 0x30 + (timenow->tm_min / 10);
+						write_buffer[4] = 0x30 + (timenow->tm_min % 10);
+					} else {
+						write_buffer[1] = char_to_mask(timenow->tm_hour / 10);
+						write_buffer[2] = char_to_mask(timenow->tm_hour % 10);
+						write_buffer[3] = char_to_mask(timenow->tm_min / 10);
+						write_buffer[4] = char_to_mask(timenow->tm_min % 10);
+					}
 
 					// Toggle colon LED on/off every 500ms.
 					dotLeds[LED_DOT_SEC].on = ~dotLeds[LED_DOT_SEC].on;
