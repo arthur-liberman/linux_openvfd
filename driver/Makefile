@@ -14,6 +14,7 @@ else
 		aml_fd628-objs += protocols/i2c.o
 		aml_fd628-objs += protocols/spi_3w.o
 		aml_fd628-objs += controllers/dummy.o
+		aml_fd628-objs += controllers/seg7_ctrl.o
 		aml_fd628-objs += controllers/fd628.o
 		aml_fd628-objs += controllers/fd650.o
 		aml_fd628-objs += controllers/hd44780.o

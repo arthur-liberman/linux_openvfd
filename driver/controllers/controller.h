@@ -5,7 +5,7 @@
 #include "../le_vfd_drv.h"
 
 struct controller_interface {
-	void (*init)(void);
+	unsigned char (*init)(void);
 
 	unsigned short (*get_brightness_levels_count)(void);
 	unsigned short (*get_brightness_level)(void);
@@ -21,6 +21,7 @@ struct controller_interface {
 
 	size_t (*read_data)(unsigned char *data, size_t length);
 	size_t (*write_data)(const unsigned char *data, size_t length);
+	size_t (*write_display_data)(const struct fd628_display_data *data);
 };
 
 #endif

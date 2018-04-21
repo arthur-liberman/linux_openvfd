@@ -6,23 +6,23 @@
 #define LOW	0
 #define HIGH	1
 
-static unsigned char read_cmd_data(const unsigned char *cmd, unsigned int cmd_length, unsigned char *data, unsigned int data_length);
-static unsigned char read_data(unsigned char *data, unsigned int length);
-static unsigned char read_byte(unsigned char *bdata);
-static unsigned char write_cmd_data(const unsigned char *cmd, unsigned int cmd_length, const unsigned char *data, unsigned int data_length);
-static unsigned char write_data(const unsigned char *data, unsigned int length);
-static unsigned char write_byte(unsigned char bdata);
+static unsigned char spi_3w_read_cmd_data(const unsigned char *cmd, unsigned int cmd_length, unsigned char *data, unsigned int data_length);
+static unsigned char spi_3w_read_data(unsigned char *data, unsigned int length);
+static unsigned char spi_3w_read_byte(unsigned char *bdata);
+static unsigned char spi_3w_write_cmd_data(const unsigned char *cmd, unsigned int cmd_length, const unsigned char *data, unsigned int data_length);
+static unsigned char spi_3w_write_data(const unsigned char *data, unsigned int length);
+static unsigned char spi_3w_write_byte(unsigned char bdata);
 
 static struct protocol_interface spi_3w_interface = {
-	.read_cmd_data = read_cmd_data,
-	.read_data = read_data,
-	.read_byte = read_byte,
-	.write_cmd_data = write_cmd_data,
-	.write_data = write_data,
-	.write_byte = write_byte,
+	.read_cmd_data = spi_3w_read_cmd_data,
+	.read_data = spi_3w_read_data,
+	.read_byte = spi_3w_read_byte,
+	.write_cmd_data = spi_3w_write_cmd_data,
+	.write_data = spi_3w_write_data,
+	.write_byte = spi_3w_write_byte,
 };
 
-static void stop_condition(void);
+static void spi_3w_stop_condition(void);
 
 static unsigned long spi_delay = SPI_DELAY_100KHz;
 static int pin_clk = 0;
@@ -35,18 +35,18 @@ struct protocol_interface *init_spi_3w(int clk, int dat, int stb, unsigned long 
 	pin_dat = dat;
 	pin_stb = stb;
 	spi_delay = _spi_delay;
-	stop_condition();
+	spi_3w_stop_condition();
 	pr_dbg2("SPI 3-wire interface intialized\n");
 	return &spi_3w_interface;
 }
 
-static void start_condition(void)
+static void spi_3w_start_condition(void)
 {
 	gpio_direction_output(pin_stb, LOW);
 	udelay(spi_delay);
 }
 
-static void stop_condition(void)
+static void spi_3w_stop_condition(void)
 {
 	gpio_direction_output(pin_clk, HIGH);
 	udelay(spi_delay);
@@ -56,7 +56,7 @@ static void stop_condition(void)
 	udelay(spi_delay);
 }
 
-static unsigned char write_raw_byte(unsigned char data)
+static unsigned char spi_3w_write_raw_byte(unsigned char data)
 {
 	unsigned char i = 8;
 	gpio_direction_output(pin_clk, LOW);
@@ -74,7 +74,7 @@ static unsigned char write_raw_byte(unsigned char data)
 	return 0;
 }
 
-static unsigned char read_raw_byte(unsigned char *data)
+static unsigned char spi_3w_read_raw_byte(unsigned char *data)
 {
 	unsigned char i = 8;
 	*data = 0;
@@ -92,62 +92,62 @@ static unsigned char read_raw_byte(unsigned char *data)
 	return 0;
 }
 
-static unsigned char read_cmd_data(const unsigned char *cmd, unsigned int cmd_length, unsigned char *data, unsigned int data_length)
+static unsigned char spi_3w_read_cmd_data(const unsigned char *cmd, unsigned int cmd_length, unsigned char *data, unsigned int data_length)
 {
 	unsigned char status = 0;
-	start_condition();
+	spi_3w_start_condition();
 	if (!status && cmd) {
 		while (cmd_length--) {
-			status |= write_raw_byte(*cmd);
+			status |= spi_3w_write_raw_byte(*cmd);
 			cmd++;
 		}
 	}
 	if (!status) {
 		while (data_length--) {
-			status |= read_raw_byte(data);
+			status |= spi_3w_read_raw_byte(data);
 			data++;
 		}
 	}
-	stop_condition();
+	spi_3w_stop_condition();
 	return status;
 }
 
-static unsigned char read_data(unsigned char *data, unsigned int length)
+static unsigned char spi_3w_read_data(unsigned char *data, unsigned int length)
 {
-	return read_cmd_data(NULL, 0, data, length);
+	return spi_3w_read_cmd_data(NULL, 0, data, length);
 }
 
-static unsigned char read_byte(unsigned char *bdata)
+static unsigned char spi_3w_read_byte(unsigned char *bdata)
 {
-	return read_cmd_data(NULL, 0, bdata, 1);
+	return spi_3w_read_cmd_data(NULL, 0, bdata, 1);
 }
 
-static unsigned char write_cmd_data(const unsigned char *cmd, unsigned int cmd_length, const unsigned char *data, unsigned int data_length)
+static unsigned char spi_3w_write_cmd_data(const unsigned char *cmd, unsigned int cmd_length, const unsigned char *data, unsigned int data_length)
 {
 	unsigned char status = 0;
-	start_condition();
+	spi_3w_start_condition();
 	if (!status && cmd) {
 		while (cmd_length--) {
-			status |= write_raw_byte(*cmd);
+			status |= spi_3w_write_raw_byte(*cmd);
 			cmd++;
 		}
 	}
 	if (!status) {
 		while (data_length--) {
-			status |= write_raw_byte(*data);
+			status |= spi_3w_write_raw_byte(*data);
 			data++;
 		}
 	}
-	stop_condition();
+	spi_3w_stop_condition();
 	return status;
 }
 
-static unsigned char write_data(const unsigned char *data, unsigned int length)
+static unsigned char spi_3w_write_data(const unsigned char *data, unsigned int length)
 {
-	return write_cmd_data(NULL, 0, data, length);
+	return spi_3w_write_cmd_data(NULL, 0, data, length);
 }
 
-static unsigned char write_byte(unsigned char bdata)
+static unsigned char spi_3w_write_byte(unsigned char bdata)
 {
-	return write_cmd_data(NULL, 0, &bdata, 1);
+	return spi_3w_write_cmd_data(NULL, 0, &bdata, 1);
 }

@@ -76,7 +76,7 @@ static const led_bitmap LED_decode_tab1[] = {
 	{'x', b1|c1|e1|f1|g1      },	{'X', b1|c1|e1|f1|g1      },
 	{'y', a1|c1|e1|f1|g1      },	{'Y', a1|c1|e1|f1|g1      },
 	{'z', a1|b1|d1|e1|g1      },	{'Z', a1|b1|d1|e1|g1      },
-	{'_', a1}, {'-', g1}, {' ', 0}
+	{'_', a1}, {'-', g1}, {' ', 0}, { 0xB0, c1|d1|e1|g1 }
 };
 
 #define a2 0x08
@@ -139,7 +139,7 @@ static const led_bitmap LED_decode_tab2[] = {
 	{'x', b2|c2|e2|f2|g2      },	{'X', b2|c2|e2|f2|g2      },
 	{'y', a2|c2|e2|f2|g2      },	{'Y', a2|c2|e2|f2|g2      },
 	{'z', a2|b2|d2|e2|g2      },	{'Z', a2|b2|d2|e2|g2      },
-	{'_', a2}, {'-', g2}, {' ', 0}
+	{'_', a2}, {'-', g2}, {' ', 0}, { 0xB0, c2|d2|e2|g2 }
 };
 
 #endif

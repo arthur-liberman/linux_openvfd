@@ -88,12 +88,14 @@ struct sync_data sync_data;
 
 void led_display_loop()
 {
+	static struct fd628_display_data data;
 	unsigned short write_buffer[LED_DOT_MAX];
 	int ret = -1, i;
 
 	time_t now;
 	struct tm *timenow;
 
+	memset(&data, 0, sizeof(data));
 	while(sync_data.isActive) {
 		if (!pthread_mutex_lock(&sync_data.mutex)) {
 			ret = pthread_cond_timedwait(&sync_data.cond, &sync_data.mutex, &sync_data.abs_time);
@@ -115,23 +117,35 @@ void led_display_loop()
 					time(&now);
 					timenow = localtime(&now);
 
-					if (display_type.controller > CONTROLLER_7S_MAX) {
-						write_buffer[1] = 0x30 + (timenow->tm_hour / 10);
-						write_buffer[2] = 0x30 + (timenow->tm_hour % 10);
-						write_buffer[3] = 0x30 + (timenow->tm_min / 10);
-						write_buffer[4] = 0x30 + (timenow->tm_min % 10);
-					} else {
-						write_buffer[1] = char_to_mask(timenow->tm_hour / 10);
-						write_buffer[2] = char_to_mask(timenow->tm_hour % 10);
-						write_buffer[3] = char_to_mask(timenow->tm_min / 10);
-						write_buffer[4] = char_to_mask(timenow->tm_min % 10);
-					}
+					data.mode = 1 + timenow->tm_sec / 12;
+					data.temperature = timenow->tm_hour + timenow->tm_min + timenow->tm_sec;
+					data.channel_data.channel = 10*(timenow->tm_hour + timenow->tm_min + timenow->tm_sec);
+					data.channel_data.channel_count = 86400;
+					data.time_date.hours = ((timenow->tm_sec >= 24) && (timenow->tm_sec < 30)) ? 0 : (timenow->tm_hour == 0) ? 24 : timenow->tm_hour;
+					data.time_date.minutes = timenow->tm_min;
+					data.time_date.seconds = timenow->tm_sec;
+					data.time_date.day_of_week = timenow->tm_wday;
+					data.time_date.day = timenow->tm_mday;
+					data.time_date.month = timenow->tm_mon;
+					data.time_date.year = timenow->tm_year + 1900;
+					data.time_secondary.hours = timenow->tm_hour;
+					data.time_secondary.minutes = timenow->tm_min;
+					data.time_secondary.seconds = timenow->tm_sec;
+					data.colon_on = !data.colon_on;
+					snprintf(data.string_main, sizeof(data.string_secondary), "The Saga of the Viking Women and their Voyage to the Waters of the Great Sea Serpent");
+					snprintf(data.string_secondary, sizeof(data.string_secondary), "Now playing:");
 
-					// Toggle colon LED on/off every 500ms.
-					dotLeds[LED_DOT_SEC].on = ~dotLeds[LED_DOT_SEC].on;
-					write_buffer[0] = dotLeds[LED_DOT_SEC].on ? dotLeds[LED_DOT_SEC].bitmap : LED_MASK_VOID;
+					//data.mode = DISPLAY_MODE_CLOCK;
+					//data.time_date.hours = timenow->tm_hour;
+					//data.time_date.minutes = timenow->tm_min;
+					//data.time_date.seconds = timenow->tm_sec;
+					//data.time_date.day_of_week = timenow->tm_wday;
+					//data.time_date.day = timenow->tm_mday;
+					//data.time_date.month = timenow->tm_mon;
+					//data.time_date.year = timenow->tm_year;
+					//data.colon_on = !data.colon_on;
 				}
-				ret = write(fd628_fd,write_buffer,sizeof(write_buffer[0])*5);
+				ret = write(fd628_fd,&data,sizeof(data));
 			}
 			pthread_mutex_unlock(&sync_data.mutex);
 		} else {

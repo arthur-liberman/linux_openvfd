@@ -28,6 +28,14 @@
 #define CONFIG_OF
 #endif
 
+#ifndef TRUE
+#define TRUE 1
+#endif
+
+#ifndef FALSE
+#define FALSE 0
+#endif
+
 #define  FD628_DRIVER_VERSION	"V1.2.0"
 
 /*
@@ -103,6 +111,44 @@ struct fd628_platform_data {
 };
 
 #endif
+
+struct fd628_display_data {
+	u_int16 mode;
+	u_int8 colon_on;
+	u_int8 temperature;
+
+	struct {
+		u_int8 seconds;
+		u_int8 minutes;
+		u_int8 hours;
+		u_int8 day_of_week;
+		u_int8 day;
+		u_int8 month;
+		u_int16 year;
+	} time_date;
+	struct {
+		u_int8 seconds;
+		u_int8 minutes;
+		u_int8 hours;
+		u_int8 _reserved;
+	} time_secondary;
+	struct {
+		u_int16 channel;
+		u_int16 channel_count;
+	} channel_data;
+
+	char string_main[512];
+	char string_secondary[128];
+};
+
+enum {
+	DISPLAY_MODE_NONE,
+	DISPLAY_MODE_CLOCK,
+	DISPLAY_MODE_CHANNEL,
+	DISPLAY_MODE_PLAYBACK_TIME,
+	DISPLAY_MODE_TITLE,
+	DISPLAY_MODE_TEMPERATURE,
+};
 
 enum {
 	CONTROLLER_FD628	= 0x00,

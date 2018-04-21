@@ -180,27 +180,6 @@ static ssize_t fd628_dev_read(struct file *filp, char __user * buf,
 }
 
 /**
- * Source for the transpose algorithm:
-   http://www.hackersdelight.org/hdcodetxt/transpose8.c.txt
- */
-void transpose8rS64(unsigned char* A, unsigned char* B) {
-	unsigned long long x = 0, t;
-	int i;
-
-	for (i = 0; i <= 7; i++)	// Load 8 bytes from the input
-		x = x << 8 | A[i];	// array and pack them into x.
-
-	t = (x ^ (x >> 7)) & 0x00AA00AA00AA00AALL;
-	x = x ^ t ^ (t << 7);
-	t = (x ^ (x >> 14)) & 0x0000CCCC0000CCCCLL;
-	x = x ^ t ^ (t << 14);
-	t = (x ^ (x >> 28)) & 0x00000000F0F0F0F0LL;
-	x = x ^ t ^ (t << 28);
-
-	memcpy(B, &x, sizeof(x));	// Store result into output array B.
-}
-
-/**
  * @param buf: Incoming LED codes.
  * 		  [0]	Display indicators mask (wifi, eth, usb, etc.)
  * 		  [1-4]	7 segment characters, to be displayed left to right.
@@ -209,28 +188,39 @@ void transpose8rS64(unsigned char* A, unsigned char* B) {
 static ssize_t fd628_dev_write(struct file *filp, const char __user * buf,
 				   size_t count, loff_t * f_pos)
 {
-	unsigned long missing;
-	unsigned char *data;
 	ssize_t status = 0;
+	unsigned long missing;
+	static struct fd628_display_data data;
 
-	if (count == 0)
-		return status;
-
-	data = kzalloc(count, GFP_KERNEL);
-	if (data) {
-		missing = copy_from_user(data, buf, count);
+	if (count == sizeof(data)) {
+		missing = copy_from_user(&data, buf, count);
 		if (missing == 0 && count > 0) {
-			if (controller->write_data((unsigned char*)data, count))
+			if (controller->write_display_data(&data))
 				pr_dbg("fd628_dev_write count : %ld\n", count);
 			else {
 				status = -1;
-				pr_error("fd628_dev_write failed to write %ld bytes\n", count);
+				pr_error("fd628_dev_write failed to write %ld bytes (display_data)\n", count);
 			}
 		}
-		kfree(data);
+	} else if (count > 0) {
+		unsigned char *raw_data;
+		pr_dbg2("fd628_dev_write: count = %ld, sizeof(data) = %ld\n", count, sizeof(data));
+		raw_data = kzalloc(count, GFP_KERNEL);
+		if (raw_data) {
+			missing = copy_from_user(raw_data, buf, count);
+			if (controller->write_data((unsigned char*)raw_data, count))
+				pr_dbg("fd628_dev_write count : %ld\n", count);
+			else {
+				status = -1;
+				pr_error("fd628_dev_write failed to write %ld bytes (raw_data)\n", count);
+			}
+			kfree(raw_data);
+		}
+		else {
+			status = -1;
+			pr_error("fd628_dev_write failed to allocate %ld bytes (raw_data)\n", count);
+		}
 	}
-	else
-		status = -1;
 
 	return status;
 }
@@ -723,6 +713,7 @@ static int fd628_driver_probe(struct platform_device *pdev)
 			pdata->dev->dtb_active.display.type, pdata->dev->dtb_active.display.controller, pdata->dev->dtb_active.display.flags);
 	}
 
+	ret = -1;
 	if (pdata->dev->clk_pin >= 0)
 		ret = gpio_request(pdata->dev->clk_pin, DEV_NAME);
 	if (ret) {
@@ -730,19 +721,21 @@ static int fd628_driver_probe(struct platform_device *pdev)
 		goto get_param_mem_fail;
 	}
 
+	ret = -1;
 	if (pdata->dev->dat_pin >= 0)
 		ret = gpio_request(pdata->dev->dat_pin, DEV_NAME);
 	if (ret) {
 		pr_error("can't request gpio of gpio_dat");
-		goto get_param_mem_fail;
+		goto get_gpio_req_fail_dat;
 	}
 
 	if (pdata->dev->stb_pin != -2) {
+		ret = -1;
 		if (pdata->dev->stb_pin >= 0)
 			ret = gpio_request(pdata->dev->stb_pin, DEV_NAME);
 		if (ret) {
 			pr_error("can't request gpio of gpio_stb");
-			goto get_param_mem_fail;
+			goto get_gpio_req_fail_stb;
 		}
 	}
 
@@ -795,6 +788,10 @@ static int fd628_driver_probe(struct platform_device *pdev)
 
 	return 0;
 
+	  get_gpio_req_fail_stb:
+	gpio_free(pdata->dev->dat_pin);
+	  get_gpio_req_fail_dat:
+	gpio_free(pdata->dev->clk_pin);
 	  get_param_mem_fail:
 	kfree(pdata->dev);
 	  get_fd628_mem_fail:

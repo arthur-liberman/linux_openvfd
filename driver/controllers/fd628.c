@@ -14,46 +14,51 @@
 #define FD628_DISP_STATUE_WRCMD	0x80	/* Set display brightness command	*/
 /* *********************************************************************************** */
 
-static void init(void);
-static unsigned short get_brightness_levels_count(void);
-static unsigned short get_brightness_level(void);
-static unsigned char set_brightness_level(unsigned short level);
-static unsigned char get_power(void);
-static void set_power(unsigned char state);
-static struct fd628_display *get_display_type(void);
-static unsigned char set_display_type(struct fd628_display *display);
-static void set_icon(const char *name, unsigned char state);
-static size_t read_data(unsigned char *data, size_t length);
-static size_t write_data(const unsigned char *data, size_t length);
+static unsigned char fd628_init(void);
+static unsigned short fd628_get_brightness_levels_count(void);
+static unsigned short fd628_get_brightness_level(void);
+static unsigned char fd628_set_brightness_level(unsigned short level);
+static unsigned char fd628_get_power(void);
+static void fd628_set_power(unsigned char state);
+static struct fd628_display *fd628_get_display_type(void);
+static unsigned char fd628_set_display_type(struct fd628_display *display);
+static void fd628_set_icon(const char *name, unsigned char state);
+static size_t fd628_read_data(unsigned char *data, size_t length);
+static size_t fd628_write_data(const unsigned char *data, size_t length);
+static size_t fd628_write_display_data(const struct fd628_display_data *data);
 
 static struct controller_interface fd628_interface = {
-	.init = init,
-	.get_brightness_levels_count = get_brightness_levels_count,
-	.get_brightness_level = get_brightness_level,
-	.set_brightness_level = set_brightness_level,
-	.get_power = get_power,
-	.set_power = set_power,
-	.get_display_type = get_display_type,
-	.set_display_type = set_display_type,
-	.set_icon = set_icon,
-	.read_data = read_data,
-	.write_data = write_data,
+	.init = fd628_init,
+	.get_brightness_levels_count = fd628_get_brightness_levels_count,
+	.get_brightness_level = fd628_get_brightness_level,
+	.set_brightness_level = fd628_set_brightness_level,
+	.get_power = fd628_get_power,
+	.set_power = fd628_set_power,
+	.get_display_type = fd628_get_display_type,
+	.set_display_type = fd628_set_display_type,
+	.set_icon = fd628_set_icon,
+	.read_data = fd628_read_data,
+	.write_data = fd628_write_data,
+	.write_display_data = fd628_write_display_data,
 };
+
+size_t seg7_write_display_data(const struct fd628_display_data *data, unsigned short *raw_wdata, size_t sz);
 
 static struct fd628_dev *dev = NULL;
 static struct protocol_interface *protocol = NULL;
 static unsigned char ram_grid_size = 2;
 static unsigned char ram_grid_count = 7;
 static unsigned char ram_size = 14;
+extern const led_bitmap *ledCodes;
 
 struct controller_interface *init_fd628(struct fd628_dev *_dev)
 {
 	dev = _dev;
-	init();
+	fd628_init();
 	return &fd628_interface;
 }
 
-static size_t fd628_write_data(unsigned char address, const unsigned char *data, size_t length)
+static size_t fd628_write_data_real(unsigned char address, const unsigned char *data, size_t length)
 {
 	unsigned char cmd = FD628_DIGADDR_WRCMD | address;
 	if (length + address > ram_size)
@@ -64,11 +69,19 @@ static size_t fd628_write_data(unsigned char address, const unsigned char *data,
 	return (0);
 }
 
-static void init(void)
+static unsigned char fd628_init(void)
 {
 	protocol = dev->dtb_active.display.controller == CONTROLLER_HBS658 ?
-		init_i2c(0, dev->clk_pin, dev->dat_pin, I2C_DELAY_100KHz) :
+		init_i2c(0, I2C_LSB_FIRST, dev->clk_pin, dev->dat_pin, I2C_DELAY_100KHz) :
 		init_spi_3w(dev->clk_pin, dev->dat_pin, dev->stb_pin, SPI_DELAY_100KHz);
+	switch(dev->dtb_active.display.type) {
+		case DISPLAY_TYPE_5D_7S_T95:
+			ledCodes = LED_decode_tab1;
+			break;
+		default:
+			ledCodes = LED_decode_tab2;
+			break;
+	}
 	switch (dev->dtb_active.display.controller) {
 		case CONTROLLER_FD628:
 		default:
@@ -110,21 +123,22 @@ static void init(void)
 	}
 
 	ram_size = ram_grid_size * ram_grid_count;
-	set_brightness_level(dev->brightness);
+	fd628_set_brightness_level(dev->brightness);
 	memset(dev->wbuf, 0x00, sizeof(dev->wbuf));
+	return 1;
 }
 
-static unsigned short get_brightness_levels_count(void)
+static unsigned short fd628_get_brightness_levels_count(void)
 {
 	return 8;
 }
 
-static unsigned short get_brightness_level(void)
+static unsigned short fd628_get_brightness_level(void)
 {
 	return dev->brightness;
 }
 
-static unsigned char set_brightness_level(unsigned short level)
+static unsigned char fd628_set_brightness_level(unsigned short level)
 {
 	dev->brightness = level & 0x7;
 	protocol->write_byte(FD628_DISP_STATUE_WRCMD | dev->brightness | FD628_DISP_ON);
@@ -132,39 +146,39 @@ static unsigned char set_brightness_level(unsigned short level)
 	return 1;
 }
 
-static unsigned char get_power(void)
+static unsigned char fd628_get_power(void)
 {
 	return dev->power;
 }
 
-static void set_power(unsigned char state)
+static void fd628_set_power(unsigned char state)
 {
 	dev->power = state;
 	if (state)
-		set_brightness_level(dev->brightness);
+		fd628_set_brightness_level(dev->brightness);
 	else
 		protocol->write_byte(FD628_DISP_STATUE_WRCMD | FD628_DISP_OFF);
 }
 
-static struct fd628_display *get_display_type(void)
+static struct fd628_display *fd628_get_display_type(void)
 {
 	return &dev->dtb_active.display;
 }
 
-static unsigned char set_display_type(struct fd628_display *display)
+static unsigned char fd628_set_display_type(struct fd628_display *display)
 {
 	unsigned char ret = 0;
 	if (display->type < DISPLAY_TYPE_MAX && display->controller < CONTROLLER_7S_MAX && display->controller == CONTROLLER_FD650)
 	{
 		dev->dtb_active.display = *display;
-		init();
+		fd628_init();
 		ret = 1;
 	}
 
 	return ret;
 }
 
-static void set_icon(const char *name, unsigned char state)
+static void fd628_set_icon(const char *name, unsigned char state)
 {
 	struct fd628_dtb_config *dtb = &dev->dtb_active;
 	switch (dtb->display.type) {
@@ -235,7 +249,7 @@ static void set_icon(const char *name, unsigned char state)
 	}
 }
 
-static size_t read_data(unsigned char *data, size_t length)
+static size_t fd628_read_data(unsigned char *data, size_t length)
 {
 	protocol->write_byte(FD628_KEY_RDCMD);
 	return protocol->read_data(data, length) == 0 ? length : -1;
@@ -243,7 +257,7 @@ static size_t read_data(unsigned char *data, size_t length)
 
 extern void transpose8rS64(unsigned char* A, unsigned char* B);
 
-static size_t write_data(const unsigned char *_data, size_t length)
+static size_t fd628_write_data(const unsigned char *_data, size_t length)
 {
 	size_t i;
 	struct fd628_dtb_config *dtb = &dev->dtb_active;
@@ -323,5 +337,14 @@ static size_t write_data(const unsigned char *_data, size_t length)
 	}
 
 	length *= ram_grid_size;
-	return fd628_write_data(0, (unsigned char *)dev->wbuf, length) == 0 ? length : 0;
+	return fd628_write_data_real(0, (unsigned char *)dev->wbuf, length) == 0 ? length : 0;
+}
+
+static size_t fd628_write_display_data(const struct fd628_display_data *data)
+{
+	unsigned short wdata[7];
+	size_t status = seg7_write_display_data(data, wdata, sizeof(wdata));
+	if (status && !fd628_write_data((unsigned char*)wdata, 5*sizeof(wdata[0])))
+		status = 0;
+	return status;
 }

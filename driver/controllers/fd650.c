@@ -13,45 +13,50 @@
 #define FD650_DISP_STATE_WRCMD		0x00	/* Set display modw command		*/
 /* *********************************************************************************** */
 
-static void init(void);
-static unsigned short get_brightness_levels_count(void);
-static unsigned short get_brightness_level(void);
-static unsigned char set_brightness_level(unsigned short level);
-static unsigned char get_power(void);
-static void set_power(unsigned char state);
-static struct fd628_display *get_display_type(void);
-static unsigned char set_display_type(struct fd628_display *display);
-static void set_icon(const char *name, unsigned char state);
-static size_t read_data(unsigned char *data, size_t length);
-static size_t write_data(const unsigned char *data, size_t length);
+static unsigned char fd650_init(void);
+static unsigned short fd650_get_brightness_levels_count(void);
+static unsigned short fd650_get_brightness_level(void);
+static unsigned char fd650_set_brightness_level(unsigned short level);
+static unsigned char fd650_get_power(void);
+static void fd650_set_power(unsigned char state);
+static struct fd628_display *fd650_get_display_type(void);
+static unsigned char fd650_set_display_type(struct fd628_display *display);
+static void fd650_set_icon(const char *name, unsigned char state);
+static size_t fd650_read_data(unsigned char *data, size_t length);
+static size_t fd650_write_data(const unsigned char *data, size_t length);
+static size_t fd650_write_display_data(const struct fd628_display_data *data);
 
 static struct controller_interface fd650_interface = {
-	.init = init,
-	.get_brightness_levels_count = get_brightness_levels_count,
-	.get_brightness_level = get_brightness_level,
-	.set_brightness_level = set_brightness_level,
-	.get_power = get_power,
-	.set_power = set_power,
-	.get_display_type = get_display_type,
-	.set_display_type = set_display_type,
-	.set_icon = set_icon,
-	.read_data = read_data,
-	.write_data = write_data,
+	.init = fd650_init,
+	.get_brightness_levels_count = fd650_get_brightness_levels_count,
+	.get_brightness_level = fd650_get_brightness_level,
+	.set_brightness_level = fd650_set_brightness_level,
+	.get_power = fd650_get_power,
+	.set_power = fd650_set_power,
+	.get_display_type = fd650_get_display_type,
+	.set_display_type = fd650_set_display_type,
+	.set_icon = fd650_set_icon,
+	.read_data = fd650_read_data,
+	.write_data = fd650_write_data,
+	.write_display_data = fd650_write_display_data,
 };
+
+size_t seg7_write_display_data(const struct fd628_display_data *data, unsigned short *raw_wdata, size_t sz);
 
 static struct fd628_dev *dev = NULL;
 static struct protocol_interface *protocol = NULL;
 static unsigned char ram_grid_count = 4;
 static unsigned char ram_size = 8;
+extern const led_bitmap *ledCodes;
 
 struct controller_interface *init_fd650(struct fd628_dev *_dev)
 {
 	dev = _dev;
-	init();
+	fd650_init();
 	return &fd650_interface;
 }
 
-static size_t fd650_write_data(unsigned char address, const unsigned char *data, size_t length)
+static size_t fd650_write_data_real(unsigned char address, const unsigned char *data, size_t length)
 {
 	unsigned char cmd = FD650_BASE_ADDR | (address & 0x07), i;
 	if (length + address > ram_size)
@@ -63,24 +68,33 @@ static size_t fd650_write_data(unsigned char address, const unsigned char *data,
 	return (0);
 }
 
-static void init(void)
+static unsigned char fd650_init(void)
 {
-	protocol = init_i2c(0, dev->clk_pin, dev->dat_pin, I2C_DELAY_100KHz);
+	protocol = init_i2c(0, I2C_MSB_FIRST, dev->clk_pin, dev->dat_pin, I2C_DELAY_100KHz);
 	memset(dev->wbuf, 0x00, sizeof(dev->wbuf));
-	set_brightness_level(dev->brightness);
+	fd650_set_brightness_level(dev->brightness);
+	switch(dev->dtb_active.display.type) {
+		case DISPLAY_TYPE_5D_7S_T95:
+			ledCodes = LED_decode_tab1;
+			break;
+		default:
+			ledCodes = LED_decode_tab2;
+			break;
+	}
+	return 1;
 }
 
-static unsigned short get_brightness_levels_count(void)
+static unsigned short fd650_get_brightness_levels_count(void)
 {
 	return 8;
 }
 
-static unsigned short get_brightness_level(void)
+static unsigned short fd650_get_brightness_level(void)
 {
 	return dev->brightness;
 }
 
-static unsigned char set_brightness_level(unsigned short level)
+static unsigned char fd650_set_brightness_level(unsigned short level)
 {
 	dev->brightness = level & 0x7;
 	protocol->write_byte(FD650_MODE_WRCMD);
@@ -89,53 +103,53 @@ static unsigned char set_brightness_level(unsigned short level)
 	return 1;
 }
 
-static unsigned char get_power(void)
+static unsigned char fd650_get_power(void)
 {
 	return dev->power;
 }
 
-static void set_power(unsigned char state)
+static void fd650_set_power(unsigned char state)
 {
 	dev->power = state;
 	if (state)
-		set_brightness_level(dev->brightness);
+		fd650_set_brightness_level(dev->brightness);
 	else {
 		protocol->write_byte(FD650_MODE_WRCMD);
 		protocol->write_byte(FD650_DISP_STATE_WRCMD | FD650_DISP_OFF);
 	}
 }
 
-static struct fd628_display *get_display_type(void)
+static struct fd628_display *fd650_get_display_type(void)
 {
 	return &dev->dtb_active.display;
 }
 
-static unsigned char set_display_type(struct fd628_display *display)
+static unsigned char fd650_set_display_type(struct fd628_display *display)
 {
 	unsigned char ret = 0;
 	if (display->type < DISPLAY_TYPE_MAX && display->controller == CONTROLLER_FD650)
 	{
 		dev->dtb_active.display = *display;
-		init();
+		fd650_init();
 		ret = 1;
 	}
 
 	return ret;
 }
 
-static void set_icon(const char *name, unsigned char state)
+static void fd650_set_icon(const char *name, unsigned char state)
 {
 	if (strncmp(name,"colon",5) == 0)
 		dev->status_led_mask = state ? (dev->status_led_mask | ledDots[LED_DOT_SEC]) : (dev->status_led_mask & ~ledDots[LED_DOT_SEC]);
 }
 
-static size_t read_data(unsigned char *data, size_t length)
+static size_t fd650_read_data(unsigned char *data, size_t length)
 {
 	unsigned char cmd = FD650_KEY_RDCMD;
 	return protocol->read_cmd_data(&cmd, 1, data, length > 1 ? 1 : length) == 0 ? 1 : -1;
 }
 
-static size_t write_data(const unsigned char *_data, size_t length)
+static size_t fd650_write_data(const unsigned char *_data, size_t length)
 {
 	size_t i;
 	struct fd628_dtb_config *dtb = &dev->dtb_active;
@@ -143,11 +157,20 @@ static size_t write_data(const unsigned char *_data, size_t length)
 
 	memset(dev->wbuf, 0x00, sizeof(dev->wbuf));
 	length = length > ram_size ? ram_grid_count : (length / sizeof(unsigned short));
-	for (i = 1; i < length; i++)
+	for (i = 1; i <= length; i++)
 		dev->wbuf[dtb->dat_index[i]] = data[i];
 	if ((data[0] | dev->status_led_mask) & ledDots[LED_DOT_SEC])
 		dev->wbuf[dtb->dat_index[0]] |= 0x80;
 
 	length *= sizeof(unsigned short);
-	return fd650_write_data(0, (unsigned char *)dev->wbuf, length) == 0 ? length : 0;
+	return fd650_write_data_real(0, (unsigned char *)dev->wbuf, length) == 0 ? length : 0;
+}
+
+static size_t fd650_write_display_data(const struct fd628_display_data *data)
+{
+	unsigned short wdata[7];
+	size_t status = seg7_write_display_data(data, wdata, sizeof(wdata));
+	if (status && !fd650_write_data((unsigned char*)wdata, 5*sizeof(wdata[0])))
+		status = 0;
+	return status;
 }
