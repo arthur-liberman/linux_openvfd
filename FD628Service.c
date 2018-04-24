@@ -25,6 +25,7 @@
 #define PIPE_PATH	"/tmp/fd628_service"
 
 bool set_display_type(int new_display_type);
+bool is_demo_mode(int argc, char *argv[]);
 bool is_test_mode(int argc, char *argv[]);
 int get_cmd_display_type(int argc, char *argv[]);
 int get_cmd_chars_order(int argc, char *argv[], u_int8 chars[], const int sz);
@@ -36,7 +37,10 @@ struct sync_data {
 	pthread_cond_t cond;
 	struct timespec abs_time;
 	bool useBuffer;
-	char buffer[LED_DOT_MAX];
+	union {
+		struct fd628_display_data display_data;
+		char buffer[sizeof(struct fd628_display_data)];
+	};
 };
 
 typedef struct _DotLedBitMap {
@@ -86,10 +90,9 @@ void mdelay(int n)
 
 struct sync_data sync_data;
 
-void led_display_loop()
+void led_display_loop(bool demo_mode)
 {
 	static struct fd628_display_data data;
-	unsigned short write_buffer[LED_DOT_MAX];
 	int ret = -1, i;
 
 	time_t now;
@@ -109,41 +112,42 @@ void led_display_loop()
 
 				select_display_type();
 				if (sync_data.useBuffer) {
-					write_buffer[0] = 0;
-					for (i = 0; i < 4; i++)
-						write_buffer[i+1] = char_to_mask(sync_data.buffer[i]);
+					data = sync_data.display_data;
 				} else {
 					// Get current time
 					time(&now);
 					timenow = localtime(&now);
 
-					data.mode = 1 + timenow->tm_sec / 12;
-					data.temperature = timenow->tm_hour + timenow->tm_min + timenow->tm_sec;
-					data.channel_data.channel = 10*(timenow->tm_hour + timenow->tm_min + timenow->tm_sec);
-					data.channel_data.channel_count = 86400;
-					data.time_date.hours = ((timenow->tm_sec >= 24) && (timenow->tm_sec < 30)) ? 0 : (timenow->tm_hour == 0) ? 24 : timenow->tm_hour;
-					data.time_date.minutes = timenow->tm_min;
-					data.time_date.seconds = timenow->tm_sec;
-					data.time_date.day_of_week = timenow->tm_wday;
-					data.time_date.day = timenow->tm_mday;
-					data.time_date.month = timenow->tm_mon;
-					data.time_date.year = timenow->tm_year + 1900;
-					data.time_secondary.hours = timenow->tm_hour;
-					data.time_secondary.minutes = timenow->tm_min;
-					data.time_secondary.seconds = timenow->tm_sec;
-					data.colon_on = !data.colon_on;
-					snprintf(data.string_main, sizeof(data.string_secondary), "The Saga of the Viking Women and their Voyage to the Waters of the Great Sea Serpent");
-					snprintf(data.string_secondary, sizeof(data.string_secondary), "Now playing:");
-
-					//data.mode = DISPLAY_MODE_CLOCK;
-					//data.time_date.hours = timenow->tm_hour;
-					//data.time_date.minutes = timenow->tm_min;
-					//data.time_date.seconds = timenow->tm_sec;
-					//data.time_date.day_of_week = timenow->tm_wday;
-					//data.time_date.day = timenow->tm_mday;
-					//data.time_date.month = timenow->tm_mon;
-					//data.time_date.year = timenow->tm_year;
-					//data.colon_on = !data.colon_on;
+					if (demo_mode) {
+						data.mode = 1 + timenow->tm_sec / 12;
+						data.temperature = timenow->tm_hour + timenow->tm_min + timenow->tm_sec;
+						data.channel_data.channel = 10*(timenow->tm_hour + timenow->tm_min + timenow->tm_sec);
+						data.channel_data.channel_count = 86400;
+						data.time_date.hours = ((timenow->tm_sec >= 24) && (timenow->tm_sec < 30)) ? 0 : (timenow->tm_hour == 0) ? 24 : timenow->tm_hour;
+						data.time_date.minutes = timenow->tm_min;
+						data.time_date.seconds = timenow->tm_sec;
+						data.time_date.day_of_week = timenow->tm_wday;
+						data.time_date.day = timenow->tm_mday;
+						data.time_date.month = timenow->tm_mon;
+						data.time_date.year = timenow->tm_year + 1900;
+						data.time_secondary.hours = timenow->tm_hour;
+						data.time_secondary.minutes = timenow->tm_min;
+						data.time_secondary.seconds = timenow->tm_sec;
+						data.colon_on = !data.colon_on;
+						// Really long movie title.
+						snprintf(data.string_main, sizeof(data.string_secondary), "The Saga of the Viking Women and their Voyage to the Waters of the Great Sea Serpent");
+						snprintf(data.string_secondary, sizeof(data.string_secondary), "Now playing:");
+					} else {
+						data.mode = DISPLAY_MODE_CLOCK;
+						data.time_date.hours = timenow->tm_hour;
+						data.time_date.minutes = timenow->tm_min;
+						data.time_date.seconds = timenow->tm_sec;
+						data.time_date.day_of_week = timenow->tm_wday;
+						data.time_date.day = timenow->tm_mday;
+						data.time_date.month = timenow->tm_mon;
+						data.time_date.year = timenow->tm_year + 1900;
+						data.colon_on = !data.colon_on;
+					}
 				}
 				ret = write(fd628_fd,&data,sizeof(data));
 			}
@@ -276,8 +280,8 @@ void led_test_loop(bool cycle_display_types)
 
 void *display_thread_handler(void *arg)
 {
-	UNUSED(arg);
-	led_display_loop();
+	bool demo_mode = *(bool*)arg;
+	led_display_loop(demo_mode);
 	pthread_exit(NULL);
 }
 
@@ -306,30 +310,26 @@ void *named_pipe_thread_handler(void *arg)
 		close(file);
 		buf[ret] = NULL;
 		printf("ret = %d, %s\n", ret, buf);
-			for (i = 1; i < ret; i++)
-				printf("0x%02X, ", buf[i]);
-			printf("\n");
+		for (i = 0; i < ret; i++)
+			printf("0x%02X, ", buf[i]);
+		printf("\n");
 		if (ret > 0 && !pthread_mutex_lock(&sync_data.mutex)) {
-			switch ((unsigned char)buf[0]) {
-			case 0:
-			default:
-				printf("case 0, default\n");
-				sync_data.useBuffer = false;
-				break;
-			case 1:
-				// Refresh display. Will signal the led_loop to update display.
-				break;
-			case 2:
-				printf("case 2\n");
-				ret = (--ret > LED_DOT_MAX) ? LED_DOT_MAX : ret;
+			if (ret == sizeof(sync_data.display_data)) {
+				printf("Write display data\n");
+				memcpy(&sync_data.display_data, buf, sizeof(sync_data.display_data));
 				sync_data.useBuffer = true;
-				memset(sync_data.buffer, ' ', sizeof(sync_data.buffer));
-				for (i = 0; i < ret; i++)
-					sync_data.buffer[i] = buf[i+1];
-				break;
-			case 3:
-				sync_data.useBuffer = true;
-				break;
+			} else {
+				printf("Write unknown data\n");
+				switch ((unsigned char)buf[0]) {
+				case 0:
+				default:
+					printf("case 0, default\n");
+					sync_data.useBuffer = false;
+					break;
+				case 1:
+					// Refresh display. Will signal the led_loop to update display.
+					break;
+				}
 			}
 			pthread_cond_signal(&sync_data.cond);
 			pthread_mutex_unlock(&sync_data.mutex);
@@ -413,7 +413,8 @@ int main(int argc, char *argv[])
 		sync_data.isActive = true;
 		sigaction(SIGTERM, &sig_handler, 0);
 		sigaction(SIGINT, &sig_handler, 0);
-		ret = pthread_create(&disp_id, NULL, display_thread_handler, NULL);
+		test_mode = is_demo_mode(argc, argv);
+		ret = pthread_create(&disp_id, NULL, display_thread_handler, &test_mode);
 		if (ret == 0)
 			ret = pthread_create(&npipe_id, NULL, named_pipe_thread_handler, NULL);
 	}
@@ -427,6 +428,20 @@ int main(int argc, char *argv[])
 	pthread_join(disp_id, NULL);
 	close(fd628_fd);
 	return 0;
+}
+
+bool is_demo_mode(int argc, char *argv[])
+{
+	bool ret = false;
+	int i;
+	for (i = 1; i < argc; i++) {
+		if (!strcmp(argv[i], "-dm")) {
+			ret = true;
+			break;
+		}
+	}
+
+	return ret;
 }
 
 bool is_test_mode(int argc, char *argv[])
@@ -508,6 +523,7 @@ bool print_usage(int argc, char *argv[])
 			ret = true;
 			printf("\nUsage: FD628Service [-t] [-dt TYPE] [-h]\n\n");
 			printf("\t-t\t\tRun FD628Service in display test mode.\n");
+			printf("\t-dm\t\tRun FD628Service in display demo mode.\n");
 			printf("\t-dt N\t\tSpecifies which display type to use.\n");
 			printf("\t-co N...\t< D HH:MM > Order of display chars.\n\t\t\tValid values are 0 - 6.\n\t\t\t(D=dots, represented by a single char)\n");
 			printf("\t-h\t\tThis text.\n\n");
