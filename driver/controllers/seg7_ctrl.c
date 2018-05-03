@@ -70,9 +70,28 @@ size_t seg7_write_display_data(const struct fd628_display_data *data, unsigned s
 	case DISPLAY_MODE_TITLE:
 		break;
 	case DISPLAY_MODE_TEMPERATURE:
-		len = scnprintf(buffer, sizeof(buffer), "%d%c", data->temperature % 1000, 0xB0); // ascii 176 = degree
+		len = scnprintf(buffer, sizeof(buffer), "%d%c%c", data->temperature % 1000, 0xB0, 'c'); // ascii 176 = degree
+		if (len > 4)
+			len = 4;
 		for (i = 0; i < len; i++)
 			raw_wdata[i + 1] = char_to_mask(buffer[i]);
+		break;
+	case DISPLAY_MODE_DATE:
+		{
+			unsigned char day = data->time_date.day;
+			unsigned char month = data->time_date.month + 1;
+			if (data->time_secondary._reserved) {
+				raw_wdata[1] = char_to_mask(month / 10);
+				raw_wdata[2] = char_to_mask(month % 10);
+				raw_wdata[3] = char_to_mask(day / 10);
+				raw_wdata[4] = char_to_mask(day % 10);
+			} else {
+				raw_wdata[1] = char_to_mask(day / 10);
+				raw_wdata[2] = char_to_mask(day % 10);
+				raw_wdata[3] = char_to_mask(month / 10);
+				raw_wdata[4] = char_to_mask(month % 10);
+			}
+		}
 		break;
 	default:
 		status = 0;

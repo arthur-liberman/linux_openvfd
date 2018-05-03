@@ -111,6 +111,12 @@ void led_display_loop(bool demo_mode)
 				}
 
 				select_display_type();
+				if (sync_data.useBuffer && (sync_data.display_data.mode == DISPLAY_MODE_CLOCK ||
+						sync_data.display_data.mode == DISPLAY_MODE_DATE)) {
+					sync_data.useBuffer = false;
+					data = sync_data.display_data;
+				}
+
 				if (sync_data.useBuffer) {
 					data = sync_data.display_data;
 				} else {
@@ -138,7 +144,8 @@ void led_display_loop(bool demo_mode)
 						snprintf(data.string_main, sizeof(data.string_secondary), "The Saga of the Viking Women and their Voyage to the Waters of the Great Sea Serpent");
 						snprintf(data.string_secondary, sizeof(data.string_secondary), "Now playing:");
 					} else {
-						data.mode = DISPLAY_MODE_CLOCK;
+						if (data.mode != DISPLAY_MODE_DATE)
+							data.mode = DISPLAY_MODE_CLOCK;
 						data.time_date.hours = timenow->tm_hour;
 						data.time_date.minutes = timenow->tm_min;
 						data.time_date.seconds = timenow->tm_sec;
@@ -297,6 +304,7 @@ void *named_pipe_thread_handler(void *arg)
 	FILE *file;
 	char buf[1024];
 	int ret = 0, i;
+	unsigned char skipSignal;
 
 	unlink(PIPE_PATH);
 	if ((mkfifo(PIPE_PATH, 0666)) != 0) {
@@ -314,6 +322,7 @@ void *named_pipe_thread_handler(void *arg)
 			printf("0x%02X, ", buf[i]);
 		printf("\n");
 		if (ret > 0 && !pthread_mutex_lock(&sync_data.mutex)) {
+			skipSignal = 0;
 			if (ret == sizeof(sync_data.display_data)) {
 				printf("Write display data\n");
 				memcpy(&sync_data.display_data, buf, sizeof(sync_data.display_data));
@@ -324,14 +333,25 @@ void *named_pipe_thread_handler(void *arg)
 				case 0:
 				default:
 					printf("case 0, default\n");
-					sync_data.useBuffer = false;
+					sync_data.useBuffer = true;
+					sync_data.display_data.mode = DISPLAY_MODE_CLOCK;
 					break;
 				case 1:
 					// Refresh display. Will signal the led_loop to update display.
 					break;
+				case 2:
+					if (ret >= 3 && buf[1] == DISPLAY_MODE_DATE)
+					{
+						sync_data.useBuffer = true;
+						sync_data.display_data.mode = DISPLAY_MODE_DATE;
+						sync_data.display_data.time_secondary._reserved = buf[2];
+						skipSignal = 1;
+					}
+					break;
 				}
 			}
-			pthread_cond_signal(&sync_data.cond);
+			if (!skipSignal)
+				pthread_cond_signal(&sync_data.cond);
 			pthread_mutex_unlock(&sync_data.mutex);
 		}
 	}

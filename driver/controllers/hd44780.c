@@ -346,6 +346,7 @@ static size_t hd47780_write_display_data(const struct fd628_display_data *data)
 		switch (data->mode) {
 		case DISPLAY_MODE_CLOCK:
 		case DISPLAY_MODE_PLAYBACK_TIME:
+		case DISPLAY_MODE_DATE:
 			write_lcd(HD44780_CGRA | 0x38, CMD);
 			if (rows != 2)
 				write_buf_lcd(cgram_4l_chars[7], 8);
@@ -376,6 +377,7 @@ static size_t hd47780_write_display_data(const struct fd628_display_data *data)
 
 	switch (data->mode) {
 	case DISPLAY_MODE_CLOCK:
+	case DISPLAY_MODE_DATE:
 		print_clock(data, 1);
 		break;
 	case DISPLAY_MODE_CHANNEL:
