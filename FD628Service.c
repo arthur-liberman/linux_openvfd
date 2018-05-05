@@ -114,6 +114,7 @@ void led_display_loop(bool demo_mode)
 				if (sync_data.useBuffer && (sync_data.display_data.mode == DISPLAY_MODE_CLOCK ||
 						sync_data.display_data.mode == DISPLAY_MODE_DATE)) {
 					sync_data.useBuffer = false;
+					sync_data.display_data.colon_on = data.colon_on;
 					data = sync_data.display_data;
 				}
 
@@ -342,10 +343,12 @@ void *named_pipe_thread_handler(void *arg)
 				case 2:
 					if (ret >= 3 && buf[1] == DISPLAY_MODE_DATE)
 					{
-						sync_data.useBuffer = true;
-						sync_data.display_data.mode = DISPLAY_MODE_DATE;
+						if (sync_data.display_data.mode == DISPLAY_MODE_DATE)
+							skipSignal = 1;
+						else
+							sync_data.display_data.mode = DISPLAY_MODE_DATE;
 						sync_data.display_data.time_secondary._reserved = buf[2];
-						skipSignal = 1;
+						sync_data.useBuffer = true;
 					}
 					break;
 				}
