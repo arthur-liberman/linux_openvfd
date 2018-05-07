@@ -25,6 +25,7 @@
 #define PIPE_PATH	"/tmp/fd628_service"
 
 bool set_display_type(int new_display_type);
+bool is_verbose(int argc, char *argv[]);
 bool is_demo_mode(int argc, char *argv[]);
 bool is_test_mode(int argc, char *argv[]);
 int get_cmd_display_type(int argc, char *argv[]);
@@ -64,6 +65,7 @@ static const led_bitmap *ledCodes = LED_decode_tab1;
 static struct fd628_display display_type;
 
 int fd628_fd;
+bool verbose = false;
 
 uint8_t char_to_mask(uint8_t ch)
 {
@@ -318,22 +320,27 @@ void *named_pipe_thread_handler(void *arg)
 		ret = read(file, buf, sizeof(buf));
 		close(file);
 		buf[ret] = NULL;
-		printf("ret = %d, %s\n", ret, buf);
-		for (i = 0; i < ret; i++)
-			printf("0x%02X, ", buf[i]);
-		printf("\n");
+		if (verbose) {
+			printf("ret = %d, %s\n", ret, buf);
+			for (i = 0; i < ret; i++)
+				printf("0x%02X, ", buf[i]);
+			printf("\n");
+		}
 		if (ret > 0 && !pthread_mutex_lock(&sync_data.mutex)) {
 			skipSignal = 0;
 			if (ret == sizeof(sync_data.display_data)) {
-				printf("Write display data\n");
+				if (verbose)
+					printf("Write display data\n");
 				memcpy(&sync_data.display_data, buf, sizeof(sync_data.display_data));
 				sync_data.useBuffer = true;
 			} else {
-				printf("Write unknown data\n");
+				if (verbose)
+					printf("Write unknown data\n");
 				switch ((unsigned char)buf[0]) {
 				case 0:
 				default:
-					printf("case 0, default\n");
+					if (verbose)
+						printf("case 0, default\n");
 					sync_data.useBuffer = true;
 					sync_data.display_data.mode = DISPLAY_MODE_CLOCK;
 					break;
@@ -417,6 +424,7 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 
+	verbose = is_verbose(argc, argv);
 	char_order_count = get_cmd_chars_order(argc, argv, char_indexes, (int)sizeof(char_indexes));
 	if (char_order_count)
 		if (ioctl(fd628_fd, FD628_IOC_SCHARS_ORDER, char_indexes))
@@ -453,12 +461,12 @@ int main(int argc, char *argv[])
 	return 0;
 }
 
-bool is_demo_mode(int argc, char *argv[])
+bool is_cmd_option(int argc, char *argv[], const char *str)
 {
 	bool ret = false;
 	int i;
 	for (i = 1; i < argc; i++) {
-		if (!strcmp(argv[i], "-dm")) {
+		if (!strcmp(argv[i], str)) {
 			ret = true;
 			break;
 		}
@@ -467,18 +475,19 @@ bool is_demo_mode(int argc, char *argv[])
 	return ret;
 }
 
+bool is_verbose(int argc, char *argv[])
+{
+	return is_cmd_option(argc, argv, "-v");
+}
+
+bool is_demo_mode(int argc, char *argv[])
+{
+	return is_cmd_option(argc, argv, "-dm");
+}
+
 bool is_test_mode(int argc, char *argv[])
 {
-	bool ret = false;
-	int i;
-	for (i = 1; i < argc; i++) {
-		if (!strcmp(argv[i], "-t")) {
-			ret = true;
-			break;
-		}
-	}
-
-	return ret;
+	return is_cmd_option(argc, argv, "-t");
 }
 
 int get_cmd_display_type(int argc, char *argv[])
