@@ -101,12 +101,12 @@ static unsigned short hd47780_get_brightness_level(void);
 static unsigned char hd47780_set_brightness_level(unsigned short level);
 static unsigned char hd47780_get_power(void);
 static void hd47780_set_power(unsigned char state);
-static struct fd628_display *hd47780_get_display_type(void);
-static unsigned char hd47780_set_display_type(struct fd628_display *display);
+static struct vfd_display *hd47780_get_display_type(void);
+static unsigned char hd47780_set_display_type(struct vfd_display *display);
 static void hd47780_set_icon(const char *name, unsigned char state);
 static size_t hd47780_read_data(unsigned char *data, size_t length);
 static size_t hd47780_write_data(const unsigned char *data, size_t length);
-static size_t hd47780_write_display_data(const struct fd628_display_data *data);
+static size_t hd47780_write_display_data(const struct vfd_display_data *data);
 
 static struct controller_interface hd47780_interface = {
 	.init = hd47780_init,
@@ -125,21 +125,21 @@ static struct controller_interface hd47780_interface = {
 
 static void print_2l_char(unsigned short ch, unsigned char pos, unsigned char is_clock);
 static void print_4l_char(unsigned short ch, unsigned char pos, unsigned char is_clock);
-static void print_clock(const struct fd628_display_data *data, unsigned char print_seconds);
-static void print_channel(const struct fd628_display_data *data);
-static void print_playback_time(const struct fd628_display_data *data);
-static void print_title(const struct fd628_display_data *data);
-static void print_temperature(const struct fd628_display_data *data);
+static void print_clock(const struct vfd_display_data *data, unsigned char print_seconds);
+static void print_channel(const struct vfd_display_data *data);
+static void print_playback_time(const struct vfd_display_data *data);
+static void print_title(const struct vfd_display_data *data);
+static void print_temperature(const struct vfd_display_data *data);
 
-static struct fd628_dev *dev = NULL;
+static struct vfd_dev *dev = NULL;
 static struct protocol_interface *protocol = NULL;
 static unsigned char columns = 16;
 static unsigned char rows = 2;
 static unsigned char backlight = BACKLIGHT;
 static unsigned char big_dot = BIG_2L_DOT;
-static struct fd628_display_data old_data;
+static struct vfd_display_data old_data;
 
-struct controller_interface *init_hd47780(struct fd628_dev *_dev)
+struct controller_interface *init_hd47780(struct vfd_dev *_dev)
 {
 	dev = _dev;
 	memset(&old_data, 0, sizeof(old_data));
@@ -261,12 +261,12 @@ static void hd47780_set_power(unsigned char state)
 	}
 }
 
-static struct fd628_display *hd47780_get_display_type(void)
+static struct vfd_display *hd47780_get_display_type(void)
 {
 	return &dev->dtb_active.display;
 }
 
-static unsigned char hd47780_set_display_type(struct fd628_display *display)
+static unsigned char hd47780_set_display_type(struct vfd_display *display)
 {
 	unsigned char ret = 0;
 	if (display->controller == CONTROLLER_HD44780)
@@ -336,7 +336,7 @@ static size_t hd47780_write_data(const unsigned char *data, size_t length)
 	return length;
 }
 
-static size_t hd47780_write_display_data(const struct fd628_display_data *data)
+static size_t hd47780_write_display_data(const struct vfd_display_data *data)
 {
 	size_t status = sizeof(*data);
 	if (data->mode != old_data.mode) {
@@ -515,7 +515,7 @@ static void print_number(const char *buffer, size_t length, unsigned char start_
 	}
 }
 
-static void print_clock(const struct fd628_display_data *data, unsigned char print_seconds)
+static void print_clock(const struct vfd_display_data *data, unsigned char print_seconds)
 {
 	char buffer[10];
 	unsigned char force_print = old_data.mode == DISPLAY_MODE_NONE;
@@ -557,7 +557,7 @@ static void print_clock(const struct fd628_display_data *data, unsigned char pri
 	}
 }
 
-static void print_channel(const struct fd628_display_data *data)
+static void print_channel(const struct vfd_display_data *data)
 {
 	size_t len, max_len = (columns / 3);
 	char buffer[81];
@@ -607,7 +607,7 @@ static void print_channel(const struct fd628_display_data *data)
 	}
 }
 
-static void print_playback_time(const struct fd628_display_data *data)
+static void print_playback_time(const struct vfd_display_data *data)
 {
 	char buffer[21];
 	unsigned char force_print = old_data.mode == DISPLAY_MODE_NONE || data->time_date.hours != old_data.time_date.hours;
@@ -657,7 +657,7 @@ static void print_playback_time(const struct fd628_display_data *data)
 	}
 }
 
-static void print_title(const struct fd628_display_data *data)
+static void print_title(const struct vfd_display_data *data)
 {
 	size_t len;
 	char buffer[81];
@@ -686,7 +686,7 @@ static void print_title(const struct fd628_display_data *data)
 	}
 }
 
-static void print_temperature(const struct fd628_display_data *data)
+static void print_temperature(const struct vfd_display_data *data)
 {
 	unsigned char i;
 	char buffer[10];

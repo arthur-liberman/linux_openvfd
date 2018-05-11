@@ -1,53 +1,53 @@
 Execution instructions:
-insmod aml_fd628.ko
-./FD628Service &	(run FD628Service Daemon to show time)
-./FD628Service -t &	(run FD628Service Daemon in test mode)
+insmod open_vfd.ko
+./OpenVFDService &	(run OpenVFDService Daemon to show time)
+./OpenVFDService -t &	(run OpenVFDService Daemon in test mode)
 
 Turn led indicators on/off:
 
 1. Alarm led:
-echo alarm > /sys/class/leds/fd628_dev/led_on
-echo alarm > /sys/class/leds/fd628_dev/led_off
+echo alarm > /sys/class/leds/openvfd/led_on
+echo alarm > /sys/class/leds/openvfd/led_off
 
 2. WiFi led:
-echo wifi > /sys/class/leds/fd628_dev/led_on
-echo wifi > /sys/class/leds/fd628_dev/led_off
+echo wifi > /sys/class/leds/openvfd/led_on
+echo wifi > /sys/class/leds/openvfd/led_off
 
 3. Ethernet led:
-echo eth > /sys/class/leds/fd628_dev/led_on
-echo eth > /sys/class/leds/fd628_dev/led_off
+echo eth > /sys/class/leds/openvfd/led_on
+echo eth > /sys/class/leds/openvfd/led_off
 
 4. Pause led:
-echo pause > /sys/class/leds/fd628_dev/led_on
-echo pause > /sys/class/leds/fd628_dev/led_off
+echo pause > /sys/class/leds/openvfd/led_on
+echo pause > /sys/class/leds/openvfd/led_off
 
 5. Play led:
-echo play > /sys/class/leds/fd628_dev/led_on
-echo play > /sys/class/leds/fd628_dev/led_off
+echo play > /sys/class/leds/openvfd/led_on
+echo play > /sys/class/leds/openvfd/led_off
 
 6. USB led:
-echo usb > /sys/class/leds/fd628_dev/led_on
-echo usb > /sys/class/leds/fd628_dev/led_off
+echo usb > /sys/class/leds/openvfd/led_on
+echo usb > /sys/class/leds/openvfd/led_off
 
 7. Apps led:
-echo apps > /sys/class/leds/fd628_dev/led_on
-echo apps > /sys/class/leds/fd628_dev/led_off
+echo apps > /sys/class/leds/openvfd/led_on
+echo apps > /sys/class/leds/openvfd/led_off
 
 8. Setup led:
-echo setup > /sys/class/leds/fd628_dev/led_on
-echo setup > /sys/class/leds/fd628_dev/led_off
+echo setup > /sys/class/leds/openvfd/led_on
+echo setup > /sys/class/leds/openvfd/led_off
 
 9. Card led:
-echo sd > /sys/class/leds/fd628_dev/led_on
-echo sd > /sys/class/leds/fd628_dev/led_off
+echo sd > /sys/class/leds/openvfd/led_on
+echo sd > /sys/class/leds/openvfd/led_off
 
 10. HDMI led:
-echo hdmi > /sys/class/leds/fd628_dev/led_on
-echo hdmi > /sys/class/leds/fd628_dev/led_off
+echo hdmi > /sys/class/leds/openvfd/led_on
+echo hdmi > /sys/class/leds/openvfd/led_off
 
 11. CVBS led:
-echo cvbs > /sys/class/leds/fd628_dev/led_on
-echo cvbs > /sys/class/leds/fd628_dev/led_off
+echo cvbs > /sys/class/leds/openvfd/led_on
+echo cvbs > /sys/class/leds/openvfd/led_off
 
 Note: Some displays have indicators 1 - 6, and others 6 - 11.
 There is no overlap, and you can't trigger an indicator that

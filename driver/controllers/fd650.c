@@ -19,12 +19,12 @@ static unsigned short fd650_get_brightness_level(void);
 static unsigned char fd650_set_brightness_level(unsigned short level);
 static unsigned char fd650_get_power(void);
 static void fd650_set_power(unsigned char state);
-static struct fd628_display *fd650_get_display_type(void);
-static unsigned char fd650_set_display_type(struct fd628_display *display);
+static struct vfd_display *fd650_get_display_type(void);
+static unsigned char fd650_set_display_type(struct vfd_display *display);
 static void fd650_set_icon(const char *name, unsigned char state);
 static size_t fd650_read_data(unsigned char *data, size_t length);
 static size_t fd650_write_data(const unsigned char *data, size_t length);
-static size_t fd650_write_display_data(const struct fd628_display_data *data);
+static size_t fd650_write_display_data(const struct vfd_display_data *data);
 
 static struct controller_interface fd650_interface = {
 	.init = fd650_init,
@@ -41,15 +41,15 @@ static struct controller_interface fd650_interface = {
 	.write_display_data = fd650_write_display_data,
 };
 
-size_t seg7_write_display_data(const struct fd628_display_data *data, unsigned short *raw_wdata, size_t sz);
+size_t seg7_write_display_data(const struct vfd_display_data *data, unsigned short *raw_wdata, size_t sz);
 
-static struct fd628_dev *dev = NULL;
+static struct vfd_dev *dev = NULL;
 static struct protocol_interface *protocol = NULL;
 static unsigned char ram_grid_count = 4;
 static unsigned char ram_size = 8;
 extern const led_bitmap *ledCodes;
 
-struct controller_interface *init_fd650(struct fd628_dev *_dev)
+struct controller_interface *init_fd650(struct vfd_dev *_dev)
 {
 	dev = _dev;
 	fd650_init();
@@ -119,12 +119,12 @@ static void fd650_set_power(unsigned char state)
 	}
 }
 
-static struct fd628_display *fd650_get_display_type(void)
+static struct vfd_display *fd650_get_display_type(void)
 {
 	return &dev->dtb_active.display;
 }
 
-static unsigned char fd650_set_display_type(struct fd628_display *display)
+static unsigned char fd650_set_display_type(struct vfd_display *display)
 {
 	unsigned char ret = 0;
 	if (display->type < DISPLAY_TYPE_MAX && display->controller == CONTROLLER_FD650)
@@ -152,7 +152,7 @@ static size_t fd650_read_data(unsigned char *data, size_t length)
 static size_t fd650_write_data(const unsigned char *_data, size_t length)
 {
 	size_t i;
-	struct fd628_dtb_config *dtb = &dev->dtb_active;
+	struct vfd_dtb_config *dtb = &dev->dtb_active;
 	unsigned short *data = (unsigned short *)_data;
 
 	memset(dev->wbuf, 0x00, sizeof(dev->wbuf));
@@ -166,7 +166,7 @@ static size_t fd650_write_data(const unsigned char *_data, size_t length)
 	return fd650_write_data_real(0, (unsigned char *)dev->wbuf, length) == 0 ? length : 0;
 }
 
-static size_t fd650_write_display_data(const struct fd628_display_data *data)
+static size_t fd650_write_display_data(const struct vfd_display_data *data)
 {
 	unsigned short wdata[7];
 	size_t status = seg7_write_display_data(data, wdata, sizeof(wdata));

@@ -3,6 +3,6 @@
 
 #include "controller.h"
 
-struct controller_interface *init_fd628(struct fd628_dev *dev);
+struct controller_interface *init_fd628(struct vfd_dev *dev);
 
 #endif

@@ -18,11 +18,11 @@
 #include <signal.h>
 
 #include <time.h>
-#include "driver/le_vfd_drv.h"
+#include "driver/open_vfd_drv.h"
 
 #define UNUSED(x)	(void*)(x)
 #define DRV_NAME	"/dev/" DEV_NAME
-#define PIPE_PATH	"/tmp/fd628_service"
+#define PIPE_PATH	"/tmp/" DEV_NAME "_service"
 
 bool set_display_type(int new_display_type);
 bool is_verbose(int argc, char *argv[]);
@@ -39,8 +39,8 @@ struct sync_data {
 	struct timespec abs_time;
 	bool useBuffer;
 	union {
-		struct fd628_display_data display_data;
-		char buffer[sizeof(struct fd628_display_data)];
+		struct vfd_display_data display_data;
+		char buffer[sizeof(struct vfd_display_data)];
 	};
 };
 
@@ -62,9 +62,9 @@ static DotLedBitMap dotLeds[LED_DOT_MAX] = {
 
 #define LEDCODES_LEN	(sizeof(LED_decode_tab1)/sizeof(LED_decode_tab1[0]))
 static const led_bitmap *ledCodes = LED_decode_tab1;
-static struct fd628_display display_type;
+static struct vfd_display display_type;
 
-int fd628_fd;
+int openvfd_fd;
 bool verbose = false;
 
 uint8_t char_to_mask(uint8_t ch)
@@ -94,7 +94,7 @@ struct sync_data sync_data;
 
 void led_display_loop(bool demo_mode)
 {
-	static struct fd628_display_data data;
+	static struct vfd_display_data data;
 	int ret = -1, i;
 
 	time_t now;
@@ -159,7 +159,7 @@ void led_display_loop(bool demo_mode)
 						data.colon_on = !data.colon_on;
 					}
 				}
-				ret = write(fd628_fd,&data,sizeof(data));
+				ret = write(openvfd_fd,&data,sizeof(data));
 			}
 			pthread_mutex_unlock(&sync_data.mutex);
 		} else {
@@ -184,7 +184,7 @@ void led_test_codes()
 		write_buffer[4] = char_to_mask(ledCodes[i].character);
 		write_buffer[0] = val;
 
-		ret = write(fd628_fd,write_buffer,sizeof(write_buffer[0])*5);
+		ret = write(openvfd_fd,write_buffer,sizeof(write_buffer[0])*5);
 		mdelay(500);
 	}
 
@@ -197,7 +197,7 @@ void led_test_codes()
 		write_buffer[4] = char_to_mask(4);
 		write_buffer[0] = val;
 
-		ret = write(fd628_fd,write_buffer,sizeof(write_buffer[0])*5);
+		ret = write(openvfd_fd,write_buffer,sizeof(write_buffer[0])*5);
 		mdelay(500);
 	}
 
@@ -211,7 +211,7 @@ void led_test_codes()
 		write_buffer[4] = char_to_mask(8);
 		write_buffer[0] &= dotLeds[i%LED_DOT_MAX].bitmap;
 
-		ret = write(fd628_fd,write_buffer,sizeof(write_buffer[0])*5);
+		ret = write(openvfd_fd,write_buffer,sizeof(write_buffer[0])*5);
 		mdelay(500);
 	}
 
@@ -225,7 +225,7 @@ void led_test_codes()
 		write_buffer[4] = char_to_mask(9);
 		write_buffer[0] |= dotLeds[i%LED_DOT_MAX].bitmap;
 
-		ret = write(fd628_fd,write_buffer,sizeof(write_buffer[0])*5);
+		ret = write(openvfd_fd,write_buffer,sizeof(write_buffer[0])*5);
 		mdelay(500);
 	}
 }
@@ -257,15 +257,15 @@ void led_test_loop(bool cycle_display_types)
 		// Light up all sections and cycle
 		// through display brightness levels.
 		memset(wb, 0xFF, sz);
-		write(fd628_fd,wb,sz);
+		write(openvfd_fd,wb,sz);
 		for (i = FD628_Brightness_1; i <= FD628_Brightness_8; i++) {
-			ioctl(fd628_fd, FD628_IOC_SBRIGHT, &i);
+			ioctl(openvfd_fd, VFD_IOC_SBRIGHT, &i);
 			mdelay(1000);
 		}
 
 		// Clear display for a second.
 		memset(wb, 0x00, sz);
-		write(fd628_fd,wb,sz);
+		write(openvfd_fd,wb,sz);
 		mdelay(1000);
 
 		// Run original test codes.
@@ -275,14 +275,14 @@ void led_test_loop(bool cycle_display_types)
 		for (i = 0; i < len; i++) {
 			memset(wb, 0x00, sz);
 			wb[i] = 0xFF;
-			write(fd628_fd,wb,sz);
+			write(openvfd_fd,wb,sz);
 			mdelay(1000);
 		}
 
 		// Cycle through bits in each character.
 		for (i = 0; i < len; i++) {
 			memset(wb, (1 << i), sz);
-			write(fd628_fd,wb,sz);
+			write(openvfd_fd,wb,sz);
 			mdelay(1000);
 		}
 	}
@@ -372,7 +372,7 @@ void *named_pipe_thread_handler(void *arg)
 
 void select_display_type()
 {
-	if (!ioctl(fd628_fd, FD628_IOC_GDISPLAY_TYPE, &display_type)) {
+	if (!ioctl(openvfd_fd, VFD_IOC_GDISPLAY_TYPE, &display_type)) {
 		switch(display_type.type) {
 			case DISPLAY_TYPE_5D_7S_T95:
 				ledCodes = LED_decode_tab1;
@@ -389,7 +389,7 @@ void select_display_type()
 
 bool set_display_type(int new_display_type)
 {
-	long ret = ioctl(fd628_fd, FD628_IOC_SDISPLAY_TYPE, &new_display_type);
+	long ret = ioctl(openvfd_fd, VFD_IOC_SDISPLAY_TYPE, &new_display_type);
 	if (ret) {
 		printf("Failed setting a new display type.\n");
 		if (ret == ERANGE)
@@ -418,8 +418,8 @@ int main(int argc, char *argv[])
 
 	if (print_usage(argc, argv))
 		return 0;
-	fd628_fd = open(DRV_NAME, O_RDWR);
-	if (fd628_fd < 0) {
+	openvfd_fd = open(DRV_NAME, O_RDWR);
+	if (openvfd_fd < 0) {
 		perror("Open device failed.\n");
 		exit(1);
 	}
@@ -427,7 +427,7 @@ int main(int argc, char *argv[])
 	verbose = is_verbose(argc, argv);
 	char_order_count = get_cmd_chars_order(argc, argv, char_indexes, (int)sizeof(char_indexes));
 	if (char_order_count)
-		if (ioctl(fd628_fd, FD628_IOC_SCHARS_ORDER, char_indexes))
+		if (ioctl(openvfd_fd, VFD_IOC_SCHARS_ORDER, char_indexes))
 			printf("Error setting new character order.\n");
 
 	type = get_cmd_display_type(argc, argv);
@@ -457,7 +457,7 @@ int main(int argc, char *argv[])
 	if (npipe_id)
 		pthread_join(npipe_id, NULL);
 	pthread_join(disp_id, NULL);
-	close(fd628_fd);
+	close(openvfd_fd);
 	return 0;
 }
 
@@ -553,9 +553,9 @@ bool print_usage(int argc, char *argv[])
 	for (i = 1; i < argc; i++) {
 		if (!strcmp(argv[i], "-h") || !strcmp(argv[i], "--help")) {
 			ret = true;
-			printf("\nUsage: FD628Service [-t] [-dt TYPE] [-h]\n\n");
-			printf("\t-t\t\tRun FD628Service in display test mode.\n");
-			printf("\t-dm\t\tRun FD628Service in display demo mode.\n");
+			printf("\nUsage: OpenVFDService [-t] [-dt TYPE] [-h]\n\n");
+			printf("\t-t\t\tRun OpenVFDService in display test mode.\n");
+			printf("\t-dm\t\tRun OpenVFDService in display demo mode.\n");
 			printf("\t-dt N\t\tSpecifies which display type to use.\n");
 			printf("\t-co N...\t< D HH:MM > Order of display chars.\n\t\t\tValid values are 0 - 6.\n\t\t\t(D=dots, represented by a single char)\n");
 			printf("\t-h\t\tThis text.\n\n");

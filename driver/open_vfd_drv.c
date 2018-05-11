@@ -1,9 +1,7 @@
 /*
- * drivers/amlogic/fdchip/fd628/aml_fd628.c
+ * Open VFD Driver
  *
- * FD628 Driver
- *
- * Copyright (C) 2015 Fdhisi, Inc.
+ * Copyright (C) 2018 Arthur Liberman (arthur_liberman (at) hotmail.com)
  *
  *
  * This program is free software; you can redistribute it and/or modify
@@ -49,16 +47,16 @@
 #include <linux/of_gpio.h>
 #include <linux/amlogic/iomap.h>
 
-#include "le_vfd_drv.h"
+#include "open_vfd_drv.h"
 
 #include "controllers/controller_list.h"
 
 #ifdef CONFIG_HAS_EARLYSUSPEND
 #include <linux/earlysuspend.h>
-static struct early_suspend fd628_early_suspend;
+static struct early_suspend openvfd_early_suspend;
 #endif
 
-static struct fd628_platform_data *pdata = NULL;
+static struct vfd_platform_data *pdata = NULL;
 struct kp {
 	struct led_classdev cdev;
 };
@@ -78,7 +76,7 @@ Key value encoding
 KEYI1 	| bit15	| bit14	| bit13	| bit12	| bit11	| bit10	| bit9	| bit8	| bit7	| bit6	| bit5	| bit4	| bit3	| bit2	| bit1	| bit0	|
 KEYI2 	| bit31	| bit30	| bit29	| bit28	| bit27	| bit26	| bit25	| bit24	| bit23	| bit22	| bit21	| bit20	| bit19	| bit18	| bit17	| bit16	|
 ***************************************************************************************************************************************/
-static u_int32 FD628_GetKey(struct fd628_dev *dev)
+static u_int32 FD628_GetKey(struct vfd_dev *dev)
 {
 	u_int8 i, keyDataBytes[5];
 	u_int32 FD628_KeyData = 0;
@@ -97,7 +95,7 @@ static u_int32 FD628_GetKey(struct fd628_dev *dev)
 	return (FD628_KeyData);
 }
 
-static void init_controller(struct fd628_dev *dev)
+static void init_controller(struct vfd_dev *dev)
 {
 	struct controller_interface *temp_ctlr;
 
@@ -132,30 +130,30 @@ static void init_controller(struct fd628_dev *dev)
 	controller = temp_ctlr;
 }
 
-static int fd628_dev_open(struct inode *inode, struct file *file)
+static int openvfd_dev_open(struct inode *inode, struct file *file)
 {
-	struct fd628_dev *dev = NULL;
+	struct vfd_dev *dev = NULL;
 	file->private_data = pdata->dev;
 	dev = file->private_data;
 	memset(dev->wbuf, 0x00, sizeof(dev->wbuf));
 	controller->set_brightness_level(pdata->dev->brightness);
-	pr_dbg("fd628_dev_open now.............................\r\n");
+	pr_dbg("openvfd_dev_open now.............................\r\n");
 	return 0;
 }
 
-static int fd628_dev_release(struct inode *inode, struct file *file)
+static int openvfd_dev_release(struct inode *inode, struct file *file)
 {
 	controller->set_power(0);
 	file->private_data = NULL;
-	pr_dbg("succes to close  fd628_dev.............\n");
+	pr_dbg("succes to close  openvfd_dev.............\n");
 	return 0;
 }
 
-static ssize_t fd628_dev_read(struct file *filp, char __user * buf,
+static ssize_t openvfd_dev_read(struct file *filp, char __user * buf,
 				  size_t count, loff_t * f_pos)
 {
 	__u32 disk = 0;
-	struct fd628_dev *dev = filp->private_data;
+	struct vfd_dev *dev = filp->private_data;
 	__u32 diskvalue = 0;
 	int ret = 0;
 	int rbuf[2] = { 0 };
@@ -185,69 +183,69 @@ static ssize_t fd628_dev_read(struct file *filp, char __user * buf,
  * 		  [1-4]	7 segment characters, to be displayed left to right.
  * @return
  */
-static ssize_t fd628_dev_write(struct file *filp, const char __user * buf,
+static ssize_t openvfd_dev_write(struct file *filp, const char __user * buf,
 				   size_t count, loff_t * f_pos)
 {
 	ssize_t status = 0;
 	unsigned long missing;
-	static struct fd628_display_data data;
+	static struct vfd_display_data data;
 
 	if (count == sizeof(data)) {
 		missing = copy_from_user(&data, buf, count);
 		if (missing == 0 && count > 0) {
 			if (controller->write_display_data(&data))
-				pr_dbg("fd628_dev_write count : %ld\n", count);
+				pr_dbg("openvfd_dev_write count : %ld\n", count);
 			else {
 				status = -1;
-				pr_error("fd628_dev_write failed to write %ld bytes (display_data)\n", count);
+				pr_error("openvfd_dev_write failed to write %ld bytes (display_data)\n", count);
 			}
 		}
 	} else if (count > 0) {
 		unsigned char *raw_data;
-		pr_dbg2("fd628_dev_write: count = %ld, sizeof(data) = %ld\n", count, sizeof(data));
+		pr_dbg2("openvfd_dev_write: count = %ld, sizeof(data) = %ld\n", count, sizeof(data));
 		raw_data = kzalloc(count, GFP_KERNEL);
 		if (raw_data) {
 			missing = copy_from_user(raw_data, buf, count);
 			if (controller->write_data((unsigned char*)raw_data, count))
-				pr_dbg("fd628_dev_write count : %ld\n", count);
+				pr_dbg("openvfd_dev_write count : %ld\n", count);
 			else {
 				status = -1;
-				pr_error("fd628_dev_write failed to write %ld bytes (raw_data)\n", count);
+				pr_error("openvfd_dev_write failed to write %ld bytes (raw_data)\n", count);
 			}
 			kfree(raw_data);
 		}
 		else {
 			status = -1;
-			pr_error("fd628_dev_write failed to allocate %ld bytes (raw_data)\n", count);
+			pr_error("openvfd_dev_write failed to allocate %ld bytes (raw_data)\n", count);
 		}
 	}
 
 	return status;
 }
 
-static int set_display_brightness(struct fd628_dev *dev, u_int8 new_brightness)
+static int set_display_brightness(struct vfd_dev *dev, u_int8 new_brightness)
 {
 	return controller->set_brightness_level(new_brightness);
 }
 
-static void set_display_type(struct fd628_dev *dev, int new_display_type)
+static void set_display_type(struct vfd_dev *dev, int new_display_type)
 {
-	memcpy(&dev->dtb_active.display, &new_display_type, sizeof(struct fd628_display));
+	memcpy(&dev->dtb_active.display, &new_display_type, sizeof(struct vfd_display));
 	init_controller(dev);
 }
 
-static long fd628_dev_ioctl(struct file *filp, unsigned int cmd,
+static long openvfd_dev_ioctl(struct file *filp, unsigned int cmd,
 				unsigned long arg)
 {
 	int err = 0, ret = 0, temp = 0;
-	struct fd628_dev *dev;
+	struct vfd_dev *dev;
 	__u8 val = 1;
 	__u8 temp_chars_order[sizeof(dev->dtb_active.dat_index)];
 	dev = filp->private_data;
 
-	if (_IOC_TYPE(cmd) != FD628_IOC_MAGIC)
+	if (_IOC_TYPE(cmd) != VFD_IOC_MAGIC)
 		return -ENOTTY;
-	if (_IOC_NR(cmd) >= FD628_IOC_MAXNR)
+	if (_IOC_NR(cmd) >= VFD_IOC_MAXNR)
 		return -ENOTTY;
 	if (_IOC_DIR(cmd) & _IOC_READ)
 		err = !access_ok(VERIFY_WRITE, (void __user *)arg, _IOC_SIZE(cmd));
@@ -257,50 +255,50 @@ static long fd628_dev_ioctl(struct file *filp, unsigned int cmd,
 		return -EFAULT;
 
 	switch (cmd) {
-	case FD628_IOC_USE_DTB_CONFIG:
+	case VFD_IOC_USE_DTB_CONFIG:
 		dev->dtb_active = dev->dtb_default;
 		init_controller(dev);
 		break;
-	case FD628_IOC_GDISPLAY_TYPE:
+	case VFD_IOC_GDISPLAY_TYPE:
 		memcpy(&temp, &dev->dtb_active.display, sizeof(int));
 		ret = __put_user(temp, (int __user *)arg);
 		break;
-	case FD628_IOC_SDISPLAY_TYPE:
+	case VFD_IOC_SDISPLAY_TYPE:
 		ret = __get_user(temp, (int __user *)arg);
 		if (!ret)
 			set_display_type(dev, temp);
 		break;
-	case FD628_IOC_SCHARS_ORDER:
+	case VFD_IOC_SCHARS_ORDER:
 		ret = __copy_from_user(temp_chars_order, (__u8 __user *)arg, sizeof(dev->dtb_active.dat_index));
 		if (!ret)
 			memcpy(dev->dtb_active.dat_index, temp_chars_order, sizeof(dev->dtb_active.dat_index));
 		break;
-	case FD628_IOC_SMODE:	/* Set: arg points to the value */
+	case VFD_IOC_SMODE:	/* Set: arg points to the value */
 		ret = __get_user(dev->mode, (int __user *)arg);
 		//FD628_SET_DISPLAY_MODE(dev->mode, dev);
 		break;
-	case FD628_IOC_GMODE:	/* Get: arg is pointer to result */
+	case VFD_IOC_GMODE:	/* Get: arg is pointer to result */
 		ret = __put_user(dev->mode, (int __user *)arg);
 		break;
-	case FD628_IOC_GVER:
+	case VFD_IOC_GVER:
 		ret =
 			copy_to_user((unsigned char __user *)arg,
-				 FD628_DRIVER_VERSION,
-				 sizeof(FD628_DRIVER_VERSION));
+				 OPENVFD_DRIVER_VERSION,
+				 sizeof(OPENVFD_DRIVER_VERSION));
 		break;
-	case FD628_IOC_SBRIGHT:
+	case VFD_IOC_SBRIGHT:
 		ret = __get_user(temp, (int __user *)arg);
 		if (!ret && !set_display_brightness(dev, (u_int8)temp))
 			ret = -ERANGE;
 		break;
-	case FD628_IOC_GBRIGHT:
+	case VFD_IOC_GBRIGHT:
 		ret = __put_user(dev->brightness, (int __user *)arg);
 		break;
-	case FD628_IOC_POWER:
+	case VFD_IOC_POWER:
 		ret = __get_user(val, (int __user *)arg);
 		controller->set_power(val);
 		break;
-	case FD628_IOC_STATUS_LED:
+	case VFD_IOC_STATUS_LED:
 		ret = __get_user(dev->status_led_mask, (int __user *)arg);
 		break;
 	default:		/* redundant, as cmd was checked against MAXNR */
@@ -310,61 +308,61 @@ static long fd628_dev_ioctl(struct file *filp, unsigned int cmd,
 	return ret;
 }
 
-static unsigned int fd628_dev_poll(struct file *filp, poll_table * wait)
+static unsigned int openvfd_dev_poll(struct file *filp, poll_table * wait)
 {
 	unsigned int mask = 0;
-	struct fd628_dev *dev = filp->private_data;
+	struct vfd_dev *dev = filp->private_data;
 	poll_wait(filp, &dev->kb_waitq, wait);
 	if (dev->key_respond_status)
 		mask |= POLLIN | POLLRDNORM;
 	return mask;
 }
 
-static struct file_operations fd628_fops = {
+static struct file_operations openvfd_fops = {
 	.owner = THIS_MODULE,
-	.open = fd628_dev_open,
-	.release = fd628_dev_release,
-	.read = fd628_dev_read,
-	.write = fd628_dev_write,
-	.unlocked_ioctl = fd628_dev_ioctl,
-	.compat_ioctl = fd628_dev_ioctl,
-	.poll = fd628_dev_poll,
+	.open = openvfd_dev_open,
+	.release = openvfd_dev_release,
+	.read = openvfd_dev_read,
+	.write = openvfd_dev_write,
+	.unlocked_ioctl = openvfd_dev_ioctl,
+	.compat_ioctl = openvfd_dev_ioctl,
+	.poll = openvfd_dev_poll,
 };
 
-static struct miscdevice fd628_device = {
+static struct miscdevice openvfd_device = {
 	.minor = MISC_DYNAMIC_MINOR,
 	.name = DEV_NAME,
-	.fops = &fd628_fops,
+	.fops = &openvfd_fops,
 };
 
-static int register_fd628_driver(void)
+static int register_openvfd_driver(void)
 {
 	int ret = 0;
-	ret = misc_register(&fd628_device);
+	ret = misc_register(&openvfd_device);
 	if (ret)
-		pr_dbg("%s: failed to add fd628 module\n", __func__);
+		pr_dbg("%s: failed to add openvfd module\n", __func__);
 	else
-		pr_dbg("%s: Successed to add fd628  module \n", __func__);
+		pr_dbg("%s: Succeeded to add openvfd module \n", __func__);
 	return ret;
 }
 
-static void deregister_fd628_driver(void)
+static void deregister_openvfd_driver(void)
 {
 	int ret = 0;
-	ret = misc_deregister(&fd628_device);
+	ret = misc_deregister(&openvfd_device);
 	if (ret)
-		pr_dbg("%s: failed to deregister fd628 module\n", __func__);
+		pr_dbg("%s: failed to deregister openvfd module\n", __func__);
 	else
-		pr_dbg("%s: Successed to deregister fd628  module \n", __func__);
+		pr_dbg("%s: Succeeded to deregister openvfd module \n", __func__);
 }
 
 
-static void fd628_brightness_set(struct led_classdev *cdev,
+static void openvfd_brightness_set(struct led_classdev *cdev,
 	enum led_brightness brightness)
 {
 	pr_info("brightness = %d\n", brightness);
 
-	if(pdata == NULL) 
+	if(pdata == NULL)
 		return;
 }
 
@@ -377,16 +375,16 @@ static ssize_t led_cmd_show(struct device *dev,
 	*buf = '\0';
 
 	switch(led_cmd_ioc) {
-		case FD628_IOC_GMODE:
+		case VFD_IOC_GMODE:
 			ret = scnprintf(buf, PAGE_SIZE, "%d", pdata->dev->mode);
 			break;
-		case FD628_IOC_GBRIGHT:
+		case VFD_IOC_GBRIGHT:
 			ret = scnprintf(buf, PAGE_SIZE, "%d", pdata->dev->brightness);
 			break;
-		case FD628_IOC_GVER:
-			ret = scnprintf(buf, PAGE_SIZE, "%s", FD628_DRIVER_VERSION);
+		case VFD_IOC_GVER:
+			ret = scnprintf(buf, PAGE_SIZE, "%s", OPENVFD_DRIVER_VERSION);
 			break;
-		case FD628_IOC_GDISPLAY_TYPE:
+		case VFD_IOC_GDISPLAY_TYPE:
 			ret = scnprintf(buf, PAGE_SIZE, "0x%02X%02X%02X%02X", pdata->dev->dtb_active.display.reserved, pdata->dev->dtb_active.display.flags,
 				pdata->dev->dtb_active.display.controller, pdata->dev->dtb_active.display.type);
 			break;
@@ -399,52 +397,52 @@ static ssize_t led_cmd_show(struct device *dev,
 static ssize_t led_cmd_store(struct device *_dev,
 		struct device_attribute *attr, const char *buf, size_t size)
 {
-	struct fd628_dev *dev = pdata->dev;
+	struct vfd_dev *dev = pdata->dev;
 	int cmd, temp;
 	led_cmd_ioc = 0;
-	
+
 	if (size < 2*sizeof(int))
 		return -EFAULT;
 	memcpy(&cmd, buf, sizeof(int));
-	if (_IOC_TYPE(cmd) != FD628_IOC_MAGIC)
+	if (_IOC_TYPE(cmd) != VFD_IOC_MAGIC)
 		return -ENOTTY;
-	if (_IOC_NR(cmd) >= FD628_IOC_MAXNR)
+	if (_IOC_NR(cmd) >= VFD_IOC_MAXNR)
 		return -ENOTTY;
 
 	buf += sizeof(int);
 	memcpy(&temp, buf, sizeof(int));
 	switch (cmd) {
-		case FD628_IOC_SMODE:
+		case VFD_IOC_SMODE:
 			dev->mode = (u_int8)temp;
 			//FD628_SET_DISPLAY_MODE(dev->mode, dev);
 			break;
-		case FD628_IOC_SBRIGHT:
+		case VFD_IOC_SBRIGHT:
 			if (!set_display_brightness(dev, (u_int8)temp))
 				size = -ERANGE;
 			break;
-		case FD628_IOC_POWER:
+		case VFD_IOC_POWER:
 			controller->set_power(temp);
 			break;
-		case FD628_IOC_STATUS_LED:
+		case VFD_IOC_STATUS_LED:
 			dev->status_led_mask = (u_int8)temp;
 			break;
-		case FD628_IOC_SDISPLAY_TYPE:
+		case VFD_IOC_SDISPLAY_TYPE:
 			set_display_type(dev, temp);
 			break;
-		case FD628_IOC_SCHARS_ORDER:
+		case VFD_IOC_SCHARS_ORDER:
 			if (size >= sizeof(dev->dtb_active.dat_index)+sizeof(int))
 				memcpy(dev->dtb_active.dat_index, buf, sizeof(dev->dtb_active.dat_index));
 			else
 				size = -EFAULT;
 			break;
-		case FD628_IOC_USE_DTB_CONFIG:
+		case VFD_IOC_USE_DTB_CONFIG:
 			pdata->dev->dtb_active = pdata->dev->dtb_default;
 			init_controller(dev);
 			break;
-		case FD628_IOC_GMODE:
-		case FD628_IOC_GBRIGHT:
-		case FD628_IOC_GVER:
-		case FD628_IOC_GDISPLAY_TYPE:
+		case VFD_IOC_GMODE:
+		case VFD_IOC_GBRIGHT:
+		case VFD_IOC_GVER:
+		case VFD_IOC_GDISPLAY_TYPE:
 			led_cmd_ioc = cmd;
 			break;
 	}
@@ -482,13 +480,13 @@ static DEVICE_ATTR(led_cmd , 0666, led_cmd_show , led_cmd_store);
 static DEVICE_ATTR(led_on , 0666, led_on_show , led_on_store);
 static DEVICE_ATTR(led_off , 0666, led_off_show , led_off_store);
 
-static void fd628_suspend(struct early_suspend *h)
+static void openvfd_suspend(struct early_suspend *h)
 {
 	pr_info("%s!\n", __func__);
 	controller->set_power(0);
 }
 
-static void fd628_resume(struct early_suspend *h)
+static void openvfd_resume(struct early_suspend *h)
 {
 	pr_info("%s!\n", __func__);
 	controller->set_brightness_level(pdata->dev->brightness);
@@ -556,7 +554,7 @@ static int get_chip_pin_number(const unsigned char gpio[])
 	return pin;
 }
 
-static int verify_module_params(struct fd628_dev *dev)
+static int verify_module_params(struct vfd_dev *dev)
 {
 	int ret = (vfd_gpio_clk_argc == 3 && vfd_gpio_dat_argc == 3 && vfd_gpio_stb_argc == 3 &&
 			vfd_chars_argc >= 5 && vfd_dot_bits_argc >= 7 && vfd_display_type_argc == 4) ? 1 : -1;
@@ -598,7 +596,7 @@ static int verify_module_params(struct fd628_dev *dev)
 	return ret >= 0;
 }
 
-static int fd628_driver_probe(struct platform_device *pdev)
+static int openvfd_driver_probe(struct platform_device *pdev)
 {
 	int state = -EINVAL;
 	struct gpio_desc *clk_desc = NULL;
@@ -612,18 +610,18 @@ static int fd628_driver_probe(struct platform_device *pdev)
 	pr_dbg("%s get in\n", __func__);
 
 	if (!pdev->dev.of_node) {
-		pr_error("fd628_driver: pdev->dev.of_node == NULL!\n");
+		pr_error("openvfd_driver: pdev->dev.of_node == NULL!\n");
 		state = -EINVAL;
-		goto get_fd628_node_fail;
+		goto get_openvfd_node_fail;
 	}
 
-	pdata = kzalloc(sizeof(struct fd628_platform_data), GFP_KERNEL);
+	pdata = kzalloc(sizeof(struct vfd_platform_data), GFP_KERNEL);
 	if (!pdata) {
 		pr_error("platform data is required!\n");
 		state = -EINVAL;
-		goto get_fd628_mem_fail;
+		goto get_openvfd_mem_fail;
 	}
-	memset(pdata, 0, sizeof(struct fd628_platform_data));
+	memset(pdata, 0, sizeof(struct vfd_platform_data));
 
 	pdata->dev = kzalloc(sizeof(*(pdata->dev)), GFP_KERNEL);
 	if (!(pdata->dev)) {
@@ -632,7 +630,7 @@ static int fd628_driver_probe(struct platform_device *pdev)
 	}
 
 	if (!verify_module_params(pdata->dev)) {
-		pr_error("Failed to verify FD628 configuration file, attempt using device tree as fallback.\n");
+		pr_error("Failed to verify VFD configuration file, attempt using device tree as fallback.\n");
 		if (of_find_property(pdev->dev.of_node, MOD_NAME_CLK, NULL)) {
 			clk_desc = of_get_named_gpiod_flags(pdev->dev.of_node, MOD_NAME_CLK, 0, NULL);
 			pdata->dev->clk_pin = desc_to_gpio(clk_desc);
@@ -705,7 +703,7 @@ static int fd628_driver_probe(struct platform_device *pdev)
 			}
 		}
 
-		memset(&pdata->dev->dtb_active.display, 0, sizeof(struct fd628_display));
+		memset(&pdata->dev->dtb_active.display, 0, sizeof(struct vfd_display));
 		display_type_prop = of_find_property(pdev->dev.of_node, MOD_NAME_TYPE, NULL);
 		if (display_type_prop && display_type_prop->value)
 			of_property_read_u32(pdev->dev.of_node, MOD_NAME_TYPE, (int*)&pdata->dev->dtb_active.display);
@@ -742,14 +740,14 @@ static int fd628_driver_probe(struct platform_device *pdev)
 	pdata->dev->dtb_default = pdata->dev->dtb_active;
 	pdata->dev->brightness = 0xFF;
 
-	register_fd628_driver();
+	register_openvfd_driver();
 	kp = kzalloc(sizeof(struct kp) ,  GFP_KERNEL);
 	if (!kp) {
 		kfree(kp);
 		return -ENOMEM;
 	}
 	kp->cdev.name = DEV_NAME;
-	kp->cdev.brightness_set = fd628_brightness_set;
+	kp->cdev.brightness_set = openvfd_brightness_set;
 	ret = led_classdev_register(&pdev->dev, &kp->cdev);
 	if (ret < 0) {
 		kfree(kp);
@@ -780,10 +778,10 @@ static int fd628_driver_probe(struct platform_device *pdev)
 #endif
 
 #ifdef CONFIG_HAS_EARLYSUSPEND
-	fd628_early_suspend.level = EARLY_SUSPEND_LEVEL_BLANK_SCREEN;
-	fd628_early_suspend.suspend = fd628_suspend;
-	fd628_early_suspend.resume = fd628_resume;
-	register_early_suspend(&fd628_early_suspend);
+	openvfd_early_suspend.level = EARLY_SUSPEND_LEVEL_BLANK_SCREEN;
+	openvfd_early_suspend.suspend = openvfd_suspend;
+	openvfd_early_suspend.resume = openvfd_resume;
+	register_early_suspend(&openvfd_early_suspend);
 #endif
 
 	return 0;
@@ -794,20 +792,20 @@ static int fd628_driver_probe(struct platform_device *pdev)
 	gpio_free(pdata->dev->clk_pin);
 	  get_param_mem_fail:
 	kfree(pdata->dev);
-	  get_fd628_mem_fail:
+	  get_openvfd_mem_fail:
 	kfree(pdata);
-	  get_fd628_node_fail:
+	  get_openvfd_node_fail:
 	return state;
 }
 
-static int fd628_driver_remove(struct platform_device *pdev)
+static int openvfd_driver_remove(struct platform_device *pdev)
 {
 	controller->set_power(0);
 #ifdef CONFIG_HAS_EARLYSUSPEND
-	unregister_early_suspend(&fd628_early_suspend);
+	unregister_early_suspend(&openvfd_early_suspend);
 #endif
 	led_classdev_unregister(&kp->cdev);
-	deregister_fd628_driver();
+	deregister_openvfd_driver();
 #ifdef CONFIG_OF
 	gpio_free(pdata->dev->clk_pin);
 	gpio_free(pdata->dev->dat_pin);
@@ -820,64 +818,64 @@ static int fd628_driver_remove(struct platform_device *pdev)
 	return 0;
 }
 
-static void fd628_driver_shutdown(struct platform_device *dev)
+static void openvfd_driver_shutdown(struct platform_device *dev)
 {
-	pr_dbg("fd628_driver_shutdown");
+	pr_dbg("openvfd_driver_shutdown");
 	controller->set_power(0);
 }
 
-static int fd628_driver_suspend(struct platform_device *dev, pm_message_t state)
+static int openvfd_driver_suspend(struct platform_device *dev, pm_message_t state)
 {
-	pr_dbg("fd628_driver_suspend");
+	pr_dbg("openvfd_driver_suspend");
 	controller->set_power(0);
 	return 0;
 }
 
-static int fd628_driver_resume(struct platform_device *dev)
+static int openvfd_driver_resume(struct platform_device *dev)
 {
-	pr_dbg("fd628_driver_resume");
+	pr_dbg("openvfd_driver_resume");
 	controller->set_brightness_level(pdata->dev->brightness);
 
 	return 0;
 }
 
 #ifdef CONFIG_OF
-static const struct of_device_id fd628_dt_match[] = {
-	{.compatible = "le,vfd",},
+static const struct of_device_id openvfd_dt_match[] = {
+	{.compatible = "open,vfd",},
 	{},
 };
 #else
-#define fd628_dt_match NULL
+#define openvfd_dt_match NULL
 #endif
 
-static struct platform_driver fd628_driver = {
-	.probe = fd628_driver_probe,
-	.remove = fd628_driver_remove,
-	.suspend = fd628_driver_suspend,
-	.shutdown = fd628_driver_shutdown,
-	.resume = fd628_driver_resume,
+static struct platform_driver openvfd_driver = {
+	.probe = openvfd_driver_probe,
+	.remove = openvfd_driver_remove,
+	.suspend = openvfd_driver_suspend,
+	.shutdown = openvfd_driver_shutdown,
+	.resume = openvfd_driver_resume,
 	.driver = {
 		   .name = DEV_NAME,
 		   .owner = THIS_MODULE,
-		   .of_match_table = fd628_dt_match,
+		   .of_match_table = openvfd_dt_match,
 		   },
 };
 
-static int __init fd628_driver_init(void)
+static int __init openvfd_driver_init(void)
 {
-	pr_dbg("Fd628 Driver init.\n");
-	return platform_driver_register(&fd628_driver);
+	pr_dbg("OpenVFD Driver init.\n");
+	return platform_driver_register(&openvfd_driver);
 }
 
-static void __exit fd628_driver_exit(void)
+static void __exit openvfd_driver_exit(void)
 {
-	pr_dbg("Fd628 Driver exit.\n");
-	platform_driver_unregister(&fd628_driver);
+	pr_dbg("OpenVFD Driver exit.\n");
+	platform_driver_unregister(&openvfd_driver);
 }
 
-module_init(fd628_driver_init);
-module_exit(fd628_driver_exit);
+module_init(openvfd_driver_init);
+module_exit(openvfd_driver_exit);
 
-MODULE_AUTHOR("Arthur L.");
-MODULE_DESCRIPTION("fd628 Driver");
+MODULE_AUTHOR("Arthur Liberman");
+MODULE_DESCRIPTION("OpenVFD Driver");
 MODULE_LICENSE("GPL");

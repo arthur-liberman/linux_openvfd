@@ -1,5 +1,4 @@
 #include <linux/semaphore.h>
-#include "../le_vfd_drv.h"
 #include "dummy.h"
 
 static unsigned char dummy_init(void);
@@ -8,12 +7,12 @@ static unsigned short dummy_get_brightness_level(void);
 static unsigned char dummy_set_brightness_level(unsigned short level);
 static unsigned char dummy_get_power(void);
 static void dummy_set_power(unsigned char state);
-static struct fd628_display *dummy_get_display_type(void);
-static unsigned char dummy_set_display_type(struct fd628_display *display);
+static struct vfd_display *dummy_get_display_type(void);
+static unsigned char dummy_set_display_type(struct vfd_display *display);
 static void dummy_set_icon(const char *name, unsigned char state);
 static size_t dummy_read_data(unsigned char *data, size_t length);
 static size_t dummy_write_data(const unsigned char *data, size_t length);
-static size_t dummy_write_display_data(const struct fd628_display_data *data);
+static size_t dummy_write_display_data(const struct vfd_display_data *data);
 
 static struct controller_interface dummy_interface = {
 	.init = dummy_init,
@@ -30,9 +29,9 @@ static struct controller_interface dummy_interface = {
 	.write_display_data = dummy_write_display_data,
 };
 
-static struct fd628_dev *dev = NULL;
+static struct vfd_dev *dev = NULL;
 
-struct controller_interface *init_dummy(struct fd628_dev *_dev)
+struct controller_interface *init_dummy(struct vfd_dev *_dev)
 {
 	dev = _dev;
 	return &dummy_interface;
@@ -70,12 +69,12 @@ static void dummy_set_power(unsigned char state)
 	dev->power = state;
 }
 
-static struct fd628_display *dummy_get_display_type(void)
+static struct vfd_display *dummy_get_display_type(void)
 {
 	return &dev->dtb_active.display;
 }
 
-static unsigned char dummy_set_display_type(struct fd628_display *display)
+static unsigned char dummy_set_display_type(struct vfd_display *display)
 {
 	dev->dtb_active.display = *display;
 	return 1;
@@ -95,7 +94,7 @@ static size_t dummy_write_data(const unsigned char *_data, size_t length)
 	return length;
 }
 
-static size_t dummy_write_display_data(const struct fd628_display_data *data)
+static size_t dummy_write_display_data(const struct vfd_display_data *data)
 {
 	return sizeof(*data);
 }

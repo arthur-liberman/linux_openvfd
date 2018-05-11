@@ -2,7 +2,7 @@
 #include <linux/gpio.h>
 #include "i2c.h"
 
-#define pr_dbg2(args...) printk(KERN_DEBUG "FD628: " args)
+#define pr_dbg2(args...) printk(KERN_DEBUG "OpenVFD: " args)
 #define LOW	0
 #define HIGH	1
 

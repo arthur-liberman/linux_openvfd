@@ -1,5 +1,5 @@
-#ifndef __LE_VFD_DRV_H__
-#define __LE_VFD_DRV_H__
+#ifndef __OPEN_VFD_DRV_H__
+#define __OPEN_VFD_DRV_H__
 
 #ifdef MODULE
 #include <linux/delay.h>
@@ -15,14 +15,14 @@
 
 #ifdef MODULE
 #if 0
-#define pr_dbg(args...) printk(KERN_ALERT "FD628: " args)
+#define pr_dbg(args...) printk(KERN_ALERT "OpenVFD: " args)
 #else
 #define pr_dbg(args...)
 #endif
 #endif
 
-#define pr_error(args...) printk(KERN_ALERT "FD628: " args)
-#define pr_dbg2(args...) printk(KERN_DEBUG "FD628: " args)
+#define pr_error(args...) printk(KERN_ALERT "OpenVFD: " args)
+#define pr_dbg2(args...) printk(KERN_DEBUG "OpenVFD: " args)
 
 #ifndef CONFIG_OF
 #define CONFIG_OF
@@ -36,26 +36,26 @@
 #define FALSE 0
 #endif
 
-#define  FD628_DRIVER_VERSION	"V1.2.0"
+#define  OPENVFD_DRIVER_VERSION	"V1.2.1"
 
 /*
  * Ioctl definitions
  */
 
 /* Use 'M' as magic number */
-#define FD628_IOC_MAGIC			'M'
-#define FD628_IOC_SMODE			_IOW(FD628_IOC_MAGIC,  1, int)
-#define FD628_IOC_GMODE			_IOR(FD628_IOC_MAGIC,  2, int)
-#define FD628_IOC_SBRIGHT		_IOW(FD628_IOC_MAGIC,  3, int)
-#define FD628_IOC_GBRIGHT		_IOR(FD628_IOC_MAGIC,  4, int)
-#define FD628_IOC_POWER			_IOW(FD628_IOC_MAGIC,  5, int)
-#define FD628_IOC_GVER			_IOR(FD628_IOC_MAGIC,  6, int)
-#define FD628_IOC_STATUS_LED		_IOW(FD628_IOC_MAGIC,  7, int)
-#define FD628_IOC_GDISPLAY_TYPE		_IOR(FD628_IOC_MAGIC,  8, int)
-#define FD628_IOC_SDISPLAY_TYPE		_IOW(FD628_IOC_MAGIC,  9, int)
-#define FD628_IOC_SCHARS_ORDER		_IOW(FD628_IOC_MAGIC, 10, u_int8[7])
-#define FD628_IOC_USE_DTB_CONFIG	_IOW(FD628_IOC_MAGIC, 11, int)
-#define FD628_IOC_MAXNR			12
+#define VFD_IOC_MAGIC			'M'
+#define VFD_IOC_SMODE			_IOW(VFD_IOC_MAGIC,  1, int)
+#define VFD_IOC_GMODE			_IOR(VFD_IOC_MAGIC,  2, int)
+#define VFD_IOC_SBRIGHT		_IOW(VFD_IOC_MAGIC,  3, int)
+#define VFD_IOC_GBRIGHT		_IOR(VFD_IOC_MAGIC,  4, int)
+#define VFD_IOC_POWER			_IOW(VFD_IOC_MAGIC,  5, int)
+#define VFD_IOC_GVER			_IOR(VFD_IOC_MAGIC,  6, int)
+#define VFD_IOC_STATUS_LED		_IOW(VFD_IOC_MAGIC,  7, int)
+#define VFD_IOC_GDISPLAY_TYPE		_IOR(VFD_IOC_MAGIC,  8, int)
+#define VFD_IOC_SDISPLAY_TYPE		_IOW(VFD_IOC_MAGIC,  9, int)
+#define VFD_IOC_SCHARS_ORDER		_IOW(VFD_IOC_MAGIC, 10, u_int8[7])
+#define VFD_IOC_USE_DTB_CONFIG		_IOW(VFD_IOC_MAGIC, 11, int)
+#define VFD_IOC_MAXNR			12
 
 #ifdef MODULE
 
@@ -68,9 +68,9 @@
 
 #endif
 
-#define DEV_NAME           "le-vfd"
+#define DEV_NAME           "openvfd"
 
-struct fd628_display {
+struct vfd_display {
 	u_int8 type;
 	u_int8 reserved;
 	u_int8 flags;
@@ -79,19 +79,19 @@ struct fd628_display {
 
 #ifdef MODULE
 
-struct fd628_dtb_config {
+struct vfd_dtb_config {
 	u_int8 dat_index[7];
 	u_int8 led_dots[8];
-	struct fd628_display display;
+	struct vfd_display display;
 };
 
-struct fd628_dev {
+struct vfd_dev {
 	int clk_pin;
 	int dat_pin;
 	int stb_pin;
 	u_int16 wbuf[7];
-	struct fd628_dtb_config dtb_active;
-	struct fd628_dtb_config dtb_default;
+	struct vfd_dtb_config dtb_active;
+	struct vfd_dtb_config dtb_default;
 	u_int8 mode;
 	u_int8 power;
 	u_int8 brightness;
@@ -106,13 +106,13 @@ struct fd628_dev {
 	u_int8 status_led_mask;		/* Indicators mask */
 };
 
-struct fd628_platform_data {
-	struct fd628_dev *dev;
+struct vfd_platform_data {
+	struct vfd_dev *dev;
 };
 
 #endif
 
-struct fd628_display_data {
+struct vfd_display_data {
 	u_int16 mode;
 	u_int8 colon_on;
 	u_int8 temperature;

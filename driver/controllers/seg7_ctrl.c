@@ -36,7 +36,7 @@ static unsigned char char_to_mask(unsigned char ch)
 	return 0;
 }
 
-size_t seg7_write_display_data(const struct fd628_display_data *data, unsigned short *raw_wdata, size_t sz)
+size_t seg7_write_display_data(const struct vfd_display_data *data, unsigned short *raw_wdata, size_t sz)
 {
 	size_t i, len;
 	char buffer[8];
