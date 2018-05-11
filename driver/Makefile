@@ -10,14 +10,14 @@ modules_install:
 clean:                    
 	        rm -rf  *.o *.ko .tmp_versions *.mod.c modules.order  Module.symvers ssd253x-ts.* 
 else                      
-		obj-m := open_vfd.o
-		open_vfd-objs += protocols/i2c.o
-		open_vfd-objs += protocols/spi_3w.o
-		open_vfd-objs += controllers/dummy.o
-		open_vfd-objs += controllers/seg7_ctrl.o
-		open_vfd-objs += controllers/fd628.o
-		open_vfd-objs += controllers/fd650.o
-		open_vfd-objs += controllers/hd44780.o
-		open_vfd-objs += controllers/ssd1306.o
-		open_vfd-objs += open_vfd_drv.o
+		obj-m := openvfd.o
+		openvfd-objs += protocols/i2c.o
+		openvfd-objs += protocols/spi_3w.o
+		openvfd-objs += controllers/dummy.o
+		openvfd-objs += controllers/seg7_ctrl.o
+		openvfd-objs += controllers/fd628.o
+		openvfd-objs += controllers/fd650.o
+		openvfd-objs += controllers/hd44780.o
+		openvfd-objs += controllers/ssd1306.o
+		openvfd-objs += openvfd_drv.o
 endif

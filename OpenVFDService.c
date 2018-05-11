@@ -18,7 +18,7 @@
 #include <signal.h>
 
 #include <time.h>
-#include "driver/open_vfd_drv.h"
+#include "driver/openvfd_drv.h"
 
 #define UNUSED(x)	(void*)(x)
 #define DRV_NAME	"/dev/" DEV_NAME

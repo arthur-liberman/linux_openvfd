@@ -47,7 +47,7 @@
 #include <linux/of_gpio.h>
 #include <linux/amlogic/iomap.h>
 
-#include "open_vfd_drv.h"
+#include "openvfd_drv.h"
 
 #include "controllers/controller_list.h"
 

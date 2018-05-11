@@ -1,5 +1,5 @@
-#ifndef __OPEN_VFD_DRV_H__
-#define __OPEN_VFD_DRV_H__
+#ifndef __OPENVFD_DRV_H__
+#define __OPENVFD_DRV_H__
 
 #ifdef MODULE
 #include <linux/delay.h>

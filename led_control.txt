@@ -1,5 +1,5 @@
 Execution instructions:
-insmod open_vfd.ko
+insmod openvfd.ko
 ./OpenVFDService &	(run OpenVFDService Daemon to show time)
 ./OpenVFDService -t &	(run OpenVFDService Daemon in test mode)
 

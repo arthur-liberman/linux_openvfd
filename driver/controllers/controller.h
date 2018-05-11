@@ -2,7 +2,7 @@
 #define __CONTROLLERH__
 
 #include <linux/semaphore.h>
-#include "../open_vfd_drv.h"
+#include "../openvfd_drv.h"
 
 struct controller_interface {
 	unsigned char (*init)(void);
