@@ -82,10 +82,10 @@ static unsigned char i2c_write_raw_byte(unsigned char data)
 			gpio_direction_input(pin_sda);
 		else
 			gpio_direction_output(pin_sda, LOW);
+		udelay(i2c_delay);
 		gpio_direction_input(pin_scl);
 		udelay(i2c_delay);
 		gpio_direction_output(pin_scl, LOW);
-		udelay(i2c_delay);
 		if (lsb_first)
 			data >>= 1;
 		else
