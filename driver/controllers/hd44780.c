@@ -29,8 +29,6 @@
 #define RS				0x01
 #define CMD				0x00
 
-#pragma region Custom characters
-
 #define FLAGS_SHOW_SEC		0x01
 
 #define BIG_2L_DOT			0xA5
@@ -93,8 +91,6 @@ static const unsigned char cgram_ellipsis_chars[8] = {
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x15, 0x00
 };
 
-#pragma endregion
-
 static unsigned char hd47780_init(void);
 static unsigned short hd47780_get_brightness_levels_count(void);
 static unsigned short hd47780_get_brightness_level(void);
@@ -143,7 +139,6 @@ struct controller_interface *init_hd47780(struct vfd_dev *_dev)
 {
 	dev = _dev;
 	memset(&old_data, 0, sizeof(old_data));
-	hd47780_init();
 	return &hd47780_interface;
 }
 

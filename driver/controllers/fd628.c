@@ -54,7 +54,6 @@ extern const led_bitmap *ledCodes;
 struct controller_interface *init_fd628(struct vfd_dev *_dev)
 {
 	dev = _dev;
-	fd628_init();
 	return &fd628_interface;
 }
 

@@ -128,6 +128,7 @@ static void init_controller(struct vfd_dev *dev)
 	if (controller && controller != temp_ctlr)
 		controller->set_power(0);
 	controller = temp_ctlr;
+	controller->init();
 }
 
 static int openvfd_dev_open(struct inode *inode, struct file *file)
