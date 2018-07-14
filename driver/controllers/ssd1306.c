@@ -3,6 +3,7 @@
 #include "ssd1306.h"
 #include "fonts/Grotesk16x32.h"
 #include "fonts/Grotesk24x48.h"
+#include "fonts/Retro8x16.h"
 #include "fonts/icons16x16.h"
 #include "fonts/icons32x32.h"
 
@@ -147,6 +148,7 @@ static struct vfd_display_data old_data;
 static struct font font_text = { 0 };
 static struct font font_icons = { 0 };
 static struct font font_indicators = { 0 };
+static struct font font_small_text = { 0 };
 static struct indicators indicators = { 0 };
 static struct ssd1306_display ssd1306_display;
 
@@ -294,8 +296,7 @@ static void transpose_buffer(unsigned char *buffer, const struct rect *rect)
 
 	print_buffer(buffer, rect, 0);
 	for (i = 0; i < (rect->height * rect->width) / 8; i++) {
-		int s = (i / (rect->width / rect->text_width / 8)) % rect->text_width;
-		int d = (rect->height - 1 - i % rect->height) * (rect->width / 8) + (i / rect->text_width / rect->height) + s * (rect->width / rect->text_width / 8);
+		int d = (rect->height - 1 - i % rect->height) * (rect->width / 8) + (i / rect->height);
 		transpose8rS64(&buffer[i * 8], &t_buf[d * 8]);
 	}
 	memcpy(buffer, t_buf, rect->height * rect->width);
@@ -305,26 +306,36 @@ static void transpose_buffer(unsigned char *buffer, const struct rect *rect)
 static void print_string(const char *str, const struct font *font_struct, unsigned char x, unsigned char y)
 {
 	unsigned char ch = 0;
-	unsigned short offset = 0, i, j;
+	unsigned short soffset = 0, doffset = 0, i, j, k;
 	struct rect rect;
-	unsigned char rect_width = 0;
+	unsigned char rect_width = 0, text_width = 0;
 	init_rect(&rect, font_struct, str, x, y, ssd1306_display.flags_transpose);
 	if (rect.length == 0)
 		return;
 
-	rect_width = ssd1306_display.flags_transpose ? rect.height * 8 : rect.width;
-	for (i = 0; i < font_struct->font_height; i++) {
-		for (j = 0; j < rect.length; j++) {
-			ch = str[j];
-			if (ch < font_struct->font_offset || ch >= font_struct->font_offset + font_struct->font_char_count)
-				ch = ' ';
-			ch -= font_struct->font_offset;
-			offset = ch * font_struct->font_char_size + i * font_struct->font_width;
-			offset += 4;
-			memcpy(&ram_buffer[i * rect_width + j * font_struct->font_width], &font_struct->font_bitmaps[offset], font_struct->font_width);
+	if (ssd1306_display.flags_transpose) {
+		rect_width = rect.height * 8;
+		text_width = rect.text_height;
+	} else {
+		rect_width = rect.width;
+		text_width = rect.text_width;
+	}
+	for (k = 0; k < rect.length; k += text_width) {
+		for (i = 0; i < font_struct->font_height; i++) {
+			for (j = 0; j < text_width; j++) {
+				doffset = k + j;
+				ch = doffset < rect.length ? str[doffset] : ' ';
+				if (ch < font_struct->font_offset || ch >= font_struct->font_offset + font_struct->font_char_count)
+					ch = ' ';
+				ch -= font_struct->font_offset;
+				soffset = ch * font_struct->font_char_size + i * font_struct->font_width;
+				soffset += 4;
+				memcpy(&ram_buffer[i * rect_width + (k * font_struct->font_height + j) * font_struct->font_width], &font_struct->font_bitmaps[soffset], font_struct->font_width);
+			}
 		}
 	}
 
+	rect.length = rect.text_height * rect.text_width;
 	if (ssd1306_display.flags_transpose)
 		transpose_buffer(ram_buffer, &rect);
 	{
@@ -339,6 +350,7 @@ static void print_string(const char *str, const struct font *font_struct, unsign
 static void setup_fonts(void)
 {
 	init_font(&font_indicators, icons16x16);
+	init_font(&font_small_text, Retro8x16);
 	switch (banks) {
 	case 6:
 		init_font(&font_text, Grotesk16x32);
@@ -537,6 +549,8 @@ static void ssd1306_set_icon(const char *name, unsigned char state)
 	} else if (strncmp(name,"setup",5) == 0 && indicators.setup != state) {
 		icon = INDICATOR_ICON_SETUP;
 		indicators.setup = state;
+	} else if (strncmp(name,"colon",5) == 0) {
+		dev->status_led_mask = state ? (dev->status_led_mask | ledDots[LED_DOT_SEC]) : (dev->status_led_mask & ~ledDots[LED_DOT_SEC]);
 	}
 
 	switch (icon) {
@@ -736,6 +750,7 @@ static void print_clock(const struct vfd_display_data *data, unsigned char print
 	char buffer[10];
 	unsigned char force_print = old_data.mode == DISPLAY_MODE_NONE;
 	unsigned char offset = 0;
+	unsigned char colon_on = data->colon_on || dev->status_led_mask & ledDots[LED_DOT_SEC] ? 1 : 0;
 	print_seconds &= ssd1306_display.flags_secs & show_colon;
 	if (ssd1306_display.flags_transpose) {
 		if (force_print || data->time_date.minutes != old_data.time_date.minutes ||
@@ -746,9 +761,9 @@ static void print_clock(const struct vfd_display_data *data, unsigned char print
 			scnprintf(buffer, sizeof(buffer), "%02d", data->time_date.minutes);
 			print_string(buffer, &font_text, offset + show_colon * font_text.font_width + (font_text.font_height * 8), 0);
 		}
-		if (data->colon_on != old_data.colon_on && show_colon) {
+		if (colon_on != old_data.colon_on && show_colon) {
 			unsigned char offset = (columns - font_text.font_width) / 2;
-			print_char(data->colon_on ? ':' : ' ', &font_text, offset, banks - font_text.font_height);
+			print_char(colon_on ? ':' : ' ', &font_text, offset, banks - font_text.font_height);
 		}
 	} else if (!force_print) {
 		const int len = print_seconds ? 8 : 5;
@@ -759,8 +774,8 @@ static void print_clock(const struct vfd_display_data *data, unsigned char print
 		}
 		offset += 2 * font_text.font_width;
 		if (show_colon) {
-			if (data->colon_on != old_data.colon_on)
-				print_char(data->colon_on ? ':' : ' ', &font_text, offset, 0);
+			if (colon_on != old_data.colon_on)
+				print_char(colon_on ? ':' : ' ', &font_text, offset, 0);
 			offset += font_text.font_width;
 		}
 		if (data->time_date.minutes != old_data.time_date.minutes) {
@@ -769,8 +784,8 @@ static void print_clock(const struct vfd_display_data *data, unsigned char print
 		}
 		offset += 2 * font_text.font_width;
 		if (print_seconds) {
-			if (data->colon_on != old_data.colon_on)
-				print_char(data->colon_on ? ':' : ' ', &font_text, offset, 0);
+			if (colon_on != old_data.colon_on)
+				print_char(colon_on ? ':' : ' ', &font_text, offset, 0);
 			offset += font_text.font_width;
 			if (data->time_date.seconds != old_data.time_date.seconds) {
 				scnprintf(buffer, sizeof(buffer), "%02d", data->time_date.seconds);
@@ -778,14 +793,14 @@ static void print_clock(const struct vfd_display_data *data, unsigned char print
 			}
 		}
 	} else if (print_seconds) {
-		int len = scnprintf(buffer, sizeof(buffer), "%02d%c%02d%c%02d", data->time_date.hours, data->colon_on ? ':' : ' ', data->time_date.minutes,
-			data->colon_on ? ':' : ' ', data->time_date.seconds);
+		int len = scnprintf(buffer, sizeof(buffer), "%02d%c%02d%c%02d", data->time_date.hours, colon_on ? ':' : ' ', data->time_date.minutes,
+			colon_on ? ':' : ' ', data->time_date.seconds);
 		offset = (columns - (font_text.font_width * len)) / 2;
 		print_string(buffer, &font_text, offset, 0);
 	} else {
 		int len;
 		if (show_colon)
-			len = scnprintf(buffer, sizeof(buffer), "%02d%c%02d", data->time_date.hours, data->colon_on ? ':' : ' ', data->time_date.minutes);
+			len = scnprintf(buffer, sizeof(buffer), "%02d%c%02d", data->time_date.hours, colon_on ? ':' : ' ', data->time_date.minutes);
 		else
 			len = scnprintf(buffer, sizeof(buffer), "%02d%02d", data->time_date.hours, data->time_date.minutes);
 		offset = (columns - (font_text.font_width * len)) / 2;
@@ -802,7 +817,7 @@ static void print_channel(const struct vfd_display_data *data)
 
 static void print_playback_time(const struct vfd_display_data *data)
 {
-	char buffer[10];
+	char buffer[20];
 	unsigned char offset = icon_x_offset ? icon_x_offset : (columns - (show_colon * font_text.font_width + font_text.font_width * 4)) / 2;
 	unsigned char force_print = old_data.mode == DISPLAY_MODE_NONE || data->time_date.hours != old_data.time_date.hours;
 	if (ssd1306_display.flags_transpose) {
@@ -862,6 +877,27 @@ static void print_playback_time(const struct vfd_display_data *data)
 		else
 			scnprintf(buffer, sizeof(buffer), "%02d%02d", pos0, pos1);
 		print_string(buffer, &font_text, offset, 0);
+	}
+	if (banks >= 8 && !ssd1306_display.flags_transpose && strcmp(data->string_main, old_data.string_main)) {
+		struct rect rect;
+		offset = show_icons * font_icons.font_width;
+		init_rect(&rect, &font_small_text, data->string_main, offset, font_text.font_height, 0);
+		if (rect.length > 0) {
+			if (show_icons) {
+				print_icon(INDICATOR_ICON_NONE);
+				buffer[0] = INDICATOR_ICON_MEDIA;
+				buffer[1] = '\0';
+				print_string(buffer, &font_icons, 0, font_text.font_height);
+			}
+			if (rect.length < strlen(data->string_main)) {
+				scnprintf(buffer, sizeof(buffer), "%s", data->string_main);
+				buffer[rect.length - 1] = 0x7F; // 0x7F = position of ellipsis.
+				buffer[rect.length] = '\0';
+				print_string(buffer, &font_small_text, offset, font_text.font_height);
+			} else {
+				print_string(data->string_main, &font_small_text, offset, font_text.font_height);
+			}
+		}
 	}
 }
 
