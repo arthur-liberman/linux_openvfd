@@ -125,6 +125,7 @@ static void print_clock(const struct vfd_display_data *data, unsigned char print
 static void print_channel(const struct vfd_display_data *data);
 static void print_playback_time(const struct vfd_display_data *data);
 static void print_title(const struct vfd_display_data *data);
+static void print_date(const struct vfd_display_data *data);
 static void print_temperature(const struct vfd_display_data *data);
 
 static struct vfd_dev *dev = NULL;
@@ -134,6 +135,10 @@ static unsigned char rows = 2;
 static unsigned char backlight = BACKLIGHT;
 static unsigned char big_dot = BIG_2L_DOT;
 static struct vfd_display_data old_data;
+
+const char *days[7] = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
+const char *months[12] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+	"Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
 
 struct controller_interface *init_hd47780(struct vfd_dev *_dev)
 {
@@ -375,8 +380,10 @@ static size_t hd47780_write_display_data(const struct vfd_display_data *data)
 
 	switch (data->mode) {
 	case DISPLAY_MODE_CLOCK:
-	case DISPLAY_MODE_DATE:
 		print_clock(data, 1);
+		break;
+	case DISPLAY_MODE_DATE:
+		print_date(data);
 		break;
 	case DISPLAY_MODE_CHANNEL:
 		write_lcd(HD44780_CLEAR_RAM, CMD);
@@ -534,9 +541,6 @@ static void print_clock(const struct vfd_display_data *data, unsigned char print
 	if (rows >= 2 && columns >= 20 && (data->time_date.day != old_data.time_date.day ||
 		data->time_date.month != old_data.time_date.month || data->time_date.year != old_data.time_date.year)) {
 		size_t len;
-		const char *days[7] = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
-		const char *months[12] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-			"Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
 		len = scnprintf(buffer, sizeof(buffer), "%s %02d", months[data->time_date.month], data->time_date.day);
 		set_xy(0, columns - len);
 		write_buf_lcd(buffer, len);
@@ -684,6 +688,43 @@ static void print_title(const struct vfd_display_data *data)
 	}
 }
 
+static void print_date(const struct vfd_display_data *data)
+{
+	char buffer[21];
+	size_t len;
+	unsigned char i = 0;
+	unsigned char force_print = old_data.mode == DISPLAY_MODE_NONE || data->time_date.month != old_data.time_date.month || data->time_date.day != old_data.time_date.day;
+	if (force_print) {
+		if (rows >= 2) {
+			if (data->time_secondary._reserved)
+				scnprintf(buffer, sizeof(buffer), "%02d%02d", data->time_date.month + 1, data->time_date.day);
+			else
+				scnprintf(buffer, sizeof(buffer), "%02d%02d", data->time_date.day, data->time_date.month + 1);
+			for (i = 0; i < min(rows, (unsigned char)3); i++) {
+				set_xy(i, 6);
+				write_lcd('|', RS);
+			}
+			print_number(buffer, 4, 0, 1);
+			if (rows >= 4) {
+				len = scnprintf(buffer, sizeof(buffer), "%04d, %s, %s", data->time_date.year, months[data->time_date.month], days[data->time_date.day_of_week]);
+				set_xy(3, 0);
+				write_buf_lcd(buffer, min((size_t)columns, len));
+			}
+		} else {
+			if (data->time_secondary._reserved)
+				len = scnprintf(buffer, sizeof(buffer), "%02d/%02d", data->time_date.month + 1, data->time_date.day);
+			else
+				len = scnprintf(buffer, sizeof(buffer), "%02d/%02d", data->time_date.day, data->time_date.month + 1);
+			if (columns <= 8)
+				len += scnprintf(buffer + len, sizeof(buffer) - len, "/%02d", data->time_date.year % 100);
+			else
+				len += scnprintf(buffer + len, sizeof(buffer) - len, "/%04d", data->time_date.year);
+			set_xy(0, 0);
+			write_buf_lcd(buffer, min((size_t)columns, len));
+		}
+	}
+}
+
 static void print_temperature(const struct vfd_display_data *data)
 {
 	unsigned char i;
@@ -708,7 +749,9 @@ static void print_temperature(const struct vfd_display_data *data)
 					write_buf_lcd(big_2l_chars[10] + (i * 3), 3);
 				}
 			}
-		} else
-			write_lcd(0xDF, RS);
+		} else {
+			size_t len = scnprintf(buffer, sizeof(buffer), "%cC", 0xDF);
+			write_buf_lcd(buffer, len);
+		}
 	}
 }
