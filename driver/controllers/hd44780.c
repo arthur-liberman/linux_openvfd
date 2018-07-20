@@ -185,6 +185,9 @@ static unsigned char hd47780_init(void)
 {
 	unsigned char cmd = 0;
 	protocol = init_i2c(dev->dtb_active.display.reserved & 0x7F, I2C_MSB_FIRST, dev->clk_pin, dev->dat_pin, I2C_DELAY_500KHz);
+	if (!protocol)
+		return 0;
+
 	columns = (dev->dtb_active.display.type & 0x1F) << 1;
 	rows = (dev->dtb_active.display.type >> 5) & 0x07;
 	rows++;

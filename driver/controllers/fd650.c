@@ -70,6 +70,9 @@ static size_t fd650_write_data_real(unsigned char address, const unsigned char *
 static unsigned char fd650_init(void)
 {
 	protocol = init_i2c(0, I2C_MSB_FIRST, dev->clk_pin, dev->dat_pin, I2C_DELAY_100KHz);
+	if (!protocol)
+		return 0;
+
 	memset(dev->wbuf, 0x00, sizeof(dev->wbuf));
 	fd650_set_brightness_level(dev->brightness);
 	switch(dev->dtb_active.display.type) {

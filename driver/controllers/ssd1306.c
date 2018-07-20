@@ -456,6 +456,8 @@ static unsigned char ssd1306_init(void)
 	setup_fonts();
 
 	protocol = init_i2c(ssd1306_display.address, I2C_MSB_FIRST, dev->clk_pin, dev->dat_pin, I2C_DELAY_500KHz);
+	if (!protocol)
+		return 0;
 
 	cmd_buf[4] = max(min(rows-1, 63), 15);				// [04] Multiplex Ratio for 128 x rows (rows-1)
 	cmd_buf[8] = ssd1306_display.flags_ext_vcc ? 0x10 : 0x14;	// [08] Charge Pump (0x10 External, 0x14 Internal DC/DC)

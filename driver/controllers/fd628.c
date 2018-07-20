@@ -73,6 +73,9 @@ static unsigned char fd628_init(void)
 	protocol = dev->dtb_active.display.controller == CONTROLLER_HBS658 ?
 		init_i2c(0, I2C_LSB_FIRST, dev->clk_pin, dev->dat_pin, I2C_DELAY_100KHz) :
 		init_spi_3w(dev->clk_pin, dev->dat_pin, dev->stb_pin, SPI_DELAY_100KHz);
+	if (!protocol)
+		return 0;
+
 	switch(dev->dtb_active.display.type) {
 		case DISPLAY_TYPE_5D_7S_T95:
 			ledCodes = LED_decode_tab1;

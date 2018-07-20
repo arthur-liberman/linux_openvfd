@@ -128,7 +128,12 @@ static void init_controller(struct vfd_dev *dev)
 	if (controller && controller != temp_ctlr)
 		controller->set_power(0);
 	controller = temp_ctlr;
-	controller->init();
+	if (!controller->init()) {
+		controller = NULL;
+		pr_dbg2("Failed to initialize the controller, reverting to Dummy controller\n");
+		dev->dtb_active.display.controller = CONTROLLER_7S_MAX;
+		init_controller(dev);
+	}
 }
 
 static int openvfd_dev_open(struct inode *inode, struct file *file)

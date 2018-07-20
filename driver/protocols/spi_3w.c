@@ -31,13 +31,19 @@ static int pin_stb = 0;
 
 struct protocol_interface *init_spi_3w(int clk, int dat, int stb, unsigned long _spi_delay)
 {
-	pin_clk = clk;
-	pin_dat = dat;
-	pin_stb = stb;
-	spi_delay = _spi_delay;
-	spi_3w_stop_condition();
-	pr_dbg2("SPI 3-wire interface intialized\n");
-	return &spi_3w_interface;
+	struct protocol_interface *spi_3w_ptr = NULL;
+	if (clk >= 0 && dat >= 0 && stb >= 0) {
+		pin_clk = clk;
+		pin_dat = dat;
+		pin_stb = stb;
+		spi_delay = _spi_delay;
+		spi_3w_stop_condition();
+		spi_3w_ptr = &spi_3w_interface;
+		pr_dbg2("SPI 3-wire interface intialized\n");
+	} else {
+		pr_dbg2("SPI 3-wire interface failed to intialize\n");
+	}
+	return spi_3w_ptr;
 }
 
 static void spi_3w_start_condition(void)

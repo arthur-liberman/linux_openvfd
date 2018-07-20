@@ -32,14 +32,20 @@ static int pin_sda = 0;
 
 struct protocol_interface *init_i2c(unsigned char _address, unsigned char _lsb_first, int _pin_scl, int _pin_sda, unsigned long _i2c_delay)
 {
-	i2c_address = _address;
-	lsb_first = _lsb_first;
-	pin_scl = _pin_scl;
-	pin_sda = _pin_sda;
-	i2c_delay = _i2c_delay;
-	i2c_stop_condition();
-	pr_dbg2("I2C interface intialized\n");
-	return &i2c_interface;
+	struct protocol_interface *i2c_ptr = NULL;
+	if (_pin_scl >= 0 && _pin_sda >= 0) {
+		i2c_address = _address;
+		lsb_first = _lsb_first;
+		pin_scl = _pin_scl;
+		pin_sda = _pin_sda;
+		i2c_delay = _i2c_delay;
+		i2c_stop_condition();
+		i2c_ptr = &i2c_interface;
+		pr_dbg2("I2C interface intialized\n");
+	} else {
+		pr_dbg2("I2C interface failed to intialize\n");
+	}
+	return i2c_ptr;
 }
 
 static void i2c_start_condition(void)
