@@ -8,6 +8,7 @@
 #include "fonts/icons32x32.h"
 
 static unsigned char ssd1306_init(void);
+static unsigned char sh1106_init(void);
 static unsigned short ssd1306_get_brightness_levels_count(void);
 static unsigned short ssd1306_get_brightness_level(void);
 static unsigned char ssd1306_set_brightness_level(unsigned short level);
@@ -68,19 +69,20 @@ enum indicator_icons {
 };
 
 struct ssd1306_display {
-	unsigned char columns			: 3;
-	unsigned char banks			: 3;
-	unsigned char offset			: 2;
+	unsigned char columns				: 3;
+	unsigned char banks				: 3;
+	unsigned char offset				: 2;
 
-	unsigned char address			: 7;
-	unsigned char reserved1			: 1;
+	unsigned char address				: 7;
+	unsigned char reserved1				: 1;
 
-	unsigned char flags_secs		: 1;
-	unsigned char flags_invert		: 1;
-	unsigned char flags_transpose		: 1;
-	unsigned char flags_rotate		: 1;
-	unsigned char flags_ext_vcc		: 1;
-	unsigned char reserved2			: 3;
+	unsigned char flags_secs			: 1;
+	unsigned char flags_invert			: 1;
+	unsigned char flags_transpose			: 1;
+	unsigned char flags_rotate			: 1;
+	unsigned char flags_ext_vcc			: 1;
+	unsigned char flags_alt_com_conf		: 1;
+	unsigned char reserved2				: 2;
 
 	unsigned char controller;
 };
@@ -120,6 +122,10 @@ struct indicators {
 	unsigned int reserved	: 23;
 };
 
+static unsigned char set_xy(unsigned char x, unsigned char y);
+static void clear_ssd1306(void);
+static void clear_sh1106(void);
+
 static void init_font(struct font *font_struct, const unsigned char *font_bitmaps);
 static void init_rect(struct rect *rect, const struct font *font, const char *str, unsigned char x, unsigned char y, unsigned char transposed);
 static unsigned char print_icon(unsigned char ch);
@@ -152,6 +158,8 @@ static struct font font_small_text = { 0 };
 static struct indicators indicators = { 0 };
 static struct ssd1306_display ssd1306_display;
 
+static void (*clear)(void);
+
 struct controller_interface *init_ssd1306(struct vfd_dev *_dev)
 {
 	dev = _dev;
@@ -161,6 +169,17 @@ struct controller_interface *init_ssd1306(struct vfd_dev *_dev)
 	rows = banks * 8;
 	col_offset = ssd1306_display.offset << 1;
 	memset(&old_data, 0, sizeof(old_data));
+	switch (ssd1306_display.controller) {
+	case CONTROLLER_SH1106:
+		clear = clear_sh1106;
+		ssd1306_interface.init = sh1106_init;
+		break;
+	case CONTROLLER_SSD1306:
+	default:
+		clear = clear_ssd1306;
+		ssd1306_interface.init = ssd1306_init;
+		break;
+	}
 	return &ssd1306_interface;
 }
 
@@ -194,22 +213,30 @@ static void write_oled_data(unsigned char data)
 	write_oled_buf(0x40, &data, 1);
 }
 
-static void clear(void)
+static void clear_ssd1306(void)
 {
-	unsigned char cmd_buf[] = { 0xAE, 0xB0, 0x00, 0x10 };
+	unsigned char cmd_buf[] = { 0x21, col_offset, col_offset + columns - 1, 0x22, 0x00, banks - 1 };
 	write_oled_command_buf(cmd_buf, sizeof(cmd_buf));
 	write_oled_data_buf(ram_buffer_blank, min((size_t)(columns * banks), sizeof(ram_buffer_blank)));
 	write_oled_command(0xAF);
 }
 
+static void clear_sh1106(void)
+{
+	write_oled_command(0xAE);
+	for (unsigned char i = 0; i < banks; i++) {
+		set_xy(0, i);
+		write_oled_data_buf(ram_buffer_blank, columns);
+	}
+	write_oled_command(0xAF);
+}
+
 static void set_power(unsigned char state)
 {
-	if (state != dev->power) {
-		if (state)
-			write_oled_command(0xAF); // Set display On
-		else
-			write_oled_command(0xAE); // Set display OFF
-	}
+	if (state)
+		write_oled_command(0xAF); // Set display On
+	else
+		write_oled_command(0xAE); // Set display OFF
 }
 
 static void set_contrast(unsigned char value)
@@ -338,8 +365,13 @@ static void print_string(const char *str, const struct font *font_struct, unsign
 	rect.length = rect.text_height * rect.text_width;
 	if (ssd1306_display.flags_transpose)
 		transpose_buffer(ram_buffer, &rect);
-	{
-		unsigned char cmd_set_addr_range[] = { 0x21, rect.x1, rect.x2, 0x22, rect.y1, rect.y2 };
+	if (ssd1306_display.controller == CONTROLLER_SH1106) {
+		for (i = 0; i < rect.height; i++) {
+			set_xy(rect.x1, rect.y1 + i);
+			write_oled_data_buf(ram_buffer + (i * rect.width), rect.width);
+		}
+	} else {
+		unsigned char cmd_set_addr_range[] = { 0x21, rect.x1 + col_offset, rect.x2 + col_offset, 0x22, rect.y1, rect.y2 };
 		unsigned char cmd_reset_addr_range[] = { 0x21, col_offset, col_offset + columns - 1, 0x22, 0x00, banks - 1 };
 		write_oled_command_buf(cmd_set_addr_range, sizeof(cmd_set_addr_range));
 		write_oled_data_buf(ram_buffer, rect.length * font_struct->font_char_size);
@@ -403,6 +435,61 @@ static void setup_fonts(void)
 	}
 }
 
+static unsigned char sh1106_init(void)
+{
+	unsigned char cmd_buf[] = {
+		0xAE, // [00] Set display OFF
+
+		0xA0, // [01] Set Segment Re-Map
+
+		0xDA, // [02] Set COM Hardware Configuration
+		0x02, // [03] COM Hardware Configuration
+
+		0xC0, // [04] Set Com Output Scan Direction
+
+		0xA8, // [05] Set Multiplex Ratio
+		0x3F, // [06] Multiplex Ratio for 128x64 (64-1)
+
+		0xD5, // [07] Set Display Clock Divide Ratio / OSC Frequency
+		0x80, // [08] Display Clock Divide Ratio / OSC Frequency
+
+		0xDB, // [09] Set VCOMH Deselect Level
+		0x35, // [10] VCOMH Deselect Level
+
+		0x81, // [11] Set Contrast
+		0x8F, // [12] Contrast
+
+		0x30, // [13] Set Vpp
+
+		0xAD, // [14] Set DC-DC
+		0x8A, // [15] DC-DC ON/OFF
+
+		0x40, // [16] Set Display Start Line
+
+		0xA4, // [17] Set all pixels OFF
+		0xA6, // [18] Set display not inverted
+		0xAF, // [19] Set display On
+	};
+
+	protocol = init_i2c(ssd1306_display.address, I2C_MSB_FIRST, dev->clk_pin, dev->dat_pin, I2C_DELAY_500KHz);
+	if (!protocol)
+		return 0;
+
+	cmd_buf[1] |= ssd1306_display.flags_rotate ? 0x01 : 0x00;		// [01] Set Segment Re-Map
+	cmd_buf[3] |= ssd1306_display.flags_alt_com_conf ? 0x10 : 0x00;		// [03] COM Hardware Configuration
+	cmd_buf[4] |= ssd1306_display.flags_rotate ? 0x08 : 0x00;		// [04] Set Com Output Scan Direction
+	cmd_buf[6] = max(min(rows-1, 63), 15);					// [06] Multiplex Ratio for 128 x rows (rows-1)
+	cmd_buf[12] = (dev->brightness * 36) + 1;				// [12] Contrast
+	cmd_buf[15] = ssd1306_display.flags_ext_vcc ? 0x00 : 0x01;		// [15] DC-DC ON/OFF
+	cmd_buf[18] |= ssd1306_display.flags_invert ? 0x01 : 0x00;		// [18] Set display not inverted
+	write_oled_command_buf(cmd_buf, sizeof(cmd_buf));
+	clear();
+
+	setup_fonts();
+
+	return 1;
+}
+
 static unsigned char ssd1306_init(void)
 {
 	unsigned char cmd_buf[] = {
@@ -453,24 +540,25 @@ static unsigned char ssd1306_init(void)
 		0xAF, // [30] Set display On
 	};
 
-	setup_fonts();
-
 	protocol = init_i2c(ssd1306_display.address, I2C_MSB_FIRST, dev->clk_pin, dev->dat_pin, I2C_DELAY_500KHz);
 	if (!protocol)
 		return 0;
 
-	cmd_buf[4] = max(min(rows-1, 63), 15);				// [04] Multiplex Ratio for 128 x rows (rows-1)
-	cmd_buf[8] = ssd1306_display.flags_ext_vcc ? 0x10 : 0x14;	// [08] Charge Pump (0x10 External, 0x14 Internal DC/DC)
-	cmd_buf[9] |= ssd1306_display.flags_rotate ? 0x01 : 0x00;	// [09] Set Segment Re-Map
-	cmd_buf[10] |= ssd1306_display.flags_rotate ? 0x08 : 0x00;	// [10] Set Com Output Scan Direction
-	cmd_buf[14] = (((dev->brightness & 0x7) + 1) * 32) - 1;		// [14] Contrast
-	cmd_buf[16] = ssd1306_display.flags_ext_vcc ? 0x22 : 0xF1;	// [16] Set Pre-Charge Period (0x22 External, 0xF1 Internal)
-	cmd_buf[23] = col_offset;					// [23] First column
-	cmd_buf[24] = min(127, (columns + col_offset - 1));		// [24] Last column
-	cmd_buf[27] = banks - 1;					// [27] Last page
-	cmd_buf[29] |= ssd1306_display.flags_invert ? 0x01 : 0x00;	// [29] Set display not inverted
+	cmd_buf[4] = max(min(rows-1, 63), 15);					// [04] Multiplex Ratio for 128 x rows (rows-1)
+	cmd_buf[8] = ssd1306_display.flags_ext_vcc ? 0x10 : 0x14;		// [08] Charge Pump (0x10 External, 0x14 Internal DC/DC)
+	cmd_buf[9] |= ssd1306_display.flags_rotate ? 0x01 : 0x00;		// [09] Set Segment Re-Map
+	cmd_buf[10] |= ssd1306_display.flags_rotate ? 0x08 : 0x00;		// [10] Set Com Output Scan Direction
+	cmd_buf[12] |= ssd1306_display.flags_alt_com_conf ? 0x10 : 0x00;	// [12] COM Hardware Configuration
+	cmd_buf[14] = (dev->brightness * 36) + 1;				// [14] Contrast
+	cmd_buf[16] = ssd1306_display.flags_ext_vcc ? 0x22 : 0xF1;		// [16] Set Pre-Charge Period (0x22 External, 0xF1 Internal)
+	cmd_buf[23] = col_offset;						// [23] First column
+	cmd_buf[24] = col_offset + columns - 1;					// [24] Last column
+	cmd_buf[27] = banks - 1;						// [27] Last page
+	cmd_buf[29] |= ssd1306_display.flags_invert ? 0x01 : 0x00;		// [29] Set display not inverted
 	write_oled_command_buf(cmd_buf, sizeof(cmd_buf));
 	clear();
+
+	setup_fonts();
 
 	return 1;
 }
