@@ -82,7 +82,8 @@ struct ssd1306_display {
 	unsigned char flags_rotate			: 1;
 	unsigned char flags_ext_vcc			: 1;
 	unsigned char flags_alt_com_conf		: 1;
-	unsigned char reserved2				: 2;
+	unsigned char flags_low_freq			: 1;
+	unsigned char reserved2				: 1;
 
 	unsigned char controller;
 };
@@ -215,7 +216,7 @@ static void write_oled_data(unsigned char data)
 
 static void clear_ssd1306(void)
 {
-	unsigned char cmd_buf[] = { 0x21, col_offset, col_offset + columns - 1, 0x22, 0x00, banks - 1 };
+	unsigned char cmd_buf[] = { 0x21, col_offset, col_offset + columns - 1, 0x22, 0x00, banks - 1, 0xAE };
 	write_oled_command_buf(cmd_buf, sizeof(cmd_buf));
 	write_oled_data_buf(ram_buffer_blank, min((size_t)(columns * banks), sizeof(ram_buffer_blank)));
 	write_oled_command(0xAF);
@@ -471,7 +472,7 @@ static unsigned char sh1106_init(void)
 		0xAF, // [19] Set display On
 	};
 
-	protocol = init_i2c(ssd1306_display.address, I2C_MSB_FIRST, dev->clk_pin, dev->dat_pin, I2C_DELAY_500KHz);
+	protocol = init_i2c(ssd1306_display.address, I2C_MSB_FIRST, dev->clk_pin, dev->dat_pin, ssd1306_display.flags_low_freq ? I2C_DELAY_100KHz : I2C_DELAY_500KHz);
 	if (!protocol)
 		return 0;
 
@@ -480,7 +481,7 @@ static unsigned char sh1106_init(void)
 	cmd_buf[4] |= ssd1306_display.flags_rotate ? 0x08 : 0x00;		// [04] Set Com Output Scan Direction
 	cmd_buf[6] = max(min(rows-1, 63), 15);					// [06] Multiplex Ratio for 128 x rows (rows-1)
 	cmd_buf[12] = (dev->brightness * 36) + 1;				// [12] Contrast
-	cmd_buf[15] = ssd1306_display.flags_ext_vcc ? 0x00 : 0x01;		// [15] DC-DC ON/OFF
+	cmd_buf[15] |= ssd1306_display.flags_ext_vcc ? 0x00 : 0x01;		// [15] DC-DC ON/OFF
 	cmd_buf[18] |= ssd1306_display.flags_invert ? 0x01 : 0x00;		// [18] Set display not inverted
 	write_oled_command_buf(cmd_buf, sizeof(cmd_buf));
 	clear();
@@ -540,7 +541,7 @@ static unsigned char ssd1306_init(void)
 		0xAF, // [30] Set display On
 	};
 
-	protocol = init_i2c(ssd1306_display.address, I2C_MSB_FIRST, dev->clk_pin, dev->dat_pin, I2C_DELAY_500KHz);
+	protocol = init_i2c(ssd1306_display.address, I2C_MSB_FIRST, dev->clk_pin, dev->dat_pin, ssd1306_display.flags_low_freq ? I2C_DELAY_100KHz : I2C_DELAY_500KHz);
 	if (!protocol)
 		return 0;
 
@@ -600,7 +601,7 @@ static struct vfd_display *ssd1306_get_display_type(void)
 static unsigned char ssd1306_set_display_type(struct vfd_display *display)
 {
 	unsigned char ret = 0;
-	if (display->controller == CONTROLLER_SSD1306) {
+	if (display->controller >= CONTROLLER_SSD1306 && display->controller <= CONTROLLER_SH1106) {
 		dev->dtb_active.display = *display;
 		ssd1306_init();
 		ret = 1;
