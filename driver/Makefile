@@ -18,6 +18,8 @@ else
 		openvfd-objs += controllers/fd628.o
 		openvfd-objs += controllers/fd650.o
 		openvfd-objs += controllers/hd44780.o
+		openvfd-objs += controllers/gfx_mono_ctrl.o
 		openvfd-objs += controllers/ssd1306.o
+		openvfd-objs += controllers/pcd8544.o
 		openvfd-objs += openvfd_drv.o
 endif

@@ -6,5 +6,6 @@
 #include "fd650.h"
 #include "hd44780.h"
 #include "ssd1306.h"
+#include "pcd8544.h"
 
 #endif

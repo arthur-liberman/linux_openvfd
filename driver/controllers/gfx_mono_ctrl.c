@@ -1,39 +1,37 @@
 #include <linux/semaphore.h>
-#include "../protocols/i2c.h"
-#include "ssd1306.h"
+#include "gfx_mono_ctrl.h"
 #include "fonts/Grotesk16x32.h"
 #include "fonts/Grotesk24x48.h"
 #include "fonts/Retro8x16.h"
 #include "fonts/icons16x16.h"
 #include "fonts/icons32x32.h"
 
-static unsigned char ssd1306_init(void);
-static unsigned char sh1106_init(void);
-static unsigned short ssd1306_get_brightness_levels_count(void);
-static unsigned short ssd1306_get_brightness_level(void);
-static unsigned char ssd1306_set_brightness_level(unsigned short level);
-static unsigned char ssd1306_get_power(void);
-static void ssd1306_set_power(unsigned char state);
-static struct vfd_display *ssd1306_get_display_type(void);
-static unsigned char ssd1306_set_display_type(struct vfd_display *display);
-static void ssd1306_set_icon(const char *name, unsigned char state);
-static size_t ssd1306_read_data(unsigned char *data, size_t length);
-static size_t ssd1306_write_data(const unsigned char *data, size_t length);
-static size_t ssd1306_write_display_data(const struct vfd_display_data *data);
+static unsigned char gfx_mono_ctrl_init(void);
+static unsigned short gfx_mono_ctrl_get_brightness_levels_count(void);
+static unsigned short gfx_mono_ctrl_get_brightness_level(void);
+static unsigned char gfx_mono_ctrl_set_brightness_level(unsigned short level);
+static unsigned char gfx_mono_ctrl_get_power(void);
+static void gfx_mono_ctrl_set_power(unsigned char state);
+static struct vfd_display *gfx_mono_ctrl_get_display_type(void);
+static unsigned char gfx_mono_ctrl_set_display_type(struct vfd_display *display);
+static void gfx_mono_ctrl_set_icon(const char *name, unsigned char state);
+static size_t gfx_mono_ctrl_read_data(unsigned char *data, size_t length);
+static size_t gfx_mono_ctrl_write_data(const unsigned char *data, size_t length);
+static size_t gfx_mono_ctrl_write_display_data(const struct vfd_display_data *data);
 
-static struct controller_interface ssd1306_interface = {
-	.init = ssd1306_init,
-	.get_brightness_levels_count = ssd1306_get_brightness_levels_count,
-	.get_brightness_level = ssd1306_get_brightness_level,
-	.set_brightness_level = ssd1306_set_brightness_level,
-	.get_power = ssd1306_get_power,
-	.set_power = ssd1306_set_power,
-	.get_display_type = ssd1306_get_display_type,
-	.set_display_type = ssd1306_set_display_type,
-	.set_icon = ssd1306_set_icon,
-	.read_data = ssd1306_read_data,
-	.write_data = ssd1306_write_data,
-	.write_display_data = ssd1306_write_display_data,
+static struct controller_interface gfx_mono_ctrl_interface = {
+	.init = gfx_mono_ctrl_init,
+	.get_brightness_levels_count = gfx_mono_ctrl_get_brightness_levels_count,
+	.get_brightness_level = gfx_mono_ctrl_get_brightness_level,
+	.set_brightness_level = gfx_mono_ctrl_set_brightness_level,
+	.get_power = gfx_mono_ctrl_get_power,
+	.set_power = gfx_mono_ctrl_set_power,
+	.get_display_type = gfx_mono_ctrl_get_display_type,
+	.set_display_type = gfx_mono_ctrl_set_display_type,
+	.set_icon = gfx_mono_ctrl_set_icon,
+	.read_data = gfx_mono_ctrl_read_data,
+	.write_data = gfx_mono_ctrl_write_data,
+	.write_display_data = gfx_mono_ctrl_write_display_data,
 };
 
 #define MAX_INDICATORS	4
@@ -68,46 +66,19 @@ enum indicator_icons {
 	INDICATOR_ICON_SETUP,
 };
 
-struct ssd1306_display {
+struct gfx_mono_ctrl_display {
 	unsigned char columns				: 3;
 	unsigned char banks				: 3;
 	unsigned char offset				: 2;
 
-	unsigned char address				: 7;
-	unsigned char reserved1				: 1;
+	unsigned char reserved1;
 
 	unsigned char flags_secs			: 1;
-	unsigned char flags_invert			: 1;
-	unsigned char flags_transpose			: 1;
-	unsigned char flags_rotate			: 1;
-	unsigned char flags_ext_vcc			: 1;
-	unsigned char flags_alt_com_conf		: 1;
-	unsigned char flags_low_freq			: 1;
 	unsigned char reserved2				: 1;
+	unsigned char flags_transpose			: 1;
+	unsigned char reserved3				: 5;
 
 	unsigned char controller;
-};
-
-struct font {
-	unsigned char font_height;
-	unsigned char font_width;
-	unsigned char font_char_size;
-	unsigned char font_offset;
-	unsigned char font_char_count;
-	const unsigned char *font_bitmaps;
-};
-
-struct rect {
-	unsigned char x1;
-	unsigned char y1;
-	unsigned char x2;
-	unsigned char y2;
-	unsigned char width;
-	unsigned char height;
-	unsigned char text_width;
-	unsigned char text_height;
-	unsigned char length;
-	const struct font *font;
 };
 
 struct indicators {
@@ -123,10 +94,7 @@ struct indicators {
 	unsigned int reserved	: 23;
 };
 
-static unsigned char set_xy(unsigned char x, unsigned char y);
-static void clear_ssd1306(void);
-static void clear_sh1106(void);
-
+static void setup_fonts(void);
 static void init_font(struct font *font_struct, const unsigned char *font_bitmaps);
 static void init_rect(struct rect *rect, const struct font *font, const char *str, unsigned char x, unsigned char y, unsigned char transposed);
 static unsigned char print_icon(unsigned char ch);
@@ -139,9 +107,7 @@ static void print_date(const struct vfd_display_data *data);
 static void print_temperature(const struct vfd_display_data *data);
 
 static struct vfd_dev *dev = NULL;
-static struct protocol_interface *protocol = NULL;
 static unsigned char columns = 128;
-static unsigned char rows = 32;
 static unsigned char banks = 32 / 8;
 static unsigned char col_offset = 0;
 static unsigned char show_colon = 1;
@@ -150,136 +116,55 @@ static enum display_modes display_mode = DISPLAY_MODE_128x32;
 static unsigned char icon_x_offset = 0;
 static unsigned char indicators_on_screen[MAX_INDICATORS] = { 0 };
 static unsigned char ram_buffer[1024] = { 0 };
-static const unsigned char ram_buffer_blank[1024] = { 0 };
 static struct vfd_display_data old_data;
 static struct font font_text = { 0 };
 static struct font font_icons = { 0 };
 static struct font font_indicators = { 0 };
 static struct font font_small_text = { 0 };
 static struct indicators indicators = { 0 };
-static struct ssd1306_display ssd1306_display;
+static struct gfx_mono_ctrl_display gfx_mono_ctrl_display;
 
-static void (*clear)(void);
+static const struct specific_gfx_mono_ctrl *specific_gfx_mono_ctrl;
 
-struct controller_interface *init_ssd1306(struct vfd_dev *_dev)
+struct controller_interface *init_gfx_mono_ctrl(struct vfd_dev *_dev, const struct specific_gfx_mono_ctrl *_specific_gfx_mono_ctrl)
 {
 	dev = _dev;
-	memcpy(&ssd1306_display, &dev->dtb_active.display, sizeof(ssd1306_display));
-	columns = (ssd1306_display.columns + 1) * 16;
-	banks = ssd1306_display.banks + 1;
-	rows = banks * 8;
-	col_offset = ssd1306_display.offset << 1;
+	specific_gfx_mono_ctrl = _specific_gfx_mono_ctrl;
+	memcpy(&gfx_mono_ctrl_display, &dev->dtb_active.display, sizeof(gfx_mono_ctrl_display));
+	columns = (gfx_mono_ctrl_display.columns + 1) * 16;
+	banks = gfx_mono_ctrl_display.banks + 1;
+	col_offset = gfx_mono_ctrl_display.offset << 1;
 	memset(&old_data, 0, sizeof(old_data));
-	switch (ssd1306_display.controller) {
-	case CONTROLLER_SH1106:
-		clear = clear_sh1106;
-		ssd1306_interface.init = sh1106_init;
-		break;
-	case CONTROLLER_SSD1306:
-	default:
-		clear = clear_ssd1306;
-		ssd1306_interface.init = ssd1306_init;
-		break;
-	}
-	return &ssd1306_interface;
-}
 
-static void write_oled_buf(unsigned char dc, const unsigned char *buf, unsigned int length)
-{
-	protocol->write_cmd_data(&dc, 1, buf, length);
-}
-
-static void write_oled_byte(unsigned char dc, unsigned char data)
-{
-	write_oled_buf(dc, &data, 1);
-}
-
-static void write_oled_command_buf(const unsigned char *buf, unsigned int length)
-{
-	write_oled_buf(0x00, buf, length);
-}
-
-static void write_oled_command(unsigned char cmd)
-{
-	write_oled_buf(0x00, &cmd, 1);
-}
-
-static void write_oled_data_buf(const unsigned char *buf, unsigned int length)
-{
-	write_oled_buf(0x40, buf, length);
-}
-
-static void write_oled_data(unsigned char data)
-{
-	write_oled_buf(0x40, &data, 1);
-}
-
-static void clear_ssd1306(void)
-{
-	unsigned char cmd_buf[] = { 0x21, col_offset, col_offset + columns - 1, 0x22, 0x00, banks - 1, 0xAE };
-	write_oled_command_buf(cmd_buf, sizeof(cmd_buf));
-	write_oled_data_buf(ram_buffer_blank, min((size_t)(columns * banks), sizeof(ram_buffer_blank)));
-	write_oled_command(0xAF);
-}
-
-static void clear_sh1106(void)
-{
-	write_oled_command(0xAE);
-	for (unsigned char i = 0; i < banks; i++) {
-		set_xy(0, i);
-		write_oled_data_buf(ram_buffer_blank, columns);
-	}
-	write_oled_command(0xAF);
-}
-
-static void set_power(unsigned char state)
-{
-	if (state)
-		write_oled_command(0xAF); // Set display On
-	else
-		write_oled_command(0xAE); // Set display OFF
-}
-
-static void set_contrast(unsigned char value)
-{
-	unsigned char cmd_buf[] = { 0x81, ++value };
-	write_oled_command_buf(cmd_buf, sizeof(cmd_buf));
-}
-
-static unsigned char set_xy(unsigned char x, unsigned char y)
-{
-	unsigned char ret = 0;
-	x += col_offset;
-	if (x < columns + col_offset || y < rows) {
-		unsigned char cmd_buf[] = { 0xB0 | (y & 0xF), x & 0xF, 0x10 | (x >> 4) };
-		write_oled_command_buf(cmd_buf, sizeof(cmd_buf));
-		ret = 1;
-	}
-
-	return ret;
+	setup_fonts();
+	if (specific_gfx_mono_ctrl->init)
+		gfx_mono_ctrl_interface.init = specific_gfx_mono_ctrl->init;
+	if (specific_gfx_mono_ctrl->set_display_type)
+		gfx_mono_ctrl_interface.set_display_type = specific_gfx_mono_ctrl->set_display_type;
+	return &gfx_mono_ctrl_interface;
 }
 
 static void print_char(char ch, const struct font *font_struct, unsigned char x, unsigned char y)
 {
 	unsigned short offset = 0, i;
-	if (x >= columns || y >= rows || ch < font_struct->font_offset || ch >= font_struct->font_offset + font_struct->font_char_count)
+	if (x >= columns || y >= banks || ch < font_struct->font_offset || ch >= font_struct->font_offset + font_struct->font_char_count)
 		return;
 
 	ch -= font_struct->font_offset;
 	offset = ch * font_struct->font_char_size;
 	offset += 4;
 	for (i = 0; i < font_struct->font_height; i++) {
-		set_xy(x, y + i);
-		write_oled_data_buf(&font_struct->font_bitmaps[offset], font_struct->font_width);
+		specific_gfx_mono_ctrl->set_xy(x, y + i);
+		specific_gfx_mono_ctrl->write_ctrl_data_buf(&font_struct->font_bitmaps[offset], font_struct->font_width);
 		offset += font_struct->font_width;
 	}
 }
 
 extern void transpose8rS64(unsigned char* A, unsigned char* B);
 
-#define SSD1306_PRINT_DEBUG 0
+#define GFX_MONO_CTRL_PRINT_DEBUG 0
 
-#if SSD1306_PRINT_DEBUG
+#if GFX_MONO_CTRL_PRINT_DEBUG
 unsigned char print_buffer_cnt = 30;
 char txt_buf[20480] = { 0 };
 static void print_buffer(unsigned char *buf, const struct rect *rect, unsigned char rotate)
@@ -337,11 +222,11 @@ static void print_string(const char *str, const struct font *font_struct, unsign
 	unsigned short soffset = 0, doffset = 0, i, j, k;
 	struct rect rect;
 	unsigned char rect_width = 0, text_width = 0;
-	init_rect(&rect, font_struct, str, x, y, ssd1306_display.flags_transpose);
+	init_rect(&rect, font_struct, str, x, y, gfx_mono_ctrl_display.flags_transpose);
 	if (rect.length == 0)
 		return;
 
-	if (ssd1306_display.flags_transpose) {
+	if (gfx_mono_ctrl_display.flags_transpose) {
 		rect_width = rect.height * 8;
 		text_width = rect.text_height;
 	} else {
@@ -364,20 +249,9 @@ static void print_string(const char *str, const struct font *font_struct, unsign
 	}
 
 	rect.length = rect.text_height * rect.text_width;
-	if (ssd1306_display.flags_transpose)
+	if (gfx_mono_ctrl_display.flags_transpose)
 		transpose_buffer(ram_buffer, &rect);
-	if (ssd1306_display.controller == CONTROLLER_SH1106) {
-		for (i = 0; i < rect.height; i++) {
-			set_xy(rect.x1, rect.y1 + i);
-			write_oled_data_buf(ram_buffer + (i * rect.width), rect.width);
-		}
-	} else {
-		unsigned char cmd_set_addr_range[] = { 0x21, rect.x1 + col_offset, rect.x2 + col_offset, 0x22, rect.y1, rect.y2 };
-		unsigned char cmd_reset_addr_range[] = { 0x21, col_offset, col_offset + columns - 1, 0x22, 0x00, banks - 1 };
-		write_oled_command_buf(cmd_set_addr_range, sizeof(cmd_set_addr_range));
-		write_oled_data_buf(ram_buffer, rect.length * font_struct->font_char_size);
-		write_oled_command_buf(cmd_reset_addr_range, sizeof(cmd_reset_addr_range));
-	}
+	specific_gfx_mono_ctrl->print_string(ram_buffer, &rect);
 }
 
 static void setup_fonts(void)
@@ -436,181 +310,53 @@ static void setup_fonts(void)
 	}
 }
 
-static unsigned char sh1106_init(void)
+static unsigned char gfx_mono_ctrl_init(void)
 {
-	unsigned char cmd_buf[] = {
-		0xAE, // [00] Set display OFF
-
-		0xA0, // [01] Set Segment Re-Map
-
-		0xDA, // [02] Set COM Hardware Configuration
-		0x02, // [03] COM Hardware Configuration
-
-		0xC0, // [04] Set Com Output Scan Direction
-
-		0xA8, // [05] Set Multiplex Ratio
-		0x3F, // [06] Multiplex Ratio for 128x64 (64-1)
-
-		0xD5, // [07] Set Display Clock Divide Ratio / OSC Frequency
-		0x80, // [08] Display Clock Divide Ratio / OSC Frequency
-
-		0xDB, // [09] Set VCOMH Deselect Level
-		0x35, // [10] VCOMH Deselect Level
-
-		0x81, // [11] Set Contrast
-		0x8F, // [12] Contrast
-
-		0x30, // [13] Set Vpp
-
-		0xAD, // [14] Set DC-DC
-		0x8A, // [15] DC-DC ON/OFF
-
-		0x40, // [16] Set Display Start Line
-
-		0xA4, // [17] Set all pixels OFF
-		0xA6, // [18] Set display not inverted
-		0xAF, // [19] Set display On
-	};
-
-	protocol = init_i2c(ssd1306_display.address, I2C_MSB_FIRST, dev->clk_pin, dev->dat_pin, ssd1306_display.flags_low_freq ? I2C_DELAY_100KHz : I2C_DELAY_500KHz);
-	if (!protocol)
-		return 0;
-
-	cmd_buf[1] |= ssd1306_display.flags_rotate ? 0x01 : 0x00;		// [01] Set Segment Re-Map
-	cmd_buf[3] |= ssd1306_display.flags_alt_com_conf ? 0x10 : 0x00;		// [03] COM Hardware Configuration
-	cmd_buf[4] |= ssd1306_display.flags_rotate ? 0x08 : 0x00;		// [04] Set Com Output Scan Direction
-	cmd_buf[6] = max(min(rows-1, 63), 15);					// [06] Multiplex Ratio for 128 x rows (rows-1)
-	cmd_buf[12] = (dev->brightness * 36) + 1;				// [12] Contrast
-	cmd_buf[15] |= ssd1306_display.flags_ext_vcc ? 0x00 : 0x01;		// [15] DC-DC ON/OFF
-	cmd_buf[18] |= ssd1306_display.flags_invert ? 0x01 : 0x00;		// [18] Set display not inverted
-	write_oled_command_buf(cmd_buf, sizeof(cmd_buf));
-	clear();
-
-	setup_fonts();
-
-	return 1;
+	pr_dbg2("gfx_mono_ctrl_init - not implemented\n");
+	return 0;
 }
 
-static unsigned char ssd1306_init(void)
-{
-	unsigned char cmd_buf[] = {
-		0xAE, // [00] Set display OFF
-
-		0xD5, // [01] Set Display Clock Divide Ratio / OSC Frequency
-		0x80, // [02] Display Clock Divide Ratio / OSC Frequency
-
-		0xA8, // [03] Set Multiplex Ratio
-		0x3F, // [04] Multiplex Ratio for 128x64 (64-1)
-
-		0xD3, // [05] Set Display Offset
-		0x00, // [06] Display Offset
-
-		0x8D, // [07] Set Charge Pump
-		0x14, // [08] Charge Pump (0x10 External, 0x14 Internal DC/DC)
-
-		0xA0, // [09] Set Segment Re-Map
-		0xC0, // [10] Set Com Output Scan Direction
-
-		0xDA, // [11] Set COM Hardware Configuration
-		0x02, // [12] COM Hardware Configuration
-
-		0x81, // [13] Set Contrast
-		0x8F, // [14] Contrast
-
-		0xD9, // [15] Set Pre-Charge Period
-		0xF1, // [16] Set Pre-Charge Period (0x22 External, 0xF1 Internal)
-
-		0xDB, // [17] Set VCOMH Deselect Level
-		0x30, // [18] VCOMH Deselect Level
-
-		0x40, // [19] Set Display Start Line
-
-		0x20, // [20] Set Memory Addressing Mode
-		0x00, // [21] Set Horizontal Mode
-
-		0x21, // [22] Set Column Address
-		0x00, // [23] First column
-		0x7F, // [24] Last column
-
-		0x22, // [25] Set Page Address
-		0x00, // [26] First page
-		0x07, // [27] Last page
-
-		0xA4, // [28] Set all pixels OFF
-		0xA6, // [29] Set display not inverted
-		0xAF, // [30] Set display On
-	};
-
-	protocol = init_i2c(ssd1306_display.address, I2C_MSB_FIRST, dev->clk_pin, dev->dat_pin, ssd1306_display.flags_low_freq ? I2C_DELAY_100KHz : I2C_DELAY_500KHz);
-	if (!protocol)
-		return 0;
-
-	cmd_buf[4] = max(min(rows-1, 63), 15);					// [04] Multiplex Ratio for 128 x rows (rows-1)
-	cmd_buf[8] = ssd1306_display.flags_ext_vcc ? 0x10 : 0x14;		// [08] Charge Pump (0x10 External, 0x14 Internal DC/DC)
-	cmd_buf[9] |= ssd1306_display.flags_rotate ? 0x01 : 0x00;		// [09] Set Segment Re-Map
-	cmd_buf[10] |= ssd1306_display.flags_rotate ? 0x08 : 0x00;		// [10] Set Com Output Scan Direction
-	cmd_buf[12] |= ssd1306_display.flags_alt_com_conf ? 0x10 : 0x00;	// [12] COM Hardware Configuration
-	cmd_buf[14] = (dev->brightness * 36) + 1;				// [14] Contrast
-	cmd_buf[16] = ssd1306_display.flags_ext_vcc ? 0x22 : 0xF1;		// [16] Set Pre-Charge Period (0x22 External, 0xF1 Internal)
-	cmd_buf[23] = col_offset;						// [23] First column
-	cmd_buf[24] = col_offset + columns - 1;					// [24] Last column
-	cmd_buf[27] = banks - 1;						// [27] Last page
-	cmd_buf[29] |= ssd1306_display.flags_invert ? 0x01 : 0x00;		// [29] Set display not inverted
-	write_oled_command_buf(cmd_buf, sizeof(cmd_buf));
-	clear();
-
-	setup_fonts();
-
-	return 1;
-}
-
-static unsigned short ssd1306_get_brightness_levels_count(void)
+static unsigned short gfx_mono_ctrl_get_brightness_levels_count(void)
 {
 	return 8;
 }
 
-static unsigned short ssd1306_get_brightness_level(void)
+static unsigned short gfx_mono_ctrl_get_brightness_level(void)
 {
 	return dev->brightness;
 }
 
-static unsigned char ssd1306_set_brightness_level(unsigned short level)
+static unsigned char gfx_mono_ctrl_set_brightness_level(unsigned short level)
 {
 	unsigned char tmp = dev->brightness = level & 0x7;
 	dev->power = 1;
-	set_contrast(tmp * 36); // ruonds to 0 - 252.
+	specific_gfx_mono_ctrl->set_contrast(tmp * 36); // ruonds to 0 - 252.
 	return 1;
 }
 
-static unsigned char ssd1306_get_power(void)
+static unsigned char gfx_mono_ctrl_get_power(void)
 {
 	return dev->power;
 }
 
-static void ssd1306_set_power(unsigned char state)
+static void gfx_mono_ctrl_set_power(unsigned char state)
 {
-	set_power(state);
+	specific_gfx_mono_ctrl->set_power(state);
 	dev->power = state;
 }
 
-static struct vfd_display *ssd1306_get_display_type(void)
+static struct vfd_display *gfx_mono_ctrl_get_display_type(void)
 {
 	return &dev->dtb_active.display;
 }
 
-static unsigned char ssd1306_set_display_type(struct vfd_display *display)
+static unsigned char gfx_mono_ctrl_set_display_type(struct vfd_display *display)
 {
-	unsigned char ret = 0;
-	if (display->controller >= CONTROLLER_SSD1306 && display->controller <= CONTROLLER_SH1106) {
-		dev->dtb_active.display = *display;
-		ssd1306_init();
-		ret = 1;
-	}
-
-	return ret;
+	pr_dbg2("gfx_mono_ctrl_set_display_type - not implemented\n");
+	return 0;
 }
 
-static void ssd1306_set_icon(const char *name, unsigned char state)
+static void gfx_mono_ctrl_set_icon(const char *name, unsigned char state)
 {
 	enum indicator_icons icon = INDICATOR_ICON_NONE;
 	if (strncmp(name,"usb",3) == 0 && indicators.usb != state) {
@@ -692,23 +438,23 @@ static void ssd1306_set_icon(const char *name, unsigned char state)
 	}
 }
 
-static size_t ssd1306_read_data(unsigned char *data, size_t length)
+static size_t gfx_mono_ctrl_read_data(unsigned char *data, size_t length)
 {
 	return 0;
 }
 
-static size_t ssd1306_write_data(const unsigned char *_data, size_t length)
+static size_t gfx_mono_ctrl_write_data(const unsigned char *_data, size_t length)
 {
 	return length;
 }
 
-static size_t ssd1306_write_display_data(const struct vfd_display_data *data)
+static size_t gfx_mono_ctrl_write_display_data(const struct vfd_display_data *data)
 {
 	size_t status = sizeof(*data);
 	if (data->mode != old_data.mode) {
 		icon_x_offset = 0;
 		memset(&old_data, 0, sizeof(old_data));
-		clear();
+		specific_gfx_mono_ctrl->clear();
 		switch (data->mode) {
 		case DISPLAY_MODE_CLOCK:
 			old_data.mode = DISPLAY_MODE_CLOCK;
@@ -842,8 +588,8 @@ static void print_clock(const struct vfd_display_data *data, unsigned char print
 	unsigned char force_print = old_data.mode == DISPLAY_MODE_NONE;
 	unsigned char offset = 0;
 	unsigned char colon_on = data->colon_on || dev->status_led_mask & ledDots[LED_DOT_SEC] ? 1 : 0;
-	print_seconds &= ssd1306_display.flags_secs & show_colon;
-	if (ssd1306_display.flags_transpose) {
+	print_seconds &= gfx_mono_ctrl_display.flags_secs & show_colon;
+	if (gfx_mono_ctrl_display.flags_transpose) {
 		if (force_print || data->time_date.minutes != old_data.time_date.minutes ||
 			data->time_date.hours != old_data.time_date.hours) {
 			offset = (columns - (font_text.font_height * 8 * 2 + show_colon * font_text.font_width)) / 2;
@@ -911,7 +657,7 @@ static void print_playback_time(const struct vfd_display_data *data)
 	char buffer[20];
 	unsigned char offset = icon_x_offset ? icon_x_offset : (columns - (show_colon * font_text.font_width + font_text.font_width * 4)) / 2;
 	unsigned char force_print = old_data.mode == DISPLAY_MODE_NONE || data->time_date.hours != old_data.time_date.hours;
-	if (ssd1306_display.flags_transpose) {
+	if (gfx_mono_ctrl_display.flags_transpose) {
 		if (data->time_date.hours > 0) {
 			if (force_print || data->time_date.minutes != old_data.time_date.minutes ||
 				data->time_date.hours != old_data.time_date.hours) {
@@ -969,7 +715,7 @@ static void print_playback_time(const struct vfd_display_data *data)
 			scnprintf(buffer, sizeof(buffer), "%02d%02d", pos0, pos1);
 		print_string(buffer, &font_text, offset, 0);
 	}
-	if (banks >= 8 && !ssd1306_display.flags_transpose && strcmp(data->string_main, old_data.string_main)) {
+	if (banks >= 6 && !gfx_mono_ctrl_display.flags_transpose && strcmp(data->string_main, old_data.string_main)) {
 		struct rect rect;
 		offset = show_icons * font_icons.font_width;
 		init_rect(&rect, &font_small_text, data->string_main, offset, font_text.font_height, 0);
@@ -1002,7 +748,7 @@ static void print_date(const struct vfd_display_data *data)
 	unsigned char force_print = old_data.mode == DISPLAY_MODE_NONE || data->time_date.day != old_data.time_date.day || data->time_date.month != old_data.time_date.month;
 	unsigned char offset = icon_x_offset ? icon_x_offset : (columns - (show_colon * font_text.font_width + font_text.font_width * 4)) / 2;
 	if (force_print) {
-		if (ssd1306_display.flags_transpose) {
+		if (gfx_mono_ctrl_display.flags_transpose) {
 			scnprintf(buffer, sizeof(buffer), "%02d", data->time_secondary._reserved ? data->time_date.month + 1 : data->time_date.day);
 			print_string(buffer, &font_text, offset, 0);
 			scnprintf(buffer, sizeof(buffer), "%02d", data->time_secondary._reserved ? data->time_date.day : data->time_date.month + 1);
@@ -1031,7 +777,7 @@ static void print_temperature(const struct vfd_display_data *data)
 {
 	char buffer[10];
 	if (data->temperature != old_data.temperature) {
-		if (ssd1306_display.flags_transpose) {
+		if (gfx_mono_ctrl_display.flags_transpose) {
 			unsigned char offset = icon_x_offset ? icon_x_offset : (columns - (2 * 8 * font_text.font_height)) / 2;
 			scnprintf(buffer, sizeof(buffer), "%02d", data->temperature % 100);
 			print_string(buffer, &font_text, offset, 0);
@@ -1098,7 +844,7 @@ static void init_rect(struct rect *rect, const struct font *font, const char *st
 		}
 	}
 
-#if SSD1306_PRINT_DEBUG
+#if GFX_MONO_CTRL_PRINT_DEBUG
 	pr_dbg2("str = %s, c_width = %d, c_height = %d, length = %d, xy1 = (%d,%d), xy2 = (%d,%d), size = (%d,%d), text size = (%d,%d)\n",
 		str, c_width, c_height, rect->length, rect->x1, rect->y1, rect->x2, rect->y2, rect->width, rect->height, rect->text_width, rect->text_height);
 #endif
