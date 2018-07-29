@@ -64,6 +64,7 @@ static void i2c_stop_condition(void)
 	udelay(i2c_delay);
 	gpio_direction_input(pin_sda);
 	udelay(i2c_delay);
+	udelay(i2c_delay);
 }
 
 static inline unsigned char i2c_ack(void)
