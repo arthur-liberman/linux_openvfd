@@ -56,6 +56,8 @@
 static struct early_suspend openvfd_early_suspend;
 #endif
 
+unsigned char vfd_display_auto_power = 1;
+
 static struct vfd_platform_data *pdata = NULL;
 struct kp {
 	struct led_classdev cdev;
@@ -93,6 +95,15 @@ static u_int32 FD628_GetKey(struct vfd_dev *dev)
 	}
 
 	return (FD628_KeyData);
+}
+
+static void set_power(unsigned char state)
+{
+	if (vfd_display_auto_power && controller) {
+		controller->set_power(state);
+		if (state && pdata)
+			controller->set_brightness_level(pdata->dev->brightness);
+	}
 }
 
 static void init_controller(struct vfd_dev *dev)
@@ -133,14 +144,14 @@ static void init_controller(struct vfd_dev *dev)
 		break;
 	}
 
-	if (controller && controller != temp_ctlr)
-		controller->set_power(0);
-	controller = temp_ctlr;
-	if (!controller->init()) {
-		controller = NULL;
-		pr_dbg2("Failed to initialize the controller, reverting to Dummy controller\n");
-		dev->dtb_active.display.controller = CONTROLLER_7S_MAX;
-		init_controller(dev);
+	if (controller != temp_ctlr) {
+		set_power(0);
+		controller = temp_ctlr;
+		if (!controller->init()) {
+			pr_dbg2("Failed to initialize the controller, reverting to Dummy controller\n");
+			controller = init_dummy(dev);
+			dev->dtb_active.display.controller = CONTROLLER_7S_MAX;
+		}
 	}
 }
 
@@ -150,14 +161,14 @@ static int openvfd_dev_open(struct inode *inode, struct file *file)
 	file->private_data = pdata->dev;
 	dev = file->private_data;
 	memset(dev->wbuf, 0x00, sizeof(dev->wbuf));
-	controller->set_brightness_level(pdata->dev->brightness);
+	set_power(1);
 	pr_dbg("openvfd_dev_open now.............................\r\n");
 	return 0;
 }
 
 static int openvfd_dev_release(struct inode *inode, struct file *file)
 {
-	controller->set_power(0);
+	set_power(0);
 	file->private_data = NULL;
 	pr_dbg("succes to close  openvfd_dev.............\n");
 	return 0;
@@ -497,13 +508,13 @@ static DEVICE_ATTR(led_off , 0666, led_off_show , led_off_store);
 static void openvfd_suspend(struct early_suspend *h)
 {
 	pr_info("%s!\n", __func__);
-	controller->set_power(0);
+	set_power(0);
 }
 
 static void openvfd_resume(struct early_suspend *h)
 {
 	pr_info("%s!\n", __func__);
-	controller->set_brightness_level(pdata->dev->brightness);
+	set_power(1);
 }
 
 unsigned char vfd_gpio_clk[3];
@@ -525,6 +536,7 @@ module_param_array(vfd_gpio_stb, byte, &vfd_gpio_stb_argc, 0000);
 module_param_array(vfd_chars, byte, &vfd_chars_argc, 0000);
 module_param_array(vfd_dot_bits, byte, &vfd_dot_bits_argc, 0000);
 module_param_array(vfd_display_type, byte, &vfd_display_type_argc, 0000);
+module_param(vfd_display_auto_power, byte, 0000);
 
 static void print_param_debug(const char *label, int argc, unsigned char param[])
 {
@@ -822,7 +834,7 @@ static int openvfd_driver_probe(struct platform_device *pdev)
 
 static int openvfd_driver_remove(struct platform_device *pdev)
 {
-	controller->set_power(0);
+	set_power(0);
 #ifdef CONFIG_HAS_EARLYSUSPEND
 	unregister_early_suspend(&openvfd_early_suspend);
 #endif
@@ -843,20 +855,20 @@ static int openvfd_driver_remove(struct platform_device *pdev)
 static void openvfd_driver_shutdown(struct platform_device *dev)
 {
 	pr_dbg("openvfd_driver_shutdown");
-	controller->set_power(0);
+	set_power(0);
 }
 
 static int openvfd_driver_suspend(struct platform_device *dev, pm_message_t state)
 {
 	pr_dbg("openvfd_driver_suspend");
-	controller->set_power(0);
+	set_power(0);
 	return 0;
 }
 
 static int openvfd_driver_resume(struct platform_device *dev)
 {
 	pr_dbg("openvfd_driver_resume");
-	controller->set_brightness_level(pdata->dev->brightness);
+	set_power(1);
 
 	return 0;
 }
