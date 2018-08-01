@@ -46,8 +46,12 @@ struct protocol_interface *init_i2c(unsigned char _address, unsigned char _lsb_f
 		if (_pin_sda.flags.bits.pullup_on && gpio_set_pullup(_pin_sda.pin, 1))
 			pr_dbg2("I2C Failed to enable pullup on SDA\n");
 		i2c_stop_condition();
-		i2c_ptr = &i2c_interface;
-		pr_dbg2("I2C interface intialized\n");
+		if (!i2c_write_cmd_data(NULL, 0, NULL, 0)) {
+			i2c_ptr = &i2c_interface;
+			pr_dbg2("I2C interface intialized\n");
+		} else {
+			pr_dbg2("I2C interface failed to intialize. Could not establish communication with I2C slave\n");
+		}
 	} else {
 		pr_dbg2("I2C interface failed to intialize. Invalid SCL (%d) and/or SDA (%d) pins\n", _pin_scl.pin, _pin_sda.pin);
 	}
