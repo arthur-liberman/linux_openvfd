@@ -70,9 +70,10 @@ static size_t fd628_write_data_real(unsigned char address, const unsigned char *
 
 static unsigned char fd628_init(void)
 {
+	unsigned char slow_freq = dev->dtb_active.display.flags & DISPLAY_FLAG_LOW_FREQ;
 	protocol = dev->dtb_active.display.controller == CONTROLLER_HBS658 ?
-		init_i2c(0, I2C_LSB_FIRST, dev->clk_pin, dev->dat_pin, I2C_DELAY_100KHz) :
-		init_spi_3w(dev->clk_pin, dev->dat_pin, dev->stb_pin, SPI_DELAY_100KHz);
+		init_i2c(0, I2C_LSB_FIRST, dev->clk_pin, dev->dat_pin, slow_freq ? I2C_DELAY_20KHz : I2C_DELAY_100KHz) :
+		init_spi_3w(dev->clk_pin, dev->dat_pin, dev->stb_pin, slow_freq ? SPI_DELAY_20KHz : SPI_DELAY_100KHz);
 	if (!protocol)
 		return 0;
 
