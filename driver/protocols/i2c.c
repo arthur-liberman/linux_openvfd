@@ -41,6 +41,10 @@ struct protocol_interface *init_i2c(unsigned char _address, unsigned char _lsb_f
 		pin_sda = _pin_sda.pin;
 		i2c_delay = _i2c_delay;
 		clk_stretch_timeout = 10 * _i2c_delay;
+		if (_pin_scl.flags.bits.pullup_on && gpio_set_pullup(_pin_scl.pin, 1))
+			pr_dbg2("I2C Failed to enable pullup on SCL\n");
+		if (_pin_sda.flags.bits.pullup_on && gpio_set_pullup(_pin_sda.pin, 1))
+			pr_dbg2("I2C Failed to enable pullup on SDA\n");
 		i2c_stop_condition();
 		i2c_ptr = &i2c_interface;
 		pr_dbg2("I2C interface intialized\n");
