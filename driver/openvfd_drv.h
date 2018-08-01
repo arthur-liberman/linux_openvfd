@@ -10,6 +10,7 @@
 #include <linux/amlogic/aml_gpio_consumer.h>
 #include <linux/switch.h>
 #include <linux/time.h>
+#include <linux/semaphore.h>
 #endif
 #include "glyphs.h"
 
@@ -85,10 +86,29 @@ struct vfd_dtb_config {
 	struct vfd_display display;
 };
 
+struct vfd_pin {
+	int pin;
+	union {
+		struct {
+			u_int8 active_low	: 1;
+			u_int8 single_ended	: 1;
+			u_int8 open_drain	: 1;
+			u_int8 sleep_keep	: 1;
+			u_int8 pullup_on	: 1;
+			u_int8 pulldown_on	: 1;
+			u_int8 reserved1	: 2;
+			u_int8 reserved2;
+			u_int8 reserved3;
+			u_int8 reserved4;
+		} bits;
+		unsigned int value;
+	} flags;
+};
+
 struct vfd_dev {
-	int clk_pin;
-	int dat_pin;
-	int stb_pin;
+	struct vfd_pin clk_pin;
+	struct vfd_pin dat_pin;
+	struct vfd_pin stb_pin;
 	u_int16 wbuf[7];
 	struct vfd_dtb_config dtb_active;
 	struct vfd_dtb_config dtb_default;

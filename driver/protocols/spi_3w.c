@@ -29,19 +29,19 @@ static int pin_clk = 0;
 static int pin_dat = 0;
 static int pin_stb = 0;
 
-struct protocol_interface *init_spi_3w(int clk, int dat, int stb, unsigned long _spi_delay)
+struct protocol_interface *init_spi_3w(struct vfd_pin clk, struct vfd_pin dat, struct vfd_pin stb, unsigned long _spi_delay)
 {
 	struct protocol_interface *spi_3w_ptr = NULL;
-	if (clk >= 0 && dat >= 0 && stb >= 0) {
-		pin_clk = clk;
-		pin_dat = dat;
-		pin_stb = stb;
+	if (clk.pin >= 0 && dat.pin >= 0 && stb.pin >= 0) {
+		pin_clk = clk.pin;
+		pin_dat = dat.pin;
+		pin_stb = stb.pin;
 		spi_delay = _spi_delay;
 		spi_3w_stop_condition();
 		spi_3w_ptr = &spi_3w_interface;
 		pr_dbg2("SPI 3-wire interface intialized\n");
 	} else {
-		pr_dbg2("SPI 3-wire interface failed to intialize\n");
+		pr_dbg2("SPI 3-wire interface failed to intialize. Invalid CLK (%d), DAT (%d) or STB (%d) pins\n", clk.pin, dat.pin, stb.pin);
 	}
 	return spi_3w_ptr;
 }

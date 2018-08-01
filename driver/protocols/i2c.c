@@ -31,21 +31,21 @@ static unsigned short clk_stretch_timeout = 0;
 static int pin_scl = 0;
 static int pin_sda = 0;
 
-struct protocol_interface *init_i2c(unsigned char _address, unsigned char _lsb_first, int _pin_scl, int _pin_sda, unsigned long _i2c_delay)
+struct protocol_interface *init_i2c(unsigned char _address, unsigned char _lsb_first, struct vfd_pin _pin_scl, struct vfd_pin _pin_sda, unsigned long _i2c_delay)
 {
 	struct protocol_interface *i2c_ptr = NULL;
-	if (_pin_scl >= 0 && _pin_sda >= 0) {
+	if (_pin_scl.pin >= 0 && _pin_sda.pin >= 0) {
 		i2c_address = _address;
 		lsb_first = _lsb_first;
-		pin_scl = _pin_scl;
-		pin_sda = _pin_sda;
+		pin_scl = _pin_scl.pin;
+		pin_sda = _pin_sda.pin;
 		i2c_delay = _i2c_delay;
 		clk_stretch_timeout = 10 * _i2c_delay;
 		i2c_stop_condition();
 		i2c_ptr = &i2c_interface;
 		pr_dbg2("I2C interface intialized\n");
 	} else {
-		pr_dbg2("I2C interface failed to intialize\n");
+		pr_dbg2("I2C interface failed to intialize. Invalid SCL (%d) and/or SDA (%d) pins\n", _pin_scl.pin, _pin_sda.pin);
 	}
 	return i2c_ptr;
 }
