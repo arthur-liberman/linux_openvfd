@@ -96,7 +96,8 @@ struct vfd_pin {
 			u_int8 sleep_keep	: 1;
 			u_int8 pullup_on	: 1;
 			u_int8 pulldown_on	: 1;
-			u_int8 reserved1	: 2;
+			u_int8 kick_high	: 1;
+			u_int8 kick_low		: 1;
 			u_int8 reserved2;
 			u_int8 reserved3;
 			u_int8 reserved4;
