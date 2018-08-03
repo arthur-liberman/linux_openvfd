@@ -22,20 +22,34 @@ static struct protocol_interface i2c_interface = {
 	.write_byte = i2c_write_byte,
 };
 
+union address {
+	struct {
+		unsigned char low;
+		unsigned char high;
+	} nibbles;
+	unsigned short value;
+};
+
 static void i2c_stop_condition(void);
 
-static unsigned char i2c_address = 0;
+static union address i2c_address = { 0 };
+static unsigned char use_address = 0;
+static unsigned char long_address = 0;
 static unsigned long i2c_delay = I2C_DELAY_100KHz;
 static unsigned char lsb_first = 0;
 static unsigned short clk_stretch_timeout = 0;
 static struct vfd_pin pin_scl = { 0 };
 static struct vfd_pin pin_sda = { 0 };
 
-struct protocol_interface *init_i2c(unsigned char _address, unsigned char _lsb_first, struct vfd_pin _pin_scl, struct vfd_pin _pin_sda, unsigned long _i2c_delay)
+struct protocol_interface *init_i2c(unsigned short _address, unsigned char _lsb_first, struct vfd_pin _pin_scl, struct vfd_pin _pin_sda, unsigned long _i2c_delay)
 {
 	struct protocol_interface *i2c_ptr = NULL;
 	if (_pin_scl.pin >= 0 && _pin_sda.pin >= 0) {
-		i2c_address = _address;
+		if (_address) {
+			use_address = 1;
+			long_address = _address > 0xFF;					// A valid 10-bit address always starts with b11110.
+			i2c_address.value = _address == 0xFF ? 0x0000 : _address;	// General call.
+		}
 		lsb_first = _lsb_first;
 		pin_scl = _pin_scl;
 		pin_sda = _pin_sda;
@@ -150,18 +164,28 @@ static unsigned char i2c_read_raw_byte(unsigned char *data)
 	return i2c_ack();
 }
 
-static unsigned char i2c_write_address(unsigned char _address, unsigned char rw)
+static unsigned char i2c_write_address(union address _address, unsigned char rw)
 {
-	_address <<= 1;
-	_address |= rw ? 0x01 : 0x00;
-	return i2c_write_raw_byte(_address);
+	unsigned char ret = 0;
+	if (long_address) {
+		_address.nibbles.high <<= 1;
+		_address.nibbles.high |= rw ? 0x01 : 0x00;
+		ret = i2c_write_raw_byte(_address.nibbles.high);
+		if (!ret)
+			ret = i2c_write_raw_byte(_address.nibbles.low);
+	} else {
+		_address.nibbles.low <<= 1;
+		_address.nibbles.low |= rw ? 0x01 : 0x00;
+		ret = i2c_write_raw_byte(_address.nibbles.low);
+	}
+	return ret;
 }
 
 static unsigned char i2c_read_cmd_data(const unsigned char *cmd, unsigned int cmd_length, unsigned char *data, unsigned int data_length)
 {
 	unsigned char status = 0;
 	i2c_start_condition();
-	if (i2c_address > 0)
+	if (use_address)
 		status = i2c_write_address(i2c_address, 1);
 	if (cmd) {
 		while (!status && cmd_length--)
@@ -187,7 +211,7 @@ static unsigned char i2c_write_cmd_data(const unsigned char *cmd, unsigned int c
 {
 	unsigned char status = 0;
 	i2c_start_condition();
-	if (i2c_address > 0)
+	if (use_address)
 		status = i2c_write_address(i2c_address, 0);
 	if (cmd) {
 		while (!status && cmd_length--)
