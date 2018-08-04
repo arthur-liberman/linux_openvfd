@@ -20,6 +20,7 @@ static struct protocol_interface i2c_interface = {
 	.write_cmd_data = i2c_write_cmd_data,
 	.write_data = i2c_write_data,
 	.write_byte = i2c_write_byte,
+	.protocol_type = PROTOCOL_TYPE_I2C
 };
 
 union address {

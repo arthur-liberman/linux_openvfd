@@ -20,6 +20,7 @@ static struct protocol_interface spi_interface = {
 	.write_cmd_data = spi_write_cmd_data,
 	.write_data = spi_write_data,
 	.write_byte = spi_write_byte,
+	.protocol_type = PROTOCOL_TYPE_SPI_3W
 };
 
 static void spi_stop_condition(void);
@@ -40,9 +41,11 @@ static struct protocol_interface *init_spi(struct vfd_pin clk, struct vfd_pin do
 		spi_delay = _spi_delay;
 		if (!din) {
 			pin_di = pin_do;
+			spi_interface.protocol_type = PROTOCOL_TYPE_SPI_3W;
 			spi_ptr = &spi_interface;
 		} else if (din->pin >= 0) {
 			pin_di = din->pin;
+			spi_interface.protocol_type = PROTOCOL_TYPE_SPI_4W;
 			spi_ptr = &spi_interface;
 		}
 		if (spi_ptr)

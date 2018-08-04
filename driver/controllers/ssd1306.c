@@ -87,7 +87,11 @@ struct controller_interface *init_ssd1306(struct vfd_dev *_dev)
 
 static void ssd1306_write_ctrl_buf(unsigned char dc, const unsigned char *buf, unsigned int length)
 {
-	protocol->write_cmd_data(&dc, 1, buf, length);
+	if (protocol->protocol_type == PROTOCOL_TYPE_I2C)
+		protocol->write_cmd_data(&dc, 1, buf, length);
+	else {
+		// Placeholder for SPI
+	}
 }
 
 static void ssd1306_write_ctrl_byte(unsigned char dc, unsigned char data)
