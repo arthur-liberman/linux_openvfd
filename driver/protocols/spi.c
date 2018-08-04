@@ -1,6 +1,6 @@
 #include <linux/delay.h>
 #include <linux/gpio.h>
-#include "spi_3w.h"
+#include "spi.h"
 
 #define pr_dbg2(args...) printk(KERN_DEBUG "OpenVFD: " args)
 #define LOW	0

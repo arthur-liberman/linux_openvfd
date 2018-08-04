@@ -1,5 +1,5 @@
 #include "../protocols/i2c.h"
-#include "../protocols/spi_3w.h"
+#include "../protocols/spi.h"
 #include "fd628.h"
 
 /* ****************************** Define FD628 Commands ****************************** */

@@ -1,5 +1,5 @@
-#ifndef __SPI_3WH__
-#define __SPI_3WH__
+#ifndef __SPIH__
+#define __SPIH__
 
 #include "protocol.h"
 #include "../openvfd_drv.h"

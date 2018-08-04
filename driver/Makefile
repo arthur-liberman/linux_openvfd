@@ -12,7 +12,7 @@ clean:
 else                      
 		obj-m := openvfd.o
 		openvfd-objs += protocols/i2c.o
-		openvfd-objs += protocols/spi_3w.o
+		openvfd-objs += protocols/spi.o
 		openvfd-objs += controllers/dummy.o
 		openvfd-objs += controllers/seg7_ctrl.o
 		openvfd-objs += controllers/fd628.o
