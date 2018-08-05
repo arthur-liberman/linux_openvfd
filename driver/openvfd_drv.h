@@ -60,12 +60,14 @@
 
 #ifdef MODULE
 
-#define MOD_NAME_CLK       "fd628_gpio_clk"
-#define MOD_NAME_DAT       "fd628_gpio_dat"
-#define MOD_NAME_STB       "fd628_gpio_stb"
-#define MOD_NAME_CHARS     "fd628_chars"
-#define MOD_NAME_DOTS      "fd628_dot_bits"
-#define MOD_NAME_TYPE      "fd628_display_type"
+#define MOD_NAME_CLK       "openvfd_gpio_clk"
+#define MOD_NAME_DAT       "openvfd_gpio_dat"
+#define MOD_NAME_STB       "openvfd_gpio_stb"
+#define MOD_NAME_GPIO0     "openvfd_gpio0"
+#define MOD_NAME_GPIO1     "openvfd_gpio1"
+#define MOD_NAME_CHARS     "openvfd_chars"
+#define MOD_NAME_DOTS      "openvfd_dot_bits"
+#define MOD_NAME_TYPE      "openvfd_display_type"
 
 #endif
 
@@ -100,7 +102,8 @@ struct vfd_pin {
 			u_int8 kick_low		: 1;
 			u_int8 reserved2;
 			u_int8 reserved3;
-			u_int8 reserved4;
+			u_int8 reserved4	: 7;
+			u_int8 is_requested	: 1;
 		} bits;
 		unsigned int value;
 	} flags;
@@ -110,6 +113,8 @@ struct vfd_dev {
 	struct vfd_pin clk_pin;
 	struct vfd_pin dat_pin;
 	struct vfd_pin stb_pin;
+	struct vfd_pin gpio0_pin;
+	struct vfd_pin gpio1_pin;
 	u_int16 wbuf[7];
 	struct vfd_dtb_config dtb_active;
 	struct vfd_dtb_config dtb_default;

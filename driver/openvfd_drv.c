@@ -520,12 +520,16 @@ static void openvfd_resume(struct early_suspend *h)
 unsigned char vfd_gpio_clk[3];
 unsigned char vfd_gpio_dat[3];
 unsigned char vfd_gpio_stb[3];
+unsigned char vfd_gpio0[3] = { 0x00, 0x00, 0xFF };
+unsigned char vfd_gpio1[3] = { 0x00, 0x00, 0xFF };
 unsigned char vfd_chars[7] = { 0, 1, 2, 3, 4, 5, 6 };
 unsigned char vfd_dot_bits[8] = { 0, 1, 2, 3, 4, 5, 6, 0 };
 unsigned char vfd_display_type[4] = { 0x00, 0x00, 0x00, 0x00 };
 int vfd_gpio_clk_argc = 0;
 int vfd_gpio_dat_argc = 0;
 int vfd_gpio_stb_argc = 0;
+int vfd_gpio0_argc = 3;
+int vfd_gpio1_argc = 3;
 int vfd_chars_argc = 0;
 int vfd_dot_bits_argc = 0;
 int vfd_display_type_argc = 0;
@@ -533,6 +537,8 @@ int vfd_display_type_argc = 0;
 module_param_array(vfd_gpio_clk, byte, &vfd_gpio_clk_argc, 0000);
 module_param_array(vfd_gpio_dat, byte, &vfd_gpio_dat_argc, 0000);
 module_param_array(vfd_gpio_stb, byte, &vfd_gpio_stb_argc, 0000);
+module_param_array(vfd_gpio0, byte, &vfd_gpio0_argc, 0000);
+module_param_array(vfd_gpio1, byte, &vfd_gpio1_argc, 0000);
 module_param_array(vfd_chars, byte, &vfd_chars_argc, 0000);
 module_param_array(vfd_dot_bits, byte, &vfd_dot_bits_argc, 0000);
 module_param_array(vfd_display_type, byte, &vfd_display_type_argc, 0000);
@@ -580,40 +586,44 @@ static int get_chip_pin_number(const unsigned char gpio[])
 	return pin;
 }
 
+int evaluate_pin(const char *name, const unsigned char *vfd_arg, struct vfd_pin *pin, unsigned char enable_skip_evaluation)
+{
+	int ret = 0;
+	if (enable_skip_evaluation && vfd_arg[2] == 0xFF) {
+		pin->pin = -2;
+		pr_dbg2("Skipping %s evaluation (0xFF)\n", name);
+	}
+	else if ((ret = pin->pin = get_chip_pin_number(vfd_arg)) >= 0)
+		pin->flags.value = (unsigned int)vfd_arg[2];
+	else
+		pr_error("Could not get pin number for %s\n", name);
+	return ret;
+}
+
 static int verify_module_params(struct vfd_dev *dev)
 {
 	int ret = (vfd_gpio_clk_argc == 3 && vfd_gpio_dat_argc == 3 && vfd_gpio_stb_argc == 3 &&
 			vfd_chars_argc >= 5 && vfd_dot_bits_argc >= 7 && vfd_display_type_argc == 4) ? 1 : -1;
 
-	print_param_debug("vfd_gpio_clk:\t\t", vfd_gpio_clk_argc, vfd_gpio_clk);
-	print_param_debug("vfd_gpio_dat:\t\t", vfd_gpio_dat_argc, vfd_gpio_dat);
-	print_param_debug("vfd_gpio_stb:\t\t", vfd_gpio_stb_argc, vfd_gpio_stb);
+	print_param_debug("vfd_gpio_clk:\t", vfd_gpio_clk_argc, vfd_gpio_clk);
+	print_param_debug("vfd_gpio_dat:\t", vfd_gpio_dat_argc, vfd_gpio_dat);
+	print_param_debug("vfd_gpio_stb:\t", vfd_gpio_stb_argc, vfd_gpio_stb);
+	print_param_debug("vfd_gpio0:\t\t", vfd_gpio0_argc, vfd_gpio0);
+	print_param_debug("vfd_gpio1:\t\t", vfd_gpio1_argc, vfd_gpio1);
 	print_param_debug("vfd_chars:\t\t", vfd_chars_argc, vfd_chars);
-	print_param_debug("vfd_dot_bits:\t\t", vfd_dot_bits_argc, vfd_dot_bits);
+	print_param_debug("vfd_dot_bits:\t", vfd_dot_bits_argc, vfd_dot_bits);
 	print_param_debug("vfd_display_type:\t", vfd_display_type_argc, vfd_display_type);
 
-	if (ret >= 0) {
-		if ((ret = dev->clk_pin.pin = get_chip_pin_number(vfd_gpio_clk)) >= 0)
-			dev->clk_pin.flags.value = (unsigned int)vfd_gpio_clk[2];
-		else
-			pr_error("Could not get pin number for vfd_gpio_clk\n");
-	}
-	if (ret >= 0) {
-		if ((ret = dev->dat_pin.pin = get_chip_pin_number(vfd_gpio_dat)) >= 0)
-			dev->dat_pin.flags.value = (unsigned int)vfd_gpio_dat[2];
-		else
-			pr_error("Could not get pin number for vfd_gpio_dat\n");
-	}
-	if (ret >= 0) {
-		if (vfd_gpio_stb[2] == 0xFF) {
-			dev->stb_pin.pin = -2;
-			pr_dbg2("Skipping vfd_gpio_stb evaluation (0xFF)\n");
-		}
-		else if ((ret = dev->stb_pin.pin = get_chip_pin_number(vfd_gpio_stb)) >= 0)
-			dev->stb_pin.flags.value = (unsigned int)vfd_gpio_stb[2];
-		else
-			pr_error("Could not get pin number for vfd_gpio_stb\n");
-	}
+	if (ret >= 0)
+		ret = evaluate_pin("vfd_gpio_clk", vfd_gpio_clk, &dev->clk_pin, 0);
+	if (ret >= 0)
+		ret = evaluate_pin("vfd_gpio_dat", vfd_gpio_dat, &dev->dat_pin, 0);
+	if (ret >= 0)
+		ret = evaluate_pin("vfd_gpio_stb", vfd_gpio_stb, &dev->stb_pin, 1);
+	if (ret >= 0)
+		ret = evaluate_pin("vfd_gpio0", vfd_gpio0, &dev->gpio0_pin, 1);
+	if (ret >= 0)
+		ret = evaluate_pin("vfd_gpio1", vfd_gpio1, &dev->gpio1_pin, 1);
 
 	if (ret >= 0) {
 		int i;
@@ -630,12 +640,38 @@ static int verify_module_params(struct vfd_dev *dev)
 	return ret >= 0;
 }
 
+void get_pin_from_dt(const char *name, const struct platform_device *pdev, struct vfd_pin *pin)
+{
+	struct gpio_desc *desc = NULL;
+	if (of_find_property(pdev->dev.of_node, name, NULL)) {
+		desc = of_get_named_gpiod_flags(pdev->dev.of_node, name, 0, &pin->flags.value);
+		pin->pin = desc_to_gpio(desc);
+		pr_dbg2("%s: pin = %d, flags = 0x%02X\n", name, pin->pin, pin->flags.value);
+	} else {
+		pin->pin = -2;
+		pr_dbg2("%s pin entry not found\n", name);
+	}
+}
+
+int request_pin(const char *name, struct vfd_pin *pin, unsigned char enable_skip)
+{
+	int ret = 0;
+	pin->flags.bits.is_requested = 0;
+	if (!enable_skip || pin->pin != -2) {
+		ret = -1;
+		if (pin->pin >= 0)
+			ret = gpio_request(pin->pin, DEV_NAME);
+		if (!ret)
+			pin->flags.bits.is_requested = 1;
+		else
+			pr_error("can't request gpio of %s", name);
+	}
+	return ret;
+}
+
 static int openvfd_driver_probe(struct platform_device *pdev)
 {
 	int state = -EINVAL;
-	struct gpio_desc *clk_desc = NULL;
-	struct gpio_desc *dat_desc = NULL;
-	struct gpio_desc *stb_desc = NULL;
 	struct property *chars_prop = NULL;
 	struct property *dot_bits_prop = NULL;
 	struct property *display_type_prop = NULL;
@@ -662,35 +698,15 @@ static int openvfd_driver_probe(struct platform_device *pdev)
 		pr_error("platform dev is required!\n");
 		goto get_param_mem_fail;
 	}
+	memset(pdata->dev, 0, sizeof(*(pdata->dev)));
 
 	if (!verify_module_params(pdata->dev)) {
 		pr_error("Failed to verify VFD configuration file, attempt using device tree as fallback.\n");
-		if (of_find_property(pdev->dev.of_node, MOD_NAME_CLK, NULL)) {
-			clk_desc = of_get_named_gpiod_flags(pdev->dev.of_node, MOD_NAME_CLK, 0, &pdata->dev->clk_pin.flags.value);
-			pdata->dev->clk_pin.pin = desc_to_gpio(clk_desc);
-			pr_dbg2("gpio_clk: pin = %d, flags = 0x%02X\n", pdata->dev->clk_pin.pin, pdata->dev->clk_pin.flags.value);
-		} else {
-			pdata->dev->clk_pin.pin = -1;
-			pr_dbg2("gpio_clk pin entry not found\n");
-		}
-
-		if (of_find_property(pdev->dev.of_node, MOD_NAME_DAT, NULL)) {
-			dat_desc = of_get_named_gpiod_flags(pdev->dev.of_node, MOD_NAME_DAT, 0, &pdata->dev->clk_pin.flags.value);
-			pdata->dev->dat_pin.pin = desc_to_gpio(dat_desc);
-			pr_dbg2("gpio_dat: pin = %d, flags = 0x%02X\n", pdata->dev->dat_pin.pin, pdata->dev->dat_pin.flags.value);
-		} else {
-			pdata->dev->dat_pin.pin = -1;
-			pr_dbg2("gpio_dat pin entry not found\n");
-		}
-
-		if (of_find_property(pdev->dev.of_node, MOD_NAME_STB, NULL)) {
-			stb_desc = of_get_named_gpiod_flags(pdev->dev.of_node, MOD_NAME_STB, 0, &pdata->dev->clk_pin.flags.value);
-			pdata->dev->stb_pin.pin = desc_to_gpio(stb_desc);
-			pr_dbg2("gpio_stb: pin = %d, flags = 0x%02X\n", pdata->dev->stb_pin.pin, pdata->dev->stb_pin.flags.value);
-		} else {
-			pdata->dev->stb_pin.pin = -1;
-			pr_dbg2("gpio_stb pin entry not found\n");
-		}
+		get_pin_from_dt(MOD_NAME_CLK, pdev, &pdata->dev->clk_pin);
+		get_pin_from_dt(MOD_NAME_DAT, pdev, &pdata->dev->dat_pin);
+		get_pin_from_dt(MOD_NAME_STB, pdev, &pdata->dev->stb_pin);
+		get_pin_from_dt(MOD_NAME_GPIO0, pdev, &pdata->dev->gpio0_pin);
+		get_pin_from_dt(MOD_NAME_GPIO1, pdev, &pdata->dev->gpio1_pin);
 
 		chars_prop = of_find_property(pdev->dev.of_node, MOD_NAME_CHARS, NULL);
 		if (!chars_prop || !chars_prop->value) {
@@ -745,31 +761,16 @@ static int openvfd_driver_probe(struct platform_device *pdev)
 			pdata->dev->dtb_active.display.type, pdata->dev->dtb_active.display.controller, pdata->dev->dtb_active.display.flags);
 	}
 
-	ret = -1;
-	if (pdata->dev->clk_pin.pin >= 0)
-		ret = gpio_request(pdata->dev->clk_pin.pin, DEV_NAME);
-	if (ret) {
-		pr_error("can't request gpio of gpio_clk");
-		goto get_param_mem_fail;
-	}
-
-	ret = -1;
-	if (pdata->dev->dat_pin.pin >= 0)
-		ret = gpio_request(pdata->dev->dat_pin.pin, DEV_NAME);
-	if (ret) {
-		pr_error("can't request gpio of gpio_dat");
-		goto get_gpio_req_fail_dat;
-	}
-
-	if (pdata->dev->stb_pin.pin != -2) {
-		ret = -1;
-		if (pdata->dev->stb_pin.pin >= 0)
-			ret = gpio_request(pdata->dev->stb_pin.pin, DEV_NAME);
-		if (ret) {
-			pr_error("can't request gpio of gpio_stb");
-			goto get_gpio_req_fail_stb;
-		}
-	}
+	if (request_pin("gpio_clk", &pdata->dev->clk_pin, 0))
+		goto get_gpio_req_fail;
+	if (request_pin("dat_pin", &pdata->dev->dat_pin, 0))
+		goto get_gpio_req_fail;
+	if (request_pin("stb_pin", &pdata->dev->stb_pin, 1))
+		goto get_gpio_req_fail;
+	if (request_pin("gpio0_pin", &pdata->dev->gpio0_pin, 1))
+		goto get_gpio_req_fail;
+	if (request_pin("gpio1_pin", &pdata->dev->gpio1_pin, 1))
+		goto get_gpio_req_fail;
 
 	pdata->dev->dtb_default = pdata->dev->dtb_active;
 	pdata->dev->brightness = 0xFF;
@@ -820,10 +821,17 @@ static int openvfd_driver_probe(struct platform_device *pdev)
 
 	return 0;
 
-	  get_gpio_req_fail_stb:
-	gpio_free(pdata->dev->dat_pin.pin);
-	  get_gpio_req_fail_dat:
-	gpio_free(pdata->dev->clk_pin.pin);
+	  get_gpio_req_fail:
+	if (pdata->dev->gpio1_pin.flags.bits.is_requested)
+		gpio_free(pdata->dev->gpio1_pin.pin);
+	if (pdata->dev->gpio0_pin.flags.bits.is_requested)
+		gpio_free(pdata->dev->gpio0_pin.pin);
+	if (pdata->dev->stb_pin.flags.bits.is_requested)
+		gpio_free(pdata->dev->stb_pin.pin);
+	if (pdata->dev->dat_pin.flags.bits.is_requested)
+		gpio_free(pdata->dev->dat_pin.pin);
+	if (pdata->dev->clk_pin.flags.bits.is_requested)
+		gpio_free(pdata->dev->clk_pin.pin);
 	  get_param_mem_fail:
 	kfree(pdata->dev);
 	  get_openvfd_mem_fail:
@@ -841,10 +849,16 @@ static int openvfd_driver_remove(struct platform_device *pdev)
 	led_classdev_unregister(&kp->cdev);
 	deregister_openvfd_driver();
 #ifdef CONFIG_OF
-	gpio_free(pdata->dev->clk_pin.pin);
-	gpio_free(pdata->dev->dat_pin.pin);
-	if (pdata->dev->stb_pin.pin >= 0)
+	if (pdata->dev->gpio1_pin.flags.bits.is_requested)
+		gpio_free(pdata->dev->gpio1_pin.pin);
+	if (pdata->dev->gpio0_pin.flags.bits.is_requested)
+		gpio_free(pdata->dev->gpio0_pin.pin);
+	if (pdata->dev->stb_pin.flags.bits.is_requested)
 		gpio_free(pdata->dev->stb_pin.pin);
+	if (pdata->dev->dat_pin.flags.bits.is_requested)
+		gpio_free(pdata->dev->dat_pin.pin);
+	if (pdata->dev->clk_pin.flags.bits.is_requested)
+		gpio_free(pdata->dev->clk_pin.pin);
 	kfree(pdata->dev);
 	kfree(pdata);
 	pdata = NULL;
