@@ -1,5 +1,8 @@
 #include <linux/semaphore.h>
+#include <linux/delay.h>
+#include <linux/gpio.h>
 #include "../protocols/i2c.h"
+#include "../protocols/spi.h"
 #include "pcd8544.h"
 #include "gfx_mono_ctrl.h"
 
@@ -34,8 +37,16 @@ struct pcd8544_display {
 	unsigned char banks				: 3;
 	unsigned char offset				: 2;
 
-	unsigned char address				: 7;
-	unsigned char reserved1				: 1;
+	union {
+		struct {
+			unsigned char address		: 7;
+			unsigned char not_i2c		: 1;
+		} i2c;
+		struct {
+			unsigned char reserved1		: 7;
+			unsigned char is_spi		: 1;
+		} spi;
+	};
 
 	unsigned char flags_secs			: 1;
 	unsigned char flags_invert			: 1;
@@ -55,6 +66,8 @@ static unsigned char columns = 80;
 static unsigned char banks = 6;
 static unsigned char col_offset = 2;
 static const unsigned char ram_buffer_blank[504] = { 0 };
+static int pin_rst = 0;
+static int pin_dc = 0;
 struct pcd8544_display pcd8544_display;
 
 struct controller_interface *init_pcd8544(struct vfd_dev *_dev)
@@ -69,10 +82,11 @@ struct controller_interface *init_pcd8544(struct vfd_dev *_dev)
 
 static void pcd8544_write_ctrl_buf(unsigned char dc, const unsigned char *buf, unsigned int length)
 {
-	if (protocol->protocol_type == PROTOCOL_TYPE_I2C)
+	if (pcd8544_display.spi.is_spi) {
+		gpio_direction_output(pin_dc, dc ? 1 : 0);
+		protocol->write_data(buf, length);
+	} else {
 		protocol->write_cmd_data(&dc, 1, buf, length);
-	else {
-		// Placeholder for SPI
 	}
 }
 
@@ -157,7 +171,22 @@ static unsigned char pcd8544_init(void)
 		0x0C, // [05] Set display On
 	};
 
-	protocol = init_i2c(pcd8544_display.address, I2C_MSB_FIRST, dev->clk_pin, dev->dat_pin, pcd8544_display.flags_low_freq ? I2C_DELAY_100KHz : I2C_DELAY_500KHz);
+	if (pcd8544_display.spi.is_spi) {
+		if (dev->gpio0_pin.pin >= 0 && dev->gpio1_pin.pin >= 0) {
+			protocol = init_spi_3w(dev->clk_pin, dev->dat_pin, dev->stb_pin, pcd8544_display.flags_low_freq ? SPI_DELAY_100KHz : SPI_DELAY_500KHz);
+			if (protocol) {
+				pin_rst = dev->gpio0_pin.pin;
+				pin_dc = dev->gpio1_pin.pin;
+				gpio_direction_output(pin_rst, 0);
+				udelay(5);
+				gpio_direction_output(pin_rst, 1);
+			}
+		} else {
+			pr_dbg2("PCD8544 controller failed to intialize. Invalid RESET (%d) and/or DC (%d) pins\n", dev->gpio0_pin.pin, dev->gpio1_pin.pin);
+		}
+	} else {
+		protocol = init_i2c(pcd8544_display.i2c.address, I2C_MSB_FIRST, dev->clk_pin, dev->dat_pin, pcd8544_display.flags_low_freq ? I2C_DELAY_100KHz : I2C_DELAY_500KHz);
+	}
 	if (!protocol)
 		return 0;
 

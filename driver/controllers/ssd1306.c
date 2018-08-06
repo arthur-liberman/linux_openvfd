@@ -1,5 +1,8 @@
 #include <linux/semaphore.h>
+#include <linux/delay.h>
+#include <linux/gpio.h>
 #include "../protocols/i2c.h"
+#include "../protocols/spi.h"
 #include "ssd1306.h"
 #include "gfx_mono_ctrl.h"
 
@@ -36,8 +39,17 @@ struct ssd1306_display {
 	unsigned char banks				: 3;
 	unsigned char offset				: 2;
 
-	unsigned char address				: 7;
-	unsigned char reserved1				: 1;
+	union {
+		struct {
+			unsigned char address		: 7;
+			unsigned char not_i2c		: 1;
+		} i2c;
+		struct {
+			unsigned char is_4w		: 1;
+			unsigned char reserved1		: 6;
+			unsigned char is_spi		: 1;
+		} spi;
+	};
 
 	unsigned char flags_secs			: 1;
 	unsigned char flags_invert			: 1;
@@ -58,6 +70,8 @@ static unsigned char rows = 32;
 static unsigned char banks = 32 / 8;
 static unsigned char col_offset = 0;
 static const unsigned char ram_buffer_blank[1024] = { 0 };
+static int pin_rst = 0;
+static int pin_dc = 0;
 static struct ssd1306_display ssd1306_display;
 
 static void (*clear)(void);
@@ -87,10 +101,11 @@ struct controller_interface *init_ssd1306(struct vfd_dev *_dev)
 
 static void ssd1306_write_ctrl_buf(unsigned char dc, const unsigned char *buf, unsigned int length)
 {
-	if (protocol->protocol_type == PROTOCOL_TYPE_I2C)
+	if (ssd1306_display.spi.is_spi && ssd1306_display.spi.is_4w) {
+		gpio_direction_output(pin_dc, dc ? 1 : 0);
+		protocol->write_data(buf, length);
+	} else {
 		protocol->write_cmd_data(&dc, 1, buf, length);
-	else {
-		// Placeholder for SPI
 	}
 }
 
@@ -181,6 +196,26 @@ static void ssd1306_print_string(const unsigned char *buffer, const struct rect 
 	}
 }
 
+static void init_protocol(void)
+{
+	if (ssd1306_display.spi.is_spi) {
+		if (dev->gpio0_pin.pin >= 0 && (!ssd1306_display.spi.is_4w || dev->gpio1_pin.pin >= 0)) {
+			protocol = init_spi_3w(dev->clk_pin, dev->dat_pin, dev->stb_pin, ssd1306_display.flags_low_freq ? SPI_DELAY_100KHz : SPI_DELAY_500KHz);
+			if (protocol) {
+				pin_rst = dev->gpio0_pin.pin;
+				pin_dc = dev->gpio1_pin.pin;
+				gpio_direction_output(pin_rst, 0);
+				udelay(5);
+				gpio_direction_output(pin_rst, 1);
+			}
+		} else {
+			pr_dbg2("SSD1306 controller failed to intialize. Invalid RESET (%d) and/or DC (%d) pins\n", dev->gpio0_pin.pin, dev->gpio1_pin.pin);
+		}
+	} else {
+		protocol = init_i2c(ssd1306_display.i2c.address, I2C_MSB_FIRST, dev->clk_pin, dev->dat_pin, ssd1306_display.flags_low_freq ? I2C_DELAY_100KHz : I2C_DELAY_500KHz);
+	}
+}
+
 static unsigned char sh1106_init(void)
 {
 	unsigned char cmd_buf[] = {
@@ -217,7 +252,7 @@ static unsigned char sh1106_init(void)
 		0xAF, // [19] Set display On
 	};
 
-	protocol = init_i2c(ssd1306_display.address, I2C_MSB_FIRST, dev->clk_pin, dev->dat_pin, ssd1306_display.flags_low_freq ? I2C_DELAY_100KHz : I2C_DELAY_500KHz);
+	init_protocol();
 	if (!protocol)
 		return 0;
 
@@ -284,7 +319,7 @@ static unsigned char ssd1306_init(void)
 		0xAF, // [30] Set display On
 	};
 
-	protocol = init_i2c(ssd1306_display.address, I2C_MSB_FIRST, dev->clk_pin, dev->dat_pin, ssd1306_display.flags_low_freq ? I2C_DELAY_100KHz : I2C_DELAY_500KHz);
+	init_protocol();
 	if (!protocol)
 		return 0;
 
