@@ -18,6 +18,7 @@
  * along with this program; if not, write to the Free Software
  */
 
+#include <linux/version.h>
 #include <linux/module.h>
 #include <linux/init.h>
 #include <linux/types.h>
@@ -43,9 +44,7 @@
 #include <linux/sched.h>
 
 #include <linux/gpio.h>
-#include <linux/amlogic/aml_gpio_consumer.h>
 #include <linux/of_gpio.h>
-#include <linux/amlogic/iomap.h>
 
 #include "openvfd_drv.h"
 
@@ -373,12 +372,16 @@ static int register_openvfd_driver(void)
 
 static void deregister_openvfd_driver(void)
 {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,0,0)
 	int ret = 0;
 	ret = misc_deregister(&openvfd_device);
 	if (ret)
 		pr_dbg("%s: failed to deregister openvfd module\n", __func__);
 	else
 		pr_dbg("%s: Succeeded to deregister openvfd module \n", __func__);
+#else
+	misc_deregister(&openvfd_device);
+#endif
 }
 
 
@@ -501,10 +504,11 @@ static ssize_t led_off_store(struct device *dev,
 	return size;
 }
 
-static DEVICE_ATTR(led_cmd , 0666, led_cmd_show , led_cmd_store);
-static DEVICE_ATTR(led_on , 0666, led_on_show , led_on_store);
-static DEVICE_ATTR(led_off , 0666, led_off_show , led_off_store);
+static DEVICE_ATTR(led_cmd , S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP, led_cmd_show , led_cmd_store);
+static DEVICE_ATTR(led_on , S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP, led_on_show , led_on_store);
+static DEVICE_ATTR(led_off , S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP, led_off_show , led_off_store);
 
+#ifdef CONFIG_HAS_EARLYSUSPEND
 static void openvfd_suspend(struct early_suspend *h)
 {
 	pr_info("%s!\n", __func__);
@@ -516,6 +520,7 @@ static void openvfd_resume(struct early_suspend *h)
 	pr_info("%s!\n", __func__);
 	set_power(1);
 }
+#endif
 
 unsigned char vfd_gpio_clk[3];
 unsigned char vfd_gpio_dat[3];
@@ -642,10 +647,8 @@ static int verify_module_params(struct vfd_dev *dev)
 
 void get_pin_from_dt(const char *name, const struct platform_device *pdev, struct vfd_pin *pin)
 {
-	struct gpio_desc *desc = NULL;
 	if (of_find_property(pdev->dev.of_node, name, NULL)) {
-		desc = of_get_named_gpiod_flags(pdev->dev.of_node, name, 0, &pin->flags.value);
-		pin->pin = desc_to_gpio(desc);
+		pin->pin = of_get_named_gpio_flags(pdev->dev.of_node, name, 0, &pin->flags.value);
 		pr_dbg2("%s: pin = %d, flags = 0x%02X\n", name, pin->pin, pin->flags.value);
 	} else {
 		pin->pin = -2;
@@ -701,6 +704,8 @@ static int openvfd_driver_probe(struct platform_device *pdev)
 	memset(pdata->dev, 0, sizeof(*(pdata->dev)));
 
 	if (!verify_module_params(pdata->dev)) {
+		int i;
+		__u8 j;
 		pr_error("Failed to verify VFD configuration file, attempt using device tree as fallback.\n");
 		get_pin_from_dt(MOD_NAME_CLK, pdev, &pdata->dev->clk_pin);
 		get_pin_from_dt(MOD_NAME_DAT, pdev, &pdata->dev->dat_pin);
@@ -718,14 +723,14 @@ static int openvfd_driver_probe(struct platform_device *pdev)
 			chars_prop = NULL;
 		}
 
-		for (__u8 i = 0; i < (sizeof(pdata->dev->dtb_active.dat_index) / sizeof(char)); i++)
-			pdata->dev->dtb_active.dat_index[i] = i;
+		for (j = 0; j < (sizeof(pdata->dev->dtb_active.dat_index) / sizeof(char)); j++)
+			pdata->dev->dtb_active.dat_index[j] = j;
 		pr_dbg2("chars_prop = %p\n", chars_prop);
 		if (chars_prop) {
 			__u8 *c = (__u8*)chars_prop->value;
 			const int length = min(chars_prop->length, (int)(sizeof(pdata->dev->dtb_active.dat_index) / sizeof(char)));
 			pr_dbg2("chars_prop->length = %d\n", chars_prop->length);
-			for (int i = 0; i < length; i++) {
+			for (i = 0; i < length; i++) {
 				pdata->dev->dtb_active.dat_index[i] = c[i];
 				pr_dbg2("char #%d: %d\n", i, c[i]);
 			}
@@ -741,13 +746,13 @@ static int openvfd_driver_probe(struct platform_device *pdev)
 			dot_bits_prop = NULL;
 		}
 
-		for (int i = 0; i < LED_DOT_MAX; i++)
+		for (i = 0; i < LED_DOT_MAX; i++)
 			pdata->dev->dtb_active.led_dots[i] = ledDots[i];
 		pr_dbg2("dot_bits_prop = %p\n", dot_bits_prop);
 		if (dot_bits_prop) {
 			__u8 *d = (__u8*)dot_bits_prop->value;
 			pr_dbg2("dot_bits_prop->length = %d\n", dot_bits_prop->length);
-			for (int i = 0; i < dot_bits_prop->length; i++) {
+			for (i = 0; i < dot_bits_prop->length; i++) {
 				pdata->dev->dtb_active.led_dots[i] = ledDots[d[i]];
 				pr_dbg2("dot_bit #%d: %d\n", i, d[i]);
 			}

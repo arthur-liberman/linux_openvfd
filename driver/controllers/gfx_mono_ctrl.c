@@ -452,13 +452,14 @@ static size_t gfx_mono_ctrl_write_display_data(const struct vfd_display_data *da
 {
 	size_t status = sizeof(*data);
 	if (data->mode != old_data.mode) {
+		unsigned char i;
 		icon_x_offset = 0;
 		memset(&old_data, 0, sizeof(old_data));
 		specific_gfx_mono_ctrl->clear();
 		switch (data->mode) {
 		case DISPLAY_MODE_CLOCK:
 			old_data.mode = DISPLAY_MODE_CLOCK;
-			for (unsigned char i = 0; i < MAX_INDICATORS; i++)
+			for (i = 0; i < MAX_INDICATORS; i++)
 				print_indicator(indicators_on_screen[i], 1, i);
 			old_data.mode = 0;
 			break;

@@ -23,11 +23,11 @@
 #define HD44780_CGRA			0x40	/* Set CGRAM Address			*/
 #define HD44780_DDRA			0x80	/* Set DDRAM Address			*/
 /* ************************************************************************************ */
-#define BACKLIGHT			0x08
-#define ENABLE				0x04
-#define READ				0x02
-#define RS				0x01
-#define CMD				0x00
+#define BACKPACK_BACKLIGHT		0x08
+#define BACKPACK_ENABLE		0x04
+#define BACKPACK_READ			0x02
+#define BACKPACK_RS			0x01
+#define BACKPACK_CMD			0x00
 
 #define FLAGS_SHOW_SEC		0x01
 
@@ -132,7 +132,7 @@ static struct vfd_dev *dev = NULL;
 static struct protocol_interface *protocol = NULL;
 static unsigned char columns = 16;
 static unsigned char rows = 2;
-static unsigned char backlight = BACKLIGHT;
+static unsigned char backlight = BACKPACK_BACKLIGHT;
 static unsigned char big_dot = BIG_2L_DOT;
 static struct vfd_display_data old_data;
 
@@ -148,7 +148,7 @@ struct controller_interface *init_hd47780(struct vfd_dev *_dev)
 }
 
 static void write_4_bits(unsigned char data) {
-	unsigned char buffer[3] = { data, (unsigned char)(data | ENABLE), data };
+	unsigned char buffer[3] = { data, (unsigned char)(data | BACKPACK_ENABLE), data };
 	protocol->write_data(buffer, 3);
 }
 
@@ -163,13 +163,13 @@ static void write_lcd(unsigned char data, unsigned char mode) {
 static void write_buf_lcd(const unsigned char *buf, unsigned int length)
 {
 	while (length--) {
-		write_lcd(*buf, RS);
+		write_lcd(*buf, BACKPACK_RS);
 		buf++;
 	}
 }
 
 static unsigned char read_4_bits(unsigned char mode) {
-	unsigned char data[2] = { (unsigned char)(mode | 0xF0), (unsigned char)(mode | 0xF0 | ENABLE) };
+	unsigned char data[2] = { (unsigned char)(mode | 0xF0), (unsigned char)(mode | 0xF0 | BACKPACK_ENABLE) };
 	protocol->write_data(data, 2);
 	protocol->read_byte(data + 1);
 	protocol->write_data(&mode, 1);
@@ -179,8 +179,8 @@ static unsigned char read_4_bits(unsigned char mode) {
 static unsigned char read_lcd(unsigned char mode) {
 	unsigned char lo;
 	unsigned char hi;
-	mode &= ~ENABLE;
-	mode |= backlight | READ;
+	mode &= ~BACKPACK_ENABLE;
+	mode |= backlight | BACKPACK_READ;
 	hi = read_4_bits(mode);
 	lo = read_4_bits(mode);
 	return ((hi & 0xF0) | (lo >> 4));
@@ -209,19 +209,19 @@ static unsigned char hd47780_init(void)
 	cmd = HD44780_FUNCTION;
 	if (rows > 1)
 		cmd |= HD44780_F_N | HD44780_F_F;
-	write_lcd(cmd, CMD);
+	write_lcd(cmd, BACKPACK_CMD);
 	udelay(150);
-	write_lcd(HD44780_DISPLAY_CONTROL, CMD);
-	write_lcd(HD44780_CLEAR_RAM, CMD);
+	write_lcd(HD44780_DISPLAY_CONTROL, BACKPACK_CMD);
+	write_lcd(HD44780_CLEAR_RAM, BACKPACK_CMD);
 	usleep_range(1600, 2000);
-	write_lcd(HD44780_ENTRY_MODE | HD44780_EM_ID, CMD);
-	write_lcd(HD44780_DISPLAY_CONTROL | HD44780_DC_D, CMD);
+	write_lcd(HD44780_ENTRY_MODE | HD44780_EM_ID, BACKPACK_CMD);
+	write_lcd(HD44780_DISPLAY_CONTROL | HD44780_DC_D, BACKPACK_CMD);
 
 	if (rows >= 3) {
-		write_lcd(HD44780_CGRA, CMD);
+		write_lcd(HD44780_CGRA, BACKPACK_CMD);
 		write_buf_lcd((const unsigned char *)cgram_4l_chars, 64);
 	} else if (rows == 2) {
-		write_lcd(HD44780_CGRA, CMD);
+		write_lcd(HD44780_CGRA, BACKPACK_CMD);
 		write_buf_lcd((const unsigned char *)cgram_2l_chars, 64);
 	}
 
@@ -243,8 +243,8 @@ static unsigned char hd47780_set_brightness_level(unsigned short level)
 {
 	dev->brightness = level;
 	dev->power = 1;
-	backlight = dev->power && dev->brightness > 0 ? BACKLIGHT : 0;
-	write_lcd(HD44780_DISPLAY_CONTROL | HD44780_DC_D, CMD);
+	backlight = dev->power && dev->brightness > 0 ? BACKPACK_BACKLIGHT : 0;
+	write_lcd(HD44780_DISPLAY_CONTROL | HD44780_DC_D, BACKPACK_CMD);
 	return 1;
 }
 
@@ -260,7 +260,7 @@ static void hd47780_set_power(unsigned char state)
 		hd47780_set_brightness_level(dev->brightness);
 	else {
 		backlight = 0;
-		write_lcd(HD44780_DISPLAY_CONTROL, CMD);
+		write_lcd(HD44780_DISPLAY_CONTROL, BACKPACK_CMD);
 	}
 }
 
@@ -290,9 +290,9 @@ static void hd47780_set_icon(const char *name, unsigned char state)
 static size_t hd47780_read_data(unsigned char *data, size_t length)
 {
 	size_t count = length;
-	write_lcd(HD44780_HOME, CMD);
+	write_lcd(HD44780_HOME, BACKPACK_CMD);
 	while (count--) {
-		*data = read_lcd(RS);
+		*data = read_lcd(BACKPACK_RS);
 		data++;
 	}
 	return length;
@@ -314,26 +314,26 @@ static size_t hd47780_write_data(const unsigned char *data, size_t length)
 			dot = big_dot;
 		else
 			dot = ' ';
-		write_lcd(HD44780_DDRA + 0x06, CMD);
-		write_lcd(dot, RS);
-		write_lcd(HD44780_DDRA + 0x46, CMD);
-		write_lcd(dot, RS);
+		write_lcd(HD44780_DDRA + 0x06, BACKPACK_CMD);
+		write_lcd(dot, BACKPACK_RS);
+		write_lcd(HD44780_DDRA + 0x46, BACKPACK_CMD);
+		write_lcd(dot, BACKPACK_RS);
 	}
 	else {
-		write_lcd(HD44780_HOME, CMD);
+		write_lcd(HD44780_HOME, BACKPACK_CMD);
 		usleep_range(1600, 2000);
 		if (length > 2)
-			write_lcd(data[2], RS);
+			write_lcd(data[2], BACKPACK_RS);
 		if (length > 4)
-			write_lcd(data[4], RS);
+			write_lcd(data[4], BACKPACK_RS);
 		if ((data[0] | dev->status_led_mask) & ledDots[LED_DOT_SEC])
-			write_lcd(':', RS);
+			write_lcd(':', BACKPACK_RS);
 		else
-			write_lcd(' ', RS);
+			write_lcd(' ', BACKPACK_RS);
 		if (length > 6)
-			write_lcd(data[6], RS);
+			write_lcd(data[6], BACKPACK_RS);
 		if (length > 8)
-			write_lcd(data[8], RS);
+			write_lcd(data[8], BACKPACK_RS);
 	}
 
 	return length;
@@ -344,32 +344,32 @@ static size_t hd47780_write_display_data(const struct vfd_display_data *data)
 	size_t status = sizeof(*data);
 	if (data->mode != old_data.mode) {
 		memset(&old_data, 0, sizeof(old_data));
-		write_lcd(HD44780_CLEAR_RAM, CMD);
+		write_lcd(HD44780_CLEAR_RAM, BACKPACK_CMD);
 		usleep_range(2000, 2500);
 		switch (data->mode) {
 		case DISPLAY_MODE_CLOCK:
 		case DISPLAY_MODE_PLAYBACK_TIME:
 		case DISPLAY_MODE_DATE:
-			write_lcd(HD44780_CGRA | 0x38, CMD);
+			write_lcd(HD44780_CGRA | 0x38, BACKPACK_CMD);
 			if (rows != 2)
 				write_buf_lcd(cgram_4l_chars[7], 8);
 			else
 				write_buf_lcd(cgram_2l_chars[7], 8);
 			break;
 		case DISPLAY_MODE_CHANNEL:
-			write_lcd(HD44780_CGRA | 0x38, CMD);
+			write_lcd(HD44780_CGRA | 0x38, BACKPACK_CMD);
 			if (rows != 2)
 				write_buf_lcd(cgram_ellipsis_chars, 8);
 			else
 				write_buf_lcd(cgram_2l_chars[7], 8);
 			break;
 		case DISPLAY_MODE_TITLE:
-			write_lcd(HD44780_CGRA | 0x38, CMD);
+			write_lcd(HD44780_CGRA | 0x38, BACKPACK_CMD);
 			write_buf_lcd(cgram_ellipsis_chars, 8);
 			break;
 		case DISPLAY_MODE_TEMPERATURE:
 			if (rows == 2) {
-				write_lcd(HD44780_CGRA | 0x38, CMD);
+				write_lcd(HD44780_CGRA | 0x38, BACKPACK_CMD);
 				write_buf_lcd(cgram_2l_chars[7], 8);
 			}
 			break;
@@ -386,7 +386,7 @@ static size_t hd47780_write_display_data(const struct vfd_display_data *data)
 		print_date(data);
 		break;
 	case DISPLAY_MODE_CHANNEL:
-		write_lcd(HD44780_CLEAR_RAM, CMD);
+		write_lcd(HD44780_CLEAR_RAM, BACKPACK_CMD);
 		usleep_range(2000, 2500);
 		print_channel(data);
 		break;
@@ -426,7 +426,7 @@ static void set_xy(unsigned short row, unsigned char column)
 		};
 
 		offset += column;
-		write_lcd(HD44780_DDRA | offset, CMD);
+		write_lcd(HD44780_DDRA | offset, BACKPACK_CMD);
 	}
 }
 
@@ -476,23 +476,23 @@ static void print_colon(unsigned char colon_on, unsigned char print_seconds)
 	if (colon_on != old_data.colon_on) {
 		if (rows >= 2) {
 			dot = colon_on ? big_dot : ' ';
-			write_lcd(HD44780_DDRA + 6, CMD);
-			write_lcd(dot, RS);
-			write_lcd(HD44780_DDRA + 0x40 + 6, CMD);
-			write_lcd(dot, RS);
+			write_lcd(HD44780_DDRA + 6, BACKPACK_CMD);
+			write_lcd(dot, BACKPACK_RS);
+			write_lcd(HD44780_DDRA + 0x40 + 6, BACKPACK_CMD);
+			write_lcd(dot, BACKPACK_RS);
 			if (print_seconds) {
-				write_lcd(HD44780_DDRA + 13, CMD);
-				write_lcd(dot, RS);
-				write_lcd(HD44780_DDRA + 0x40 + 13, CMD);
-				write_lcd(dot, RS);
+				write_lcd(HD44780_DDRA + 13, BACKPACK_CMD);
+				write_lcd(dot, BACKPACK_RS);
+				write_lcd(HD44780_DDRA + 0x40 + 13, BACKPACK_CMD);
+				write_lcd(dot, BACKPACK_RS);
 			}
 		} else {
 			dot = colon_on ? ':' : ' ';
-			write_lcd(HD44780_DDRA + 2, CMD);
-			write_lcd(dot, RS);
+			write_lcd(HD44780_DDRA + 2, BACKPACK_CMD);
+			write_lcd(dot, BACKPACK_RS);
 			if (print_seconds) {
-				write_lcd(HD44780_DDRA + 5, CMD);
-				write_lcd(dot, RS);
+				write_lcd(HD44780_DDRA + 5, BACKPACK_CMD);
+				write_lcd(dot, BACKPACK_RS);
 			}
 		}
 	}
@@ -514,9 +514,9 @@ static void print_number(const char *buffer, size_t length, unsigned char start_
 			if (start_index >= 4)
 				start_index++;
 		}
-		write_lcd(HD44780_DDRA + start_index, CMD);
+		write_lcd(HD44780_DDRA + start_index, BACKPACK_CMD);
 		for (i = 0; i < length; i++)
-			write_lcd(buffer[i], RS);
+			write_lcd(buffer[i], BACKPACK_RS);
 	}
 }
 
@@ -599,7 +599,7 @@ static void print_channel(const struct vfd_display_data *data)
 			}
 		}
 	} else {
-		write_lcd(HD44780_DDRA, CMD);
+		write_lcd(HD44780_DDRA, BACKPACK_CMD);
 		len = scnprintf(buffer, sizeof(buffer), "%d/%d", data->channel_data.channel, data->channel_data.channel_count);
 		if (len > columns) {
 			len = columns;
@@ -619,24 +619,24 @@ static void print_playback_time(const struct vfd_display_data *data)
 			scnprintf(buffer, sizeof(buffer), "%02d", data->time_date.hours);
 			print_number(buffer, 2, 0, TRUE);
 			if (rows >= 3)
-				write_lcd('H', RS);
+				write_lcd('H', BACKPACK_RS);
 		}
 		if (data->time_date.minutes != old_data.time_date.minutes || force_print) {
 			scnprintf(buffer, sizeof(buffer), "%02d", data->time_date.minutes);
 			print_number(buffer, 2, 2, TRUE);
-			write_lcd('M', RS);
+			write_lcd('M', BACKPACK_RS);
 		}
 	} else {
 		if (data->time_date.minutes != old_data.time_date.minutes || force_print) {
 			scnprintf(buffer, sizeof(buffer), "%02d", data->time_date.minutes);
 			print_number(buffer, 2, 0, TRUE);
 			if (rows >= 3)
-				write_lcd('M', RS);
+				write_lcd('M', BACKPACK_RS);
 		}
 		if (data->time_date.seconds != old_data.time_date.seconds || force_print) {
 			scnprintf(buffer, sizeof(buffer), "%02d", data->time_date.seconds);
 			print_number(buffer, 2, 2, TRUE);
-			write_lcd('S', RS);
+			write_lcd('S', BACKPACK_RS);
 		}
 	}
 
@@ -702,7 +702,7 @@ static void print_date(const struct vfd_display_data *data)
 				scnprintf(buffer, sizeof(buffer), "%02d%02d", data->time_date.day, data->time_date.month + 1);
 			for (i = 0; i < min(rows, (unsigned char)3); i++) {
 				set_xy(i, 6);
-				write_lcd('|', RS);
+				write_lcd('|', BACKPACK_RS);
 			}
 			print_number(buffer, 4, 0, 1);
 			if (rows >= 4) {
@@ -735,7 +735,7 @@ static void print_temperature(const struct vfd_display_data *data)
 		if (rows >= 2) {
 			len *= 3;
 			set_xy(0, len);
-			write_lcd('o', RS);
+			write_lcd('o', BACKPACK_RS);
 			len++;
 			if (rows > 2) {
 				for (i = 0; i < 3; i++) {

@@ -144,8 +144,9 @@ static void ssd1306_clear(void)
 
 static void sh1106_clear(void)
 {
+	unsigned char i;
 	ssd1306_write_ctrl_command(0xAE);
-	for (unsigned char i = 0; i < banks; i++) {
+	for (i = 0; i < banks; i++) {
 		ssd1306_set_xy(0, i);
 		ssd1306_write_ctrl_data_buf(ram_buffer_blank, columns);
 	}

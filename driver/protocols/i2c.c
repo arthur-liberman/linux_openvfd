@@ -1,5 +1,6 @@
 #include <linux/delay.h>
 #include <linux/gpio.h>
+#include <linux/version.h>
 #include "i2c.h"
 
 #define pr_dbg2(args...) printk(KERN_DEBUG "OpenVFD: " args)
@@ -42,6 +43,14 @@ static unsigned short clk_stretch_timeout = 0;
 static struct vfd_pin pin_scl = { 0 };
 static struct vfd_pin pin_sda = { 0 };
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,0,0)
+inline void gpio_set_pullup(unsigned gpio, int value)
+{
+	gpio_direction_input(gpio);
+	gpio_set_value(gpio, value);
+}
+#endif
+
 struct protocol_interface *init_i2c(unsigned short _address, unsigned char _lsb_first, struct vfd_pin _pin_scl, struct vfd_pin _pin_sda, unsigned long _i2c_delay)
 {
 	struct protocol_interface *i2c_ptr = NULL;
@@ -56,10 +65,10 @@ struct protocol_interface *init_i2c(unsigned short _address, unsigned char _lsb_
 		pin_sda = _pin_sda;
 		i2c_delay = _i2c_delay;
 		clk_stretch_timeout = 10 * _i2c_delay;
-		if (_pin_scl.flags.bits.pullup_on && gpio_set_pullup(_pin_scl.pin, 1))
-			pr_dbg2("I2C Failed to enable pullup on SCL\n");
-		if (_pin_sda.flags.bits.pullup_on && gpio_set_pullup(_pin_sda.pin, 1))
-			pr_dbg2("I2C Failed to enable pullup on SDA\n");
+		if (_pin_scl.flags.bits.pullup_on)
+			gpio_set_pullup(_pin_scl.pin, 1);
+		if (_pin_sda.flags.bits.pullup_on)
+			gpio_set_pullup(_pin_sda.pin, 1);
 		i2c_stop_condition();
 		if (!i2c_write_cmd_data(NULL, 0, NULL, 0)) {
 			i2c_ptr = &i2c_interface;

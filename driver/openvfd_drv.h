@@ -7,8 +7,6 @@
 #include <linux/slab.h>
 #include <asm/uaccess.h>
 #include <linux/of.h>
-#include <linux/amlogic/aml_gpio_consumer.h>
-#include <linux/switch.h>
 #include <linux/time.h>
 #include <linux/semaphore.h>
 #endif
