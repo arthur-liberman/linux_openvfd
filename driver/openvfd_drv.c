@@ -605,13 +605,13 @@ static int verify_module_params(struct vfd_dev *dev)
 	int ret = (vfd_gpio_clk_argc == 3 && vfd_gpio_dat_argc == 3 && vfd_gpio_stb_argc == 3 &&
 			vfd_chars_argc >= 5 && vfd_dot_bits_argc >= 7 && vfd_display_type_argc == 4) ? 1 : -1;
 
-	print_param_debug("vfd_gpio_clk:\t", vfd_gpio_clk_argc, vfd_gpio_clk);
-	print_param_debug("vfd_gpio_dat:\t", vfd_gpio_dat_argc, vfd_gpio_dat);
-	print_param_debug("vfd_gpio_stb:\t", vfd_gpio_stb_argc, vfd_gpio_stb);
+	print_param_debug("vfd_gpio_clk:\t\t", vfd_gpio_clk_argc, vfd_gpio_clk);
+	print_param_debug("vfd_gpio_dat:\t\t", vfd_gpio_dat_argc, vfd_gpio_dat);
+	print_param_debug("vfd_gpio_stb:\t\t", vfd_gpio_stb_argc, vfd_gpio_stb);
 	print_param_debug("vfd_gpio0:\t\t", vfd_gpio0_argc, vfd_gpio0);
 	print_param_debug("vfd_gpio1:\t\t", vfd_gpio1_argc, vfd_gpio1);
 	print_param_debug("vfd_chars:\t\t", vfd_chars_argc, vfd_chars);
-	print_param_debug("vfd_dot_bits:\t", vfd_dot_bits_argc, vfd_dot_bits);
+	print_param_debug("vfd_dot_bits:\t\t", vfd_dot_bits_argc, vfd_dot_bits);
 	print_param_debug("vfd_display_type:\t", vfd_display_type_argc, vfd_display_type);
 
 	if (ret >= 0)
