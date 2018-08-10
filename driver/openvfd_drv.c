@@ -609,6 +609,20 @@ int evaluate_pin(const char *name, const unsigned char *vfd_arg, struct vfd_pin 
 	return ret;
 }
 
+char gpio_chip_names[1024] = { 0 };
+
+static int enum_gpio_chips(struct gpio_chip *chip, void *data)
+{
+	static unsigned char first_iteration = 1;
+	const char *sep = ", ";
+	size_t str_len = strlen(gpio_chip_names);
+	if (first_iteration)
+		sep = "";
+	scnprintf(gpio_chip_names + str_len, sizeof(gpio_chip_names) - str_len, "%s%s", sep, chip->label);
+	first_iteration = 0;
+	return 0;
+}
+
 static int verify_module_params(struct vfd_dev *dev)
 {
 	int ret = (vfd_gpio_clk_argc == 3 && vfd_gpio_dat_argc == 3 && vfd_gpio_stb_argc == 3 &&
@@ -623,6 +637,8 @@ static int verify_module_params(struct vfd_dev *dev)
 	print_param_debug("vfd_dot_bits:\t\t", vfd_dot_bits_argc, vfd_dot_bits);
 	print_param_debug("vfd_display_type:\t", vfd_display_type_argc, vfd_display_type);
 
+	gpiochip_find(NULL, enum_gpio_chips);
+	pr_dbg2("Detected gpio chips:\t%s.\n", gpio_chip_names);
 	if (ret >= 0)
 		ret = evaluate_pin("vfd_gpio_clk", vfd_gpio_clk, &dev->clk_pin, 0);
 	if (ret >= 0)
