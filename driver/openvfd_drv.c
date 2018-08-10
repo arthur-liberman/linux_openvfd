@@ -575,7 +575,11 @@ static int get_chip_pin_number(const unsigned char gpio[])
 	int pin = -1;
 	if (gpio[0] < 6) {
 		struct gpio_chip *chip;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,0,0)
 		const char *pin_banks[] = { "banks", "ao-bank", "gpio0", "gpio1", "gpio2", "gpio3" };
+#else
+		const char *pin_banks[] = { "periphs-banks", "aobus-banks", "gpio0-banks", "gpio1-banks", "gpio2-banks", "gpio3-banks" };
+#endif
 		const char *bank_name = pin_banks[gpio[0]];
 
 		chip = gpiochip_find((char *)bank_name, is_right_chip);
