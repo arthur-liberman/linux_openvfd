@@ -81,6 +81,9 @@ static unsigned char fd628_init(void)
 		case DISPLAY_TYPE_5D_7S_T95:
 			ledCodes = LED_decode_tab1;
 			break;
+		case DISPLAY_TYPE_5D_7S_G9SX:
+			ledCodes = LED_decode_tab3;
+			break;
 		default:
 			ledCodes = LED_decode_tab2;
 			break;
@@ -187,6 +190,7 @@ static void fd628_set_icon(const char *name, unsigned char state)
 	switch (dtb->display.type) {
 	case DISPLAY_TYPE_5D_7S_NORMAL:
 	case DISPLAY_TYPE_5D_7S_T95:
+	case DISPLAY_TYPE_5D_7S_G9SX:
 	default:
 		if (strncmp(name,"alarm",5) == 0) {
 			dev->status_led_mask = state ? (dev->status_led_mask | dtb->led_dots[LED_DOT1_ALARM]) : (dev->status_led_mask & ~dtb->led_dots[LED_DOT1_ALARM]);
@@ -282,6 +286,7 @@ static size_t fd628_write_data(const unsigned char *_data, size_t length)
 	case DISPLAY_TYPE_5D_7S_ABOX:
 	case DISPLAY_TYPE_4D_7S_COL:
 	case DISPLAY_TYPE_5D_7S_M9_PRO:
+	case DISPLAY_TYPE_5D_7S_G9SX:
 	default:
 		for (i = 0; i < length; i++)
 			dev->wbuf[dtb->dat_index[i]] = data[i];

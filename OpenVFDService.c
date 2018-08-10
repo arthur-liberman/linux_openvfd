@@ -378,6 +378,9 @@ void select_display_type()
 			case DISPLAY_TYPE_5D_7S_T95:
 				ledCodes = LED_decode_tab1;
 				break;
+			case DISPLAY_TYPE_5D_7S_G9SX:
+				ledCodes = LED_decode_tab3;
+				break;
 			default:
 				ledCodes = LED_decode_tab2;
 				break;
@@ -501,10 +504,12 @@ int get_cmd_display_type(int argc, char *argv[])
 				char *start, *end;
 				start = !strncmp(argv[i+1], "0x", 2) ? argv[i+1] + 2 : argv[i+1];
 				temp = strtol(start, &end, 0x10);
-				if (end == start || *end != '\0' || errno == ERANGE)
+				if (end == start || *end != '\0' || errno == ERANGE) {
 					printf("Error parsing display type index.\n");
-				else
+				} else {
 					ret = (int)temp;
+					printf("Display type 0x%08X\n", ret);
+				}
 			} else {
 				printf("Error parsing display type index, missing argument.\n");
 			}
