@@ -98,15 +98,20 @@ static u_int32 FD628_GetKey(struct vfd_dev *dev)
 	return (FD628_KeyData);
 }
 
-static void set_power(unsigned char state)
+static void unlocked_set_power(unsigned char state)
 {
 	if (vfd_display_auto_power && controller) {
-		mutex_lock(&pdata->dev->mutex);
 		controller->set_power(state);
 		if (state && pdata)
 			controller->set_brightness_level(pdata->dev->brightness);
-		mutex_unlock(&pdata->dev->mutex);
 	}
+}
+
+static void set_power(unsigned char state)
+{
+	mutex_lock(&pdata->dev->mutex);
+	unlocked_set_power(state);
+	mutex_unlock(&pdata->dev->mutex);
 }
 
 static void init_controller(struct vfd_dev *dev)
@@ -148,7 +153,7 @@ static void init_controller(struct vfd_dev *dev)
 	}
 
 	if (controller != temp_ctlr) {
-		set_power(0);
+		unlocked_set_power(0);
 		controller = temp_ctlr;
 		if (!controller->init()) {
 			pr_dbg2("Failed to initialize the controller, reverting to Dummy controller\n");
