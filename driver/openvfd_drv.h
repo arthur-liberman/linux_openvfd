@@ -8,7 +8,7 @@
 #include <asm/uaccess.h>
 #include <linux/of.h>
 #include <linux/time.h>
-#include <linux/semaphore.h>
+#include <linux/mutex.h>
 #endif
 #include "glyphs.h"
 
@@ -119,7 +119,7 @@ struct vfd_dev {
 	u_int8 mode;
 	u_int8 power;
 	u_int8 brightness;
-	struct semaphore sem;
+	struct mutex mutex;
 	wait_queue_head_t kb_waitq;	/* read and write queues */
 	struct timer_list timer;
 	int key_respond_status;
