@@ -119,7 +119,7 @@ struct vfd_dev {
 	u_int8 mode;
 	u_int8 power;
 	u_int8 brightness;
-	struct mutex mutex;
+	struct mutex *mutex;
 	wait_queue_head_t kb_waitq;	/* read and write queues */
 	struct timer_list timer;
 	int key_respond_status;

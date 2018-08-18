@@ -65,6 +65,7 @@ struct kp {
 static struct kp *kp;
 
 static struct controller_interface *controller = NULL;
+static struct mutex mutex;
 
 /****************************************************************
  *	Function Name:		FD628_GetKey
@@ -109,9 +110,9 @@ static void unlocked_set_power(unsigned char state)
 
 static void set_power(unsigned char state)
 {
-	mutex_lock(&pdata->dev->mutex);
+	mutex_lock(&mutex);
 	unlocked_set_power(state);
-	mutex_unlock(&pdata->dev->mutex);
+	mutex_unlock(&mutex);
 }
 
 static void init_controller(struct vfd_dev *dev)
@@ -226,14 +227,14 @@ static ssize_t openvfd_dev_write(struct file *filp, const char __user * buf,
 	if (count == sizeof(data)) {
 		missing = copy_from_user(&data, buf, count);
 		if (missing == 0 && count > 0) {
-			mutex_lock(&pdata->dev->mutex);
+			mutex_lock(&mutex);
 			if (controller->write_display_data(&data))
 				pr_dbg("openvfd_dev_write count : %ld\n", count);
 			else {
 				status = -1;
 				pr_error("openvfd_dev_write failed to write %ld bytes (display_data)\n", count);
 			}
-			mutex_unlock(&pdata->dev->mutex);
+			mutex_unlock(&mutex);
 		}
 	} else if (count > 0) {
 		unsigned char *raw_data;
@@ -241,14 +242,14 @@ static ssize_t openvfd_dev_write(struct file *filp, const char __user * buf,
 		raw_data = kzalloc(count, GFP_KERNEL);
 		if (raw_data) {
 			missing = copy_from_user(raw_data, buf, count);
-			mutex_lock(&pdata->dev->mutex);
+			mutex_lock(&mutex);
 			if (controller->write_data((unsigned char*)raw_data, count))
 				pr_dbg("openvfd_dev_write count : %ld\n", count);
 			else {
 				status = -1;
 				pr_error("openvfd_dev_write failed to write %ld bytes (raw_data)\n", count);
 			}
-			mutex_unlock(&pdata->dev->mutex);
+			mutex_unlock(&mutex);
 			kfree(raw_data);
 		}
 		else {
@@ -291,7 +292,7 @@ static long openvfd_dev_ioctl(struct file *filp, unsigned int cmd,
 	if (err)
 		return -EFAULT;
 
-	mutex_lock(&pdata->dev->mutex);
+	mutex_lock(&mutex);
 	switch (cmd) {
 	case VFD_IOC_USE_DTB_CONFIG:
 		dev->dtb_active = dev->dtb_default;
@@ -344,7 +345,7 @@ static long openvfd_dev_ioctl(struct file *filp, unsigned int cmd,
 		break;
 	}
 
-	mutex_unlock(&pdata->dev->mutex);
+	mutex_unlock(&mutex);
 	return ret;
 }
 
@@ -455,7 +456,7 @@ static ssize_t led_cmd_store(struct device *_dev,
 
 	buf += sizeof(int);
 	memcpy(&temp, buf, sizeof(int));
-	mutex_lock(&pdata->dev->mutex);
+	mutex_lock(&mutex);
 	switch (cmd) {
 		case VFD_IOC_SMODE:
 			dev->mode = (u_int8)temp;
@@ -492,7 +493,7 @@ static ssize_t led_cmd_store(struct device *_dev,
 			break;
 	}
 
-	mutex_unlock(&pdata->dev->mutex);
+	mutex_unlock(&mutex);
 	return size;
 }
 
@@ -741,7 +742,7 @@ static int openvfd_driver_probe(struct platform_device *pdev)
 	}
 	memset(pdata->dev, 0, sizeof(*(pdata->dev)));
 
-	mutex_init(&pdata->dev->mutex);
+	pdata->dev->mutex = &mutex;
 	if (!verify_module_params(pdata->dev)) {
 		int i;
 		__u8 j;
@@ -819,12 +820,12 @@ static int openvfd_driver_probe(struct platform_device *pdev)
 	pdata->dev->dtb_default = pdata->dev->dtb_active;
 	pdata->dev->brightness = 0xFF;
 
-	mutex_lock(&pdata->dev->mutex);
+	mutex_lock(&mutex);
 	register_openvfd_driver();
 	kp = kzalloc(sizeof(struct kp) ,  GFP_KERNEL);
 	if (!kp) {
 		kfree(kp);
-		mutex_unlock(&pdata->dev->mutex);
+		mutex_unlock(&mutex);
 		return -ENOMEM;
 	}
 	kp->cdev.name = DEV_NAME;
@@ -832,7 +833,7 @@ static int openvfd_driver_probe(struct platform_device *pdev)
 	ret = led_classdev_register(&pdev->dev, &kp->cdev);
 	if (ret < 0) {
 		kfree(kp);
-		mutex_unlock(&pdata->dev->mutex);
+		mutex_unlock(&mutex);
 		return ret;
 	}
 
@@ -866,7 +867,7 @@ static int openvfd_driver_probe(struct platform_device *pdev)
 	register_early_suspend(&openvfd_early_suspend);
 #endif
 
-	mutex_unlock(&pdata->dev->mutex);
+	mutex_unlock(&mutex);
 	return 0;
 
 	  get_gpio_req_fail:
@@ -886,7 +887,7 @@ static int openvfd_driver_probe(struct platform_device *pdev)
 	kfree(pdata);
 	  get_openvfd_node_fail:
 	if (pdata && pdata->dev)
-		mutex_unlock(&pdata->dev->mutex);
+		mutex_unlock(&mutex);
 	return state;
 }
 
@@ -933,7 +934,6 @@ static int openvfd_driver_resume(struct platform_device *dev)
 {
 	pr_dbg("openvfd_driver_resume");
 	set_power(1);
-
 	return 0;
 }
 
@@ -962,12 +962,14 @@ static struct platform_driver openvfd_driver = {
 static int __init openvfd_driver_init(void)
 {
 	pr_dbg("OpenVFD Driver init.\n");
+	mutex_init(&mutex);
 	return platform_driver_register(&openvfd_driver);
 }
 
 static void __exit openvfd_driver_exit(void)
 {
 	pr_dbg("OpenVFD Driver exit.\n");
+	mutex_destroy(&mutex);
 	platform_driver_unregister(&openvfd_driver);
 }
 
