@@ -1,5 +1,3 @@
-#include <linux/semaphore.h>
-#include <linux/delay.h>
 #include <linux/gpio.h>
 #include "../protocols/i2c.h"
 #include "../protocols/spi.h"
@@ -107,11 +105,6 @@ static void ssd1306_write_ctrl_buf(unsigned char dc, const unsigned char *buf, u
 	} else {
 		protocol->write_cmd_data(&dc, 1, buf, length);
 	}
-}
-
-static void ssd1306_write_ctrl_byte(unsigned char dc, unsigned char data)
-{
-	ssd1306_write_ctrl_buf(dc, &data, 1);
 }
 
 static void ssd1306_write_ctrl_command_buf(const unsigned char *buf, unsigned int length)

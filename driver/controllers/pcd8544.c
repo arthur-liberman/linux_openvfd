@@ -1,5 +1,3 @@
-#include <linux/semaphore.h>
-#include <linux/delay.h>
 #include <linux/gpio.h>
 #include "../protocols/i2c.h"
 #include "../protocols/spi.h"
@@ -88,11 +86,6 @@ static void pcd8544_write_ctrl_buf(unsigned char dc, const unsigned char *buf, u
 	} else {
 		protocol->write_cmd_data(&dc, 1, buf, length);
 	}
-}
-
-static void pcd8544_write_ctrl_byte(unsigned char dc, unsigned char data)
-{
-	pcd8544_write_ctrl_buf(dc, &data, 1);
 }
 
 static void pcd8544_write_ctrl_command_buf(const unsigned char *buf, unsigned int length)

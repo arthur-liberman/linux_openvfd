@@ -1,4 +1,3 @@
-#include <linux/delay.h>
 #include <linux/gpio.h>
 #include <linux/version.h>
 #include "i2c.h"

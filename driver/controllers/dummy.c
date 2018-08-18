@@ -1,4 +1,3 @@
-#include <linux/semaphore.h>
 #include "dummy.h"
 
 static unsigned char dummy_init(void);

@@ -2,7 +2,6 @@
 #define __SPIH__
 
 #include "protocol.h"
-#include "../openvfd_drv.h"
 
 #define SPI_DELAY_500KHz	1
 #define SPI_DELAY_250KHz	2

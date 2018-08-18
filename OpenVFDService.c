@@ -1,23 +1,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
-#include <unistd.h>
-#include <sys/types.h>
-#include <sys/stat.h>
 #include <fcntl.h>
 #include <errno.h>
-#include <string.h>
-#include <sys/select.h>
 #include <time.h>
 #include <sys/ioctl.h>
 #include <pthread.h>
-#include <semaphore.h>
-#include <sys/ipc.h>
-#include <dirent.h>
 #include <stdint.h>
 #include <signal.h>
-
-#include <time.h>
 #include "driver/openvfd_drv.h"
 
 #define UNUSED(x)	(void*)(x)

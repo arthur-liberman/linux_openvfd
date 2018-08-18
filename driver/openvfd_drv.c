@@ -23,31 +23,18 @@
 #include <linux/init.h>
 #include <linux/types.h>
 #include <linux/kernel.h>
-#include <linux/delay.h>
 #include <linux/platform_device.h>
 #include <linux/errno.h>
 #include <linux/leds.h>
 #include <linux/string.h>
-
 #include <linux/ioctl.h>
 #include <linux/device.h>
-
-#include <linux/errno.h>
-#include <linux/mutex.h>
-
 #include <linux/miscdevice.h>
 #include <linux/fs.h>
-
-#include <linux/fcntl.h>
 #include <linux/poll.h>
-
-#include <linux/sched.h>
-
 #include <linux/gpio.h>
 #include <linux/of_gpio.h>
-
 #include "openvfd_drv.h"
-
 #include "controllers/controller_list.h"
 
 #ifdef CONFIG_HAS_EARLYSUSPEND

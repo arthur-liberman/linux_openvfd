@@ -2,7 +2,6 @@
 #define __I2CH__
 
 #include "protocol.h"
-#include "../openvfd_drv.h"
 
 #define I2C_DELAY_500KHz	1
 #define I2C_DELAY_250KHz	2

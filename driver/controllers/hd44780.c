@@ -1,6 +1,4 @@
-#include <linux/delay.h>
 #include "../protocols/i2c.h"
-#include "../protocols/spi.h"
 #include "hd44780.h"
 
 /* **************************** Define HD44780 Constants ****************************** */

@@ -1,6 +1,8 @@
 #ifndef __PROTOCOLS__
 #define __PROTOCOLS__
 
+#include "../openvfd_drv.h"
+
 enum protocol_types {
 	PROTOCOL_TYPE_I2C,
 	PROTOCOL_TYPE_SPI_3W,

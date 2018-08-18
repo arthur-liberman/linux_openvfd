@@ -1,7 +1,6 @@
 #ifndef __CONTROLLERH__
 #define __CONTROLLERH__
 
-#include <linux/semaphore.h>
 #include "../openvfd_drv.h"
 
 struct controller_interface {

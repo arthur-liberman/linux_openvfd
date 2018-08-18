@@ -1,5 +1,4 @@
 #include "../protocols/i2c.h"
-#include "../protocols/spi.h"
 #include "fd650.h"
 
 /* ****************************** Define FD650 Commands ****************************** */

@@ -1,4 +1,3 @@
-#include <linux/semaphore.h>
 #include "gfx_mono_ctrl.h"
 #include "fonts/Grotesk16x32.h"
 #include "fonts/Grotesk24x48.h"

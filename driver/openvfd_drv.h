@@ -3,11 +3,7 @@
 
 #ifdef MODULE
 #include <linux/delay.h>
-#include <asm/io.h>
 #include <linux/slab.h>
-#include <asm/uaccess.h>
-#include <linux/of.h>
-#include <linux/time.h>
 #include <linux/mutex.h>
 #endif
 #include "glyphs.h"
