@@ -69,9 +69,9 @@ static u_int32 FD628_GetKey(struct vfd_dev *dev)
 {
 	u_int8 i, keyDataBytes[5];
 	u_int32 FD628_KeyData = 0;
-	mutex_lock(&dev->mutex);
+	mutex_lock(&mutex);
 	controller->read_data(keyDataBytes, sizeof(keyDataBytes));
-	mutex_unlock(&dev->mutex);
+	mutex_unlock(&mutex);
 	for (i = 0; i != 5; i++) {			/* Pack 5 bytes of key code values into 2 words */
 		if (keyDataBytes[i] & 0x01)
 			FD628_KeyData |= (0x00000001 << i * 2);
@@ -493,7 +493,9 @@ static ssize_t led_on_show(struct device *dev,
 static ssize_t led_on_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t size)
 {
+	mutex_lock(&mutex);
 	controller->set_icon(buf, 1);
+	mutex_unlock(&mutex);
 	return size;
 }
 
@@ -506,7 +508,9 @@ static ssize_t led_off_show(struct device *dev,
 static ssize_t led_off_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t size)
 {
+	mutex_lock(&mutex);
 	controller->set_icon(buf, 0);
+	mutex_unlock(&mutex);
 	return size;
 }
 
