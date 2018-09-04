@@ -1,9 +1,9 @@
 #include "gfx_mono_ctrl.h"
-#include "fonts/Grotesk16x32.h"
-#include "fonts/Grotesk24x48.h"
-#include "fonts/Retro8x16.h"
-#include "fonts/icons16x16.h"
-#include "fonts/icons32x32.h"
+#include "fonts/Grotesk16x32_v.h"
+#include "fonts/Grotesk24x48_v.h"
+#include "fonts/Retro8x16_v.h"
+#include "fonts/icons16x16_v.h"
+#include "fonts/icons32x32_v.h"
 
 static unsigned char gfx_mono_ctrl_init(void);
 static unsigned short gfx_mono_ctrl_get_brightness_levels_count(void);
