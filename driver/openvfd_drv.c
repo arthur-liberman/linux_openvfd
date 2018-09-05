@@ -118,6 +118,10 @@ static void init_controller(struct vfd_dev *dev)
 		pr_dbg2("Select FD650 controller\n");
 		temp_ctlr = init_fd650(dev);
 		break;
+	case CONTROLLER_IL3829:
+		pr_dbg2("Select IL3829 controller\n");
+		temp_ctlr = init_il3829(dev);
+		break;
 	case CONTROLLER_PCD8544:
 		pr_dbg2("Select PCD8544 controller\n");
 		temp_ctlr = init_pcd8544(dev);
@@ -537,6 +541,8 @@ unsigned char vfd_gpio_dat[3];
 unsigned char vfd_gpio_stb[3];
 unsigned char vfd_gpio0[3] = { 0x00, 0x00, 0xFF };
 unsigned char vfd_gpio1[3] = { 0x00, 0x00, 0xFF };
+unsigned char vfd_gpio2[3] = { 0x00, 0x00, 0xFF };
+unsigned char vfd_gpio3[3] = { 0x00, 0x00, 0xFF };
 unsigned char vfd_chars[7] = { 0, 1, 2, 3, 4, 5, 6 };
 unsigned char vfd_dot_bits[8] = { 0, 1, 2, 3, 4, 5, 6, 0 };
 unsigned char vfd_display_type[4] = { 0x00, 0x00, 0x00, 0x00 };
@@ -545,6 +551,8 @@ int vfd_gpio_dat_argc = 0;
 int vfd_gpio_stb_argc = 0;
 int vfd_gpio0_argc = 3;
 int vfd_gpio1_argc = 3;
+int vfd_gpio2_argc = 3;
+int vfd_gpio3_argc = 3;
 int vfd_chars_argc = 0;
 int vfd_dot_bits_argc = 0;
 int vfd_display_type_argc = 0;
@@ -554,6 +562,8 @@ module_param_array(vfd_gpio_dat, byte, &vfd_gpio_dat_argc, 0000);
 module_param_array(vfd_gpio_stb, byte, &vfd_gpio_stb_argc, 0000);
 module_param_array(vfd_gpio0, byte, &vfd_gpio0_argc, 0000);
 module_param_array(vfd_gpio1, byte, &vfd_gpio1_argc, 0000);
+module_param_array(vfd_gpio2, byte, &vfd_gpio2_argc, 0000);
+module_param_array(vfd_gpio3, byte, &vfd_gpio3_argc, 0000);
 module_param_array(vfd_chars, byte, &vfd_chars_argc, 0000);
 module_param_array(vfd_dot_bits, byte, &vfd_dot_bits_argc, 0000);
 module_param_array(vfd_display_type, byte, &vfd_display_type_argc, 0000);
@@ -643,6 +653,8 @@ static int verify_module_params(struct vfd_dev *dev)
 	print_param_debug("vfd_gpio_stb:\t\t", vfd_gpio_stb_argc, vfd_gpio_stb);
 	print_param_debug("vfd_gpio0:\t\t", vfd_gpio0_argc, vfd_gpio0);
 	print_param_debug("vfd_gpio1:\t\t", vfd_gpio1_argc, vfd_gpio1);
+	print_param_debug("vfd_gpio2:\t\t", vfd_gpio2_argc, vfd_gpio2);
+	print_param_debug("vfd_gpio3:\t\t", vfd_gpio3_argc, vfd_gpio3);
 	print_param_debug("vfd_chars:\t\t", vfd_chars_argc, vfd_chars);
 	print_param_debug("vfd_dot_bits:\t\t", vfd_dot_bits_argc, vfd_dot_bits);
 	print_param_debug("vfd_display_type:\t", vfd_display_type_argc, vfd_display_type);
@@ -659,6 +671,10 @@ static int verify_module_params(struct vfd_dev *dev)
 		ret = evaluate_pin("vfd_gpio0", vfd_gpio0, &dev->gpio0_pin, 1);
 	if (ret >= 0)
 		ret = evaluate_pin("vfd_gpio1", vfd_gpio1, &dev->gpio1_pin, 1);
+	if (ret >= 0)
+		ret = evaluate_pin("vfd_gpio2", vfd_gpio2, &dev->gpio2_pin, 1);
+	if (ret >= 0)
+		ret = evaluate_pin("vfd_gpio3", vfd_gpio3, &dev->gpio3_pin, 1);
 
 	if (ret >= 0) {
 		int i;
@@ -743,6 +759,8 @@ static int openvfd_driver_probe(struct platform_device *pdev)
 		get_pin_from_dt(MOD_NAME_STB, pdev, &pdata->dev->stb_pin);
 		get_pin_from_dt(MOD_NAME_GPIO0, pdev, &pdata->dev->gpio0_pin);
 		get_pin_from_dt(MOD_NAME_GPIO1, pdev, &pdata->dev->gpio1_pin);
+		get_pin_from_dt(MOD_NAME_GPIO2, pdev, &pdata->dev->gpio2_pin);
+		get_pin_from_dt(MOD_NAME_GPIO3, pdev, &pdata->dev->gpio3_pin);
 
 		chars_prop = of_find_property(pdev->dev.of_node, MOD_NAME_CHARS, NULL);
 		if (!chars_prop || !chars_prop->value) {
@@ -807,6 +825,10 @@ static int openvfd_driver_probe(struct platform_device *pdev)
 		goto get_gpio_req_fail;
 	if (request_pin("gpio1_pin", &pdata->dev->gpio1_pin, 1))
 		goto get_gpio_req_fail;
+	if (request_pin("gpio2_pin", &pdata->dev->gpio2_pin, 1))
+		goto get_gpio_req_fail;
+	if (request_pin("gpio3_pin", &pdata->dev->gpio3_pin, 1))
+		goto get_gpio_req_fail;
 
 	pdata->dev->dtb_default = pdata->dev->dtb_active;
 	pdata->dev->brightness = 0xFF;
@@ -862,6 +884,10 @@ static int openvfd_driver_probe(struct platform_device *pdev)
 	return 0;
 
 	  get_gpio_req_fail:
+	if (pdata->dev->gpio3_pin.flags.bits.is_requested)
+		gpio_free(pdata->dev->gpio3_pin.pin);
+	if (pdata->dev->gpio2_pin.flags.bits.is_requested)
+		gpio_free(pdata->dev->gpio2_pin.pin);
 	if (pdata->dev->gpio1_pin.flags.bits.is_requested)
 		gpio_free(pdata->dev->gpio1_pin.pin);
 	if (pdata->dev->gpio0_pin.flags.bits.is_requested)
@@ -891,6 +917,10 @@ static int openvfd_driver_remove(struct platform_device *pdev)
 	led_classdev_unregister(&kp->cdev);
 	deregister_openvfd_driver();
 #ifdef CONFIG_OF
+	if (pdata->dev->gpio3_pin.flags.bits.is_requested)
+		gpio_free(pdata->dev->gpio3_pin.pin);
+	if (pdata->dev->gpio2_pin.flags.bits.is_requested)
+		gpio_free(pdata->dev->gpio2_pin.pin);
 	if (pdata->dev->gpio1_pin.flags.bits.is_requested)
 		gpio_free(pdata->dev->gpio1_pin.pin);
 	if (pdata->dev->gpio0_pin.flags.bits.is_requested)

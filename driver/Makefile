@@ -21,5 +21,6 @@ else
 		openvfd-objs += controllers/gfx_mono_ctrl.o
 		openvfd-objs += controllers/ssd1306.o
 		openvfd-objs += controllers/pcd8544.o
+		openvfd-objs += controllers/il3829.o
 		openvfd-objs += openvfd_drv.o
 endif

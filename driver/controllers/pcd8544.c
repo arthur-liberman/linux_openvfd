@@ -23,11 +23,13 @@ static struct specific_gfx_mono_ctrl pcd8544_gfx_mono_ctrl = {
 	.set_power = pcd8544_set_power,
 	.set_contrast = pcd8544_set_contrast,
 	.set_xy = pcd8544_set_xy,
+	.print_char = NULL,
 	.print_string = pcd8544_print_string,
 	.write_ctrl_command_buf = pcd8544_write_ctrl_command_buf,
 	.write_ctrl_command = pcd8544_write_ctrl_command,
 	.write_ctrl_data_buf = pcd8544_write_ctrl_data_buf,
 	.write_ctrl_data = pcd8544_write_ctrl_data,
+	.screen_view = NULL,
 };
 
 struct pcd8544_display {

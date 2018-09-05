@@ -25,11 +25,13 @@ static struct specific_gfx_mono_ctrl ssd1306_gfx_mono_ctrl = {
 	.set_power = ssd1306_set_power,
 	.set_contrast = ssd1306_set_contrast,
 	.set_xy = ssd1306_set_xy,
+	.print_char = NULL,
 	.print_string = ssd1306_print_string,
 	.write_ctrl_command_buf = ssd1306_write_ctrl_command_buf,
 	.write_ctrl_command = ssd1306_write_ctrl_command,
 	.write_ctrl_data_buf = ssd1306_write_ctrl_data_buf,
 	.write_ctrl_data = ssd1306_write_ctrl_data,
+	.screen_view = NULL,
 };
 
 struct ssd1306_display {

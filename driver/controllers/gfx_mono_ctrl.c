@@ -1,8 +1,11 @@
 #include "gfx_mono_ctrl.h"
+#include "fonts/Grotesk16x32_h.h"
 #include "fonts/Grotesk16x32_v.h"
 #include "fonts/Grotesk24x48_v.h"
+#include "fonts/Grotesk32x64_h.h"
 #include "fonts/Retro8x16_v.h"
 #include "fonts/icons16x16_v.h"
+#include "fonts/icons32x32_h.h"
 #include "fonts/icons32x32_v.h"
 
 static unsigned char gfx_mono_ctrl_init(void);
@@ -36,6 +39,7 @@ static struct controller_interface gfx_mono_ctrl_interface = {
 #define MAX_INDICATORS	4
 
 enum display_modes {
+	DISPLAY_MODE_200x200,
 	DISPLAY_MODE_128x32,
 	DISPLAY_MODE_96x32,
 	DISPLAY_MODE_80x32,
@@ -67,7 +71,7 @@ enum indicator_icons {
 
 struct gfx_mono_ctrl_display {
 	unsigned char columns				: 3;
-	unsigned char banks				: 3;
+	unsigned char rows				: 3;
 	unsigned char offset				: 2;
 
 	unsigned char reserved1;
@@ -104,17 +108,19 @@ static void print_playback_time(const struct vfd_display_data *data);
 static void print_title(const struct vfd_display_data *data);
 static void print_date(const struct vfd_display_data *data);
 static void print_temperature(const struct vfd_display_data *data);
+static void print_char(char ch, const struct font *font_struct, unsigned char x, unsigned char y);
 
 static struct vfd_dev *dev = NULL;
 static unsigned char columns = 128;
-static unsigned char banks = 32 / 8;
+static unsigned char rows = 32 / 8;
 static unsigned char col_offset = 0;
 static unsigned char show_colon = 1;
 static unsigned char show_icons = 1;
+static unsigned char swap_banks_orientation = 0;
 static enum display_modes display_mode = DISPLAY_MODE_128x32;
 static unsigned char icon_x_offset = 0;
 static unsigned char indicators_on_screen[MAX_INDICATORS] = { 0 };
-static unsigned char ram_buffer[1024] = { 0 };
+static unsigned char ram_buffer[5000] = { 0 };
 static struct vfd_display_data old_data;
 static struct font font_text = { 0 };
 static struct font font_icons = { 0 };
@@ -123,38 +129,47 @@ static struct font font_small_text = { 0 };
 static struct indicators indicators = { 0 };
 static struct gfx_mono_ctrl_display gfx_mono_ctrl_display;
 
-static const struct specific_gfx_mono_ctrl *specific_gfx_mono_ctrl;
+static struct specific_gfx_mono_ctrl specific_gfx_mono_ctrl;
 
 struct controller_interface *init_gfx_mono_ctrl(struct vfd_dev *_dev, const struct specific_gfx_mono_ctrl *_specific_gfx_mono_ctrl)
 {
 	dev = _dev;
-	specific_gfx_mono_ctrl = _specific_gfx_mono_ctrl;
+	specific_gfx_mono_ctrl = *_specific_gfx_mono_ctrl;
 	memcpy(&gfx_mono_ctrl_display, &dev->dtb_active.display, sizeof(gfx_mono_ctrl_display));
-	columns = (gfx_mono_ctrl_display.columns + 1) * 16;
-	banks = gfx_mono_ctrl_display.banks + 1;
-	col_offset = gfx_mono_ctrl_display.offset << 1;
+	if (specific_gfx_mono_ctrl.screen_view) {
+		columns = specific_gfx_mono_ctrl.screen_view->columns;
+		rows = specific_gfx_mono_ctrl.screen_view->rows;
+		col_offset = specific_gfx_mono_ctrl.screen_view->colomn_offset;
+		swap_banks_orientation = specific_gfx_mono_ctrl.screen_view->swap_banks_orientation;
+	} else {
+		columns = (gfx_mono_ctrl_display.columns + 1) * 16;
+		rows = gfx_mono_ctrl_display.rows + 1;
+		col_offset = gfx_mono_ctrl_display.offset << 1;
+	}
 	memset(&old_data, 0, sizeof(old_data));
 
 	setup_fonts();
-	if (specific_gfx_mono_ctrl->init)
-		gfx_mono_ctrl_interface.init = specific_gfx_mono_ctrl->init;
-	if (specific_gfx_mono_ctrl->set_display_type)
-		gfx_mono_ctrl_interface.set_display_type = specific_gfx_mono_ctrl->set_display_type;
+	if (specific_gfx_mono_ctrl.init)
+		gfx_mono_ctrl_interface.init = specific_gfx_mono_ctrl.init;
+	if (specific_gfx_mono_ctrl.set_display_type)
+		gfx_mono_ctrl_interface.set_display_type = specific_gfx_mono_ctrl.set_display_type;
+	if (!specific_gfx_mono_ctrl.print_char)
+		specific_gfx_mono_ctrl.print_char = print_char;
 	return &gfx_mono_ctrl_interface;
 }
 
 static void print_char(char ch, const struct font *font_struct, unsigned char x, unsigned char y)
 {
 	unsigned short offset = 0, i;
-	if (x >= columns || y >= banks || ch < font_struct->font_offset || ch >= font_struct->font_offset + font_struct->font_char_count)
+	if (x >= columns || y >= rows || ch < font_struct->font_offset || ch >= font_struct->font_offset + font_struct->font_char_count)
 		return;
 
 	ch -= font_struct->font_offset;
 	offset = ch * font_struct->font_char_size;
 	offset += 4;
 	for (i = 0; i < font_struct->font_height; i++) {
-		specific_gfx_mono_ctrl->set_xy(x, y + i);
-		specific_gfx_mono_ctrl->write_ctrl_data_buf(&font_struct->font_bitmaps[offset], font_struct->font_width);
+		specific_gfx_mono_ctrl.set_xy(x, y + i);
+		specific_gfx_mono_ctrl.write_ctrl_data_buf(&font_struct->font_bitmaps[offset], font_struct->font_width);
 		offset += font_struct->font_width;
 	}
 }
@@ -165,11 +180,9 @@ extern void transpose8rS64(unsigned char* A, unsigned char* B);
 
 #if GFX_MONO_CTRL_PRINT_DEBUG
 unsigned char print_buffer_cnt = 30;
-char txt_buf[20480] = { 0 };
+char txt_buf[204800] = { 0 };
 static void print_buffer(unsigned char *buf, const struct rect *rect, unsigned char rotate)
 {
-	unsigned char height = rotate ? rect->height : rect->width / 8;
-	unsigned char width = rotate ? rect->width : rect->height * 8;
 	char *t = txt_buf;
 	if (!print_buffer_cnt)
 		return;
@@ -178,19 +191,37 @@ static void print_buffer(unsigned char *buf, const struct rect *rect, unsigned c
 		pr_dbg2("Transposed Buffer:\n");
 	else
 		pr_dbg2("Non-Transposed Buffer:\n");
-	for (int j = 0; j < height; j++) {
-		for (int k = 0; k < 8; k++) {
+	if (swap_banks_orientation) {
+		unsigned char height = rotate ? rect->width : rect->height;
+		unsigned char width = rotate ? rect->height : rect->width;
+		for (int j = 0; j < height; j++) {
 			t = txt_buf;
 			for (int i = 0; i < width; i++) {
-				if (i % 8 == 0)
-					*t++ = ' ';
-				*t++ = (buf[j * width + i] & (1 << k)) ? '#' : ' ';
+				for (int k = 0; k < 8; k++) {
+					*t++ = (buf[j * width + i] & (0x80 >> k)) ? '#' : ' ';
+				}
+				*t++ = ' ';
 			}
-			*t++ = '\n';
 			*t++ = '\0';
-			printk(KERN_DEBUG "%s", txt_buf);
+			printk(KERN_DEBUG "%s\n", txt_buf);
 		}
-		printk(KERN_DEBUG "\n");
+	} else {
+		unsigned char height = rotate ? rect->height : rect->width / 8;
+		unsigned char width = rotate ? rect->width : rect->height * 8;
+		for (int j = 0; j < height; j++) {
+			for (int k = 0; k < 8; k++) {
+				t = txt_buf;
+				for (int i = 0; i < width; i++) {
+					if (i % 8 == 0)
+						*t++ = ' ';
+					*t++ = (buf[j * width + i] & (1 << k)) ? '#' : ' ';
+				}
+				*t++ = '\n';
+				*t++ = '\0';
+				printk(KERN_DEBUG "%s", txt_buf);
+			}
+			printk(KERN_DEBUG "\n");
+		}
 	}
 
 	printk(KERN_DEBUG "\n\n");
@@ -250,17 +281,26 @@ static void print_string(const char *str, const struct font *font_struct, unsign
 	rect.length = rect.text_height * rect.text_width;
 	if (gfx_mono_ctrl_display.flags_transpose)
 		transpose_buffer(ram_buffer, &rect);
-	specific_gfx_mono_ctrl->print_string(ram_buffer, &rect);
+	else
+		print_buffer(ram_buffer, &rect, 0);
+	specific_gfx_mono_ctrl.print_string(ram_buffer, &rect);
 }
 
 static void setup_fonts(void)
 {
-	init_font(&font_indicators, icons16x16);
-	init_font(&font_small_text, Retro8x16);
-	switch (banks) {
+	init_font(&font_indicators, icons16x16_V);
+	init_font(&font_small_text, Retro8x16_V);
+	switch (rows) {
+	case 200:
+		init_font(&font_text, Grotesk32x64_H);
+		init_font(&font_small_text, Grotesk16x32_H);
+		init_font(&font_icons, icons32x32_H);
+		init_font(&font_indicators, icons32x32_H);
+		display_mode = DISPLAY_MODE_200x200;
+		break;
 	case 6:
-		init_font(&font_text, Grotesk16x32);
-		init_font(&font_icons, icons16x16);
+		init_font(&font_text, Grotesk16x32_V);
+		init_font(&font_icons, icons16x16_V);
 		if (columns >= 80) {
 			display_mode = DISPLAY_MODE_80x48;
 		} else {
@@ -270,8 +310,8 @@ static void setup_fonts(void)
 		break;
 	case 8:
 		if (columns >= 96) {
-			init_font(&font_text, Grotesk24x48);
-			init_font(&font_icons, icons16x16);
+			init_font(&font_text, Grotesk24x48_V);
+			init_font(&font_icons, icons16x16_V);
 			if (columns >= 120) {
 				display_mode = DISPLAY_MODE_128x64;
 			} else {
@@ -279,8 +319,8 @@ static void setup_fonts(void)
 				display_mode = DISPLAY_MODE_96x64;
 			}
 		} else {
-			init_font(&font_text, Grotesk16x32);
-			init_font(&font_icons, icons32x32);
+			init_font(&font_text, Grotesk16x32_V);
+			init_font(&font_icons, icons32x32_V);
 			if (columns >= 80) {
 				display_mode = DISPLAY_MODE_80x64;
 			} else {
@@ -291,13 +331,13 @@ static void setup_fonts(void)
 		break;
 	case 4:
 	default:
-		init_font(&font_text, Grotesk16x32);
+		init_font(&font_text, Grotesk16x32_V);
 		if (columns >= 120) {
 			display_mode = DISPLAY_MODE_128x32;
-			init_font(&font_icons, icons32x32);
+			init_font(&font_icons, icons32x32_V);
 		} else if (columns >= 96) {
 			display_mode = DISPLAY_MODE_96x32;
-			init_font(&font_icons, icons16x16);
+			init_font(&font_icons, icons16x16_V);
 		} else if (columns >= 80) {
 			display_mode = DISPLAY_MODE_80x32;
 			show_icons = 0;
@@ -329,7 +369,7 @@ static unsigned char gfx_mono_ctrl_set_brightness_level(unsigned short level)
 {
 	unsigned char tmp = dev->brightness = level & 0x7;
 	dev->power = 1;
-	specific_gfx_mono_ctrl->set_contrast(tmp * 36); // ruonds to 0 - 252.
+	specific_gfx_mono_ctrl.set_contrast(tmp * 36); // ruonds to 0 - 252.
 	return 1;
 }
 
@@ -340,7 +380,7 @@ static unsigned char gfx_mono_ctrl_get_power(void)
 
 static void gfx_mono_ctrl_set_power(unsigned char state)
 {
-	specific_gfx_mono_ctrl->set_power(state);
+	specific_gfx_mono_ctrl.set_power(state);
 	dev->power = state;
 }
 
@@ -454,7 +494,7 @@ static size_t gfx_mono_ctrl_write_display_data(const struct vfd_display_data *da
 		unsigned char i;
 		icon_x_offset = 0;
 		memset(&old_data, 0, sizeof(old_data));
-		specific_gfx_mono_ctrl->clear();
+		specific_gfx_mono_ctrl.clear();
 		switch (data->mode) {
 		case DISPLAY_MODE_CLOCK:
 			old_data.mode = DISPLAY_MODE_CLOCK;
@@ -521,12 +561,12 @@ static unsigned char print_icon(unsigned char ch)
 	unsigned char x, y;
 	switch (display_mode) {
 	case DISPLAY_MODE_128x32:
-		y = (banks - font_icons.font_height) / 2;
+		y = (rows - font_icons.font_height) / 2;
 		print_string(str, &font_icons, 0, y);
 		offset_x = font_icons.font_width + font_text.font_width / 2;
 		break;
 	case DISPLAY_MODE_96x32	:
-		y = (banks - font_icons.font_height) / 2;
+		y = (rows - font_icons.font_height) / 2;
 		print_string(str, &font_icons, 0, y);
 		offset_x = font_icons.font_width;
 		break;
@@ -537,6 +577,7 @@ static unsigned char print_icon(unsigned char ch)
 	case DISPLAY_MODE_96x64	:
 		print_string(str, &font_icons, 0, font_text.font_height);
 		break;
+	case DISPLAY_MODE_200x200:
 	case DISPLAY_MODE_80x48	:
 	case DISPLAY_MODE_128x64:
 	case DISPLAY_MODE_80x64	:
@@ -578,6 +619,32 @@ static void print_indicator(unsigned char ch, unsigned char state, unsigned char
 			x = (x - font_indicators.font_width) / 2 + index * x;
 			print_string(str, &font_indicators, x, font_text.font_height);
 			break;
+		case DISPLAY_MODE_200x200:
+			x = columns / MAX_INDICATORS;
+			x = (x - font_indicators.font_width) / 2 + index * x;
+			print_string(str, &font_indicators, x, font_text.font_height + ((font_small_text.font_height * 5) / 2));
+			break;
+		}
+	}
+}
+
+static void print_clock_date(const struct vfd_display_data *data, unsigned char force_print)
+{
+	if (rows == 200 && !gfx_mono_ctrl_display.flags_transpose)
+	{
+		force_print |= data->time_date.day != old_data.time_date.day || data->time_date.month != old_data.time_date.month || data->time_date.year != old_data.time_date.year;
+		if (force_print)
+		{
+			char buffer[20];
+			const char *days[7] = { "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday" };
+			const char *months[12] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+				"Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
+			int len = scnprintf(buffer, sizeof(buffer), "%s %02d, %04d", months[data->time_date.month], data->time_date.day, data->time_date.year);
+			unsigned char offset = (columns - (len * font_small_text.font_width)) / 2;
+			print_string(buffer, &font_small_text, offset, font_text.font_height);
+			len = scnprintf(buffer, sizeof(buffer), "%s", days[data->time_date.day_of_week]);
+			offset = (columns - (len * font_small_text.font_width)) / 2;
+			print_string(buffer, &font_small_text, offset, font_text.font_height + font_small_text.font_height);
 		}
 	}
 }
@@ -600,7 +667,7 @@ static void print_clock(const struct vfd_display_data *data, unsigned char print
 		}
 		if (colon_on != old_data.colon_on && show_colon) {
 			unsigned char offset = (columns - font_text.font_width) / 2;
-			print_char(colon_on ? ':' : ' ', &font_text, offset, banks - font_text.font_height);
+			specific_gfx_mono_ctrl.print_char(colon_on ? ':' : ' ', &font_text, offset, rows - font_text.font_height);
 		}
 	} else if (!force_print) {
 		const int len = print_seconds ? 8 : 5;
@@ -612,7 +679,7 @@ static void print_clock(const struct vfd_display_data *data, unsigned char print
 		offset += 2 * font_text.font_width;
 		if (show_colon) {
 			if (colon_on != old_data.colon_on)
-				print_char(colon_on ? ':' : ' ', &font_text, offset, 0);
+				specific_gfx_mono_ctrl.print_char(colon_on ? ':' : ' ', &font_text, offset, 0);
 			offset += font_text.font_width;
 		}
 		if (data->time_date.minutes != old_data.time_date.minutes) {
@@ -622,7 +689,7 @@ static void print_clock(const struct vfd_display_data *data, unsigned char print
 		offset += 2 * font_text.font_width;
 		if (print_seconds) {
 			if (colon_on != old_data.colon_on)
-				print_char(colon_on ? ':' : ' ', &font_text, offset, 0);
+				specific_gfx_mono_ctrl.print_char(colon_on ? ':' : ' ', &font_text, offset, 0);
 			offset += font_text.font_width;
 			if (data->time_date.seconds != old_data.time_date.seconds) {
 				scnprintf(buffer, sizeof(buffer), "%02d", data->time_date.seconds);
@@ -643,6 +710,7 @@ static void print_clock(const struct vfd_display_data *data, unsigned char print
 		offset = (columns - (font_text.font_width * len)) / 2;
 		print_string(buffer, &font_text, offset, 0);
 	}
+	print_clock_date(data, force_print);
 }
 
 static void print_channel(const struct vfd_display_data *data)
@@ -676,10 +744,10 @@ static void print_playback_time(const struct vfd_display_data *data)
 			}
 		}
 		if (show_colon)
-			print_char(data->colon_on ? ':' : ' ', &font_text, offset + (font_text.font_height * 8), banks - font_text.font_height);
+			specific_gfx_mono_ctrl.print_char(data->colon_on ? ':' : ' ', &font_text, offset + (font_text.font_height * 8), rows - font_text.font_height);
 	} else if (!force_print) {
 		if (data->colon_on != old_data.colon_on && show_colon) {
-			print_char(data->colon_on ? ':' : ' ', &font_text, offset + (2 * font_text.font_width), 0);
+			specific_gfx_mono_ctrl.print_char(data->colon_on ? ':' : ' ', &font_text, offset + (2 * font_text.font_width), 0);
 		}
 		if (data->time_date.hours > 0) {
 			if (data->time_date.hours != old_data.time_date.hours) {
@@ -715,7 +783,7 @@ static void print_playback_time(const struct vfd_display_data *data)
 			scnprintf(buffer, sizeof(buffer), "%02d%02d", pos0, pos1);
 		print_string(buffer, &font_text, offset, 0);
 	}
-	if (banks >= 6 && !gfx_mono_ctrl_display.flags_transpose && strcmp(data->string_main, old_data.string_main)) {
+	if (rows >= 6 && !gfx_mono_ctrl_display.flags_transpose && strcmp(data->string_main, old_data.string_main)) {
 		struct rect rect;
 		offset = show_icons * font_icons.font_width;
 		init_rect(&rect, &font_small_text, data->string_main, offset, font_text.font_height, 0);
@@ -754,7 +822,7 @@ static void print_date(const struct vfd_display_data *data)
 			scnprintf(buffer, sizeof(buffer), "%02d", data->time_secondary._reserved ? data->time_date.day : data->time_date.month + 1);
 			print_string(buffer, &font_text, offset + show_colon * font_text.font_width + (font_text.font_height * 8), 0);
 			if (show_colon)
-				print_char('|', &font_text, offset + font_text.font_height * 8, banks - font_text.font_height);
+				specific_gfx_mono_ctrl.print_char('|', &font_text, offset + font_text.font_height * 8, rows - font_text.font_height);
 		} else {
 			unsigned char day, month;
 			if (data->time_secondary._reserved) {
@@ -793,25 +861,34 @@ static void print_temperature(const struct vfd_display_data *data)
 
 static void init_font(struct font *font_struct, const unsigned char *font_bitmaps)
 {
-	font_struct->font_width = font_bitmaps[0];
-	font_struct->font_height = font_bitmaps[1] / 8;
+	if (swap_banks_orientation) {
+		font_struct->font_width = font_bitmaps[0] / 8;
+		font_struct->font_height = font_bitmaps[1];
+	} else {
+		font_struct->font_width = font_bitmaps[0];
+		font_struct->font_height = font_bitmaps[1] / 8;
+	}
 	font_struct->font_offset = font_bitmaps[2];
 	font_struct->font_char_size = font_struct->font_height * font_struct->font_width;
 	font_struct->font_char_count = font_bitmaps[3];
 	font_struct->font_bitmaps = font_bitmaps;
+#if GFX_MONO_CTRL_PRINT_DEBUG
+	pr_dbg2("font_width = %d, font_height = %d, font_offset = %d, font_char_size = %d, font_char_count = %d\n",
+		font_struct->font_width, font_struct->font_height, font_struct->font_offset, font_struct->font_char_size, font_struct->font_char_count);
+#endif
 }
 
 static void init_rect(struct rect *rect, const struct font *font, const char *str, unsigned char x, unsigned char y, unsigned char transposed)
 {
 	unsigned char c_width = 0, c_height = 0;
 	memset(rect, 0, sizeof(*rect));
-	if (x < columns && y < banks) {
+	if (x < columns && y < rows) {
 		rect->font = font;
 		if (!transposed) {
 			rect->x1 = x;
 			rect->y1 = y;
 			rect->width = columns - x;
-			rect->height = banks - y;
+			rect->height = rows - y;
 			c_width = rect->width / font->font_width;
 			c_height = rect->height / font->font_height;
 			rect->length = (unsigned char)min(strlen(str), (size_t)(c_width * c_height));
@@ -824,10 +901,10 @@ static void init_rect(struct rect *rect, const struct font *font, const char *st
 			rect->x2 = x + rect->width - 1;
 			rect->y2 = y + rect->height - 1;
 		} else {
-			const unsigned char font_height = font->font_height * 8;
-			const unsigned char font_width = font->font_width / 8;
+			const unsigned short font_height = font->font_height * 8;
+			const unsigned short font_width = font->font_width / 8;
 			rect->width = columns - x;
-			rect->height = banks - y;
+			rect->height = rows - y;
 			c_width = rect->width / font_height;
 			c_height = rect->height / font_width;
 			rect->length = (unsigned char)min(strlen(str), (size_t)(c_width * c_height));
@@ -838,14 +915,14 @@ static void init_rect(struct rect *rect, const struct font *font, const char *st
 			rect->width = rect->text_width * font_height;
 			rect->height = rect->text_height * font_width;
 			rect->x1 = x;
-			rect->y2 = banks - 1 - y;
+			rect->y2 = rows - 1 - y;
 			rect->x2 = rect->x1 + rect->width - 1;
 			rect->y1 = rect->y2 - rect->height + 1;
 		}
 	}
 
 #if GFX_MONO_CTRL_PRINT_DEBUG
-	pr_dbg2("str = %s, c_width = %d, c_height = %d, length = %d, xy1 = (%d,%d), xy2 = (%d,%d), size = (%d,%d), text size = (%d,%d)\n",
-		str, c_width, c_height, rect->length, rect->x1, rect->y1, rect->x2, rect->y2, rect->width, rect->height, rect->text_width, rect->text_height);
+	pr_dbg2("str = %s, x = %d, y = %d, transposed = %d, c_width = %d, c_height = %d, length = %d, xy1 = (%d,%d), xy2 = (%d,%d), size = (%d,%d), text size = (%d,%d)\n",
+		str, x, y, transposed, c_width, c_height, rect->length, rect->x1, rect->y1, rect->x2, rect->y2, rect->width, rect->height, rect->text_width, rect->text_height);
 #endif
 }

@@ -7,5 +7,6 @@
 #include "hd44780.h"
 #include "ssd1306.h"
 #include "pcd8544.h"
+#include "il3829.h"
 
 #endif
