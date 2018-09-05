@@ -1,4 +1,4 @@
-// Grotesk32x64_H.c
+// Grotesk32x64_h.h
 // Font type    : Full (96 characters)
 // Font size    : 32x64 pixels
 // Memory usage : 24580 bytes

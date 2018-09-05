@@ -1,4 +1,4 @@
-// icons16x16.h
+// icons16x16_v.h
 // Font type	: Full (15 characters)
 // Font size	: 16x16 pixels
 // Memory usage	: 484 bytes

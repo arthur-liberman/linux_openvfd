@@ -1,4 +1,4 @@
-// Retro8x16.h
+// Retro8x16_v.h
 // Font type	: Full (96 characters)
 // Font size	: 8x16 pixels
 // Memory usage	: 1540 bytes
