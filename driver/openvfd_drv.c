@@ -740,14 +740,12 @@ static int openvfd_driver_probe(struct platform_device *pdev)
 		state = -EINVAL;
 		goto get_openvfd_mem_fail;
 	}
-	memset(pdata, 0, sizeof(struct vfd_platform_data));
 
 	pdata->dev = kzalloc(sizeof(*(pdata->dev)), GFP_KERNEL);
 	if (!(pdata->dev)) {
 		pr_error("platform dev is required!\n");
 		goto get_param_mem_fail;
 	}
-	memset(pdata->dev, 0, sizeof(*(pdata->dev)));
 
 	pdata->dev->mutex = &mutex;
 	if (!verify_module_params(pdata->dev)) {
