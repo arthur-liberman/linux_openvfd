@@ -71,7 +71,7 @@ struct protocol_interface *init_i2c(unsigned short _address, unsigned char _lsb_
 		i2c_stop_condition();
 		if (!i2c_write_cmd_data(NULL, 0, NULL, 0)) {
 			i2c_ptr = &i2c_interface;
-			pr_dbg2("I2C interface intialized\n");
+			pr_dbg2("I2C interface intialized (%s mode, pull-ups %s)\n", lsb_first ? "LSB" : "MSB", _pin_scl.flags.bits.pullup_on ? "on" : "off" );
 		} else {
 			pr_dbg2("I2C interface failed to intialize. Could not establish communication with I2C slave\n");
 		}

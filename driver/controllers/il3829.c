@@ -421,7 +421,7 @@ static unsigned char il3829_init(void)
 {
 	if (il3829_display.spi.is_spi) {
 		if (dev->gpio1_pin.pin >= 0) {
-			protocol = init_spi_3w(dev->clk_pin, dev->dat_pin, dev->stb_pin, il3829_display.flags_low_freq ? SPI_DELAY_100KHz : SPI_DELAY_500KHz);
+			protocol = init_spi_3w(MSB_FIRST, dev->clk_pin, dev->dat_pin, dev->stb_pin, il3829_display.flags_low_freq ? SPI_DELAY_100KHz : SPI_DELAY_500KHz);
 			if (protocol) {
 				pin_rst = dev->gpio0_pin.pin;
 				pin_dc = dev->gpio1_pin.pin;
@@ -438,7 +438,7 @@ static unsigned char il3829_init(void)
 			pr_dbg2("IL3829 controller failed to intialize. Invalid DC (%d) pin\n", dev->gpio1_pin.pin);
 		}
 	} else {
-		protocol = init_i2c(il3829_display.i2c.address, I2C_MSB_FIRST, dev->clk_pin, dev->dat_pin, il3829_display.flags_low_freq ? I2C_DELAY_100KHz : I2C_DELAY_500KHz);
+		protocol = init_i2c(il3829_display.i2c.address, MSB_FIRST, dev->clk_pin, dev->dat_pin, il3829_display.flags_low_freq ? I2C_DELAY_100KHz : I2C_DELAY_500KHz);
 	}
 	if (!protocol)
 		return 0;

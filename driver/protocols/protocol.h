@@ -3,6 +3,9 @@
 
 #include "../openvfd_drv.h"
 
+#define MSB_FIRST		0
+#define LSB_FIRST		1
+
 enum protocol_types {
 	PROTOCOL_TYPE_I2C,
 	PROTOCOL_TYPE_SPI_3W,

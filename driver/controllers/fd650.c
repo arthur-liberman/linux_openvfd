@@ -69,7 +69,7 @@ static size_t fd650_write_data_real(unsigned char address, const unsigned char *
 static unsigned char fd650_init(void)
 {
 	unsigned char slow_freq = dev->dtb_active.display.flags & DISPLAY_FLAG_LOW_FREQ;
-	protocol = init_i2c(0, I2C_MSB_FIRST, dev->clk_pin, dev->dat_pin, slow_freq ? I2C_DELAY_20KHz : I2C_DELAY_100KHz);
+	protocol = init_i2c(0, MSB_FIRST, dev->clk_pin, dev->dat_pin, slow_freq ? I2C_DELAY_20KHz : I2C_DELAY_100KHz);
 	if (!protocol)
 		return 0;
 
