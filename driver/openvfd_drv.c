@@ -598,7 +598,7 @@ static int get_chip_pin_number(const unsigned char gpio[])
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4,0,0)
 		const char *pin_banks[] = { "banks", "ao-bank", "gpio0", "gpio1", "gpio2", "gpio3" };
 #else
-		const char *pin_banks[] = { "periphs-banks", "aobus-banks", "gpio0-banks", "gpio1-banks", "gpio2-banks", "gpio3-banks" };
+		const char *pin_banks[] = { "periphs-banks", "aobus-banks", "gpio0", "gpio1", "gpio2", "gpio3" };
 #endif
 		const char *bank_name = pin_banks[gpio[0]];
 
