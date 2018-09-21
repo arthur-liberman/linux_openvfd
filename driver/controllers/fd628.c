@@ -49,6 +49,7 @@ static struct protocol_interface *protocol = NULL;
 static unsigned char ram_grid_size = 2;
 static unsigned char ram_grid_count = 7;
 static unsigned char ram_size = 14;
+static struct vfd_display_data vfd_display_data;
 extern const led_bitmap *ledCodes;
 
 struct controller_interface *init_fd628(struct vfd_dev *_dev)
@@ -277,7 +278,10 @@ static size_t fd628_write_data(const unsigned char *_data, size_t length)
 		data[0] |= dtb->led_dots[LED_DOT_SEC];
 	}
 	// Apply LED indicators mask (usb, eth, wifi etc.)
-	data[0] |= dev->status_led_mask;
+	if (vfd_display_data.mode == DISPLAY_MODE_CLOCK)
+		data[0] |= dev->status_led_mask;
+	else
+		data[0] |= (dev->status_led_mask & ~dtb->led_dots[LED_DOT_SEC]);
 
 	switch (dtb->display.type) {
 	case DISPLAY_TYPE_5D_7S_NORMAL:
@@ -352,6 +356,7 @@ static size_t fd628_write_display_data(const struct vfd_display_data *data)
 {
 	unsigned short wdata[7];
 	size_t status = seg7_write_display_data(data, wdata, sizeof(wdata));
+	vfd_display_data = *data;
 	if (status && !fd628_write_data((unsigned char*)wdata, 5*sizeof(wdata[0])))
 		status = 0;
 	return status;
