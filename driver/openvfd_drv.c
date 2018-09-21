@@ -748,6 +748,7 @@ static int openvfd_driver_probe(struct platform_device *pdev)
 	}
 
 	pdata->dev->mutex = &mutex;
+	pr_dbg2("Version: %s\n", OPENVFD_DRIVER_VERSION);
 	if (!verify_module_params(pdata->dev)) {
 		int i;
 		__u8 j;
