@@ -110,12 +110,19 @@ static void init_controller(struct vfd_dev *dev)
 	case CONTROLLER_FD628:
 	case CONTROLLER_FD620:
 	case CONTROLLER_TM1618:
+		pr_dbg2("Select FD628 controller\n");
+		temp_ctlr = init_fd628(dev);
+		break;
 	case CONTROLLER_HBS658:
-		pr_dbg2("Select FD628* controller\n");
+		pr_dbg2("Select HBS658 controller\n");
 		temp_ctlr = init_fd628(dev);
 		break;
 	case CONTROLLER_FD650:
 		pr_dbg2("Select FD650 controller\n");
+		temp_ctlr = init_fd650(dev);
+		break;
+	case CONTROLLER_FD655:
+		pr_dbg2("Select FD655 controller\n");
 		temp_ctlr = init_fd650(dev);
 		break;
 	case CONTROLLER_IL3829:
