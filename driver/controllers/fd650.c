@@ -45,6 +45,7 @@ size_t seg7_write_display_data(const struct vfd_display_data *data, unsigned sho
 
 static struct vfd_dev *dev = NULL;
 static struct protocol_interface *protocol = NULL;
+static unsigned char ram_grid_count = 5;
 static unsigned char ram_size = 10;
 static struct vfd_display_data vfd_display_data;
 extern const led_bitmap *ledCodes;
@@ -63,7 +64,7 @@ inline static void fd650_write_cmd_data(unsigned char cmd, unsigned char data)
 static size_t fd650_write_data_real(unsigned char address, const unsigned char *data, size_t length)
 {
 	unsigned char cmd = FD655_BASE_ADDR | (address & 0x07), i;
-	if (length + address > ram_size)
+	if (length + address > ram_grid_count)
 		return (-1);
 
 	for (i = 0; i < length; i++, cmd += 2)
@@ -118,7 +119,7 @@ static unsigned char get_actual_brightness(void)
 
 static unsigned char fd650_set_brightness_level(unsigned short level)
 {
-	dev->brightness = level;
+	dev->brightness = level & 0x7;
 	fd650_write_cmd_data(FD650_MODE_WRCMD, FD650_DISP_STATE_WRCMD | get_actual_brightness() | FD650_DISP_ON);
 	dev->power = 1;
 	return 1;
