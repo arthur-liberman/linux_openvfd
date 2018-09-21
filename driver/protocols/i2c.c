@@ -50,6 +50,11 @@ inline void gpio_set_pullup(unsigned gpio, int value)
 }
 #endif
 
+static unsigned char i2c_test_connection(void)
+{
+	return i2c_write_cmd_data(NULL, 0, NULL, 0);
+}
+
 struct protocol_interface *init_i2c(unsigned short _address, unsigned char _lsb_first, struct vfd_pin _pin_scl, struct vfd_pin _pin_sda, unsigned long _i2c_delay)
 {
 	struct protocol_interface *i2c_ptr = NULL;
@@ -58,6 +63,8 @@ struct protocol_interface *init_i2c(unsigned short _address, unsigned char _lsb_
 			use_address = 1;
 			long_address = _address > 0xFF;					// A valid 10-bit address always starts with b11110.
 			i2c_address.value = _address == 0xFF ? 0x0000 : _address;	// General call.
+		} else {
+			use_address = 0;
 		}
 		lsb_first = _lsb_first;
 		pin_scl = _pin_scl;
@@ -69,9 +76,10 @@ struct protocol_interface *init_i2c(unsigned short _address, unsigned char _lsb_
 		if (_pin_sda.flags.bits.pullup_on)
 			gpio_set_pullup(_pin_sda.pin, 1);
 		i2c_stop_condition();
-		if (!i2c_write_cmd_data(NULL, 0, NULL, 0)) {
+		if (!i2c_test_connection()) {
 			i2c_ptr = &i2c_interface;
-			pr_dbg2("I2C interface intialized (%s mode, pull-ups %s)\n", lsb_first ? "LSB" : "MSB", _pin_scl.flags.bits.pullup_on ? "on" : "off" );
+			pr_dbg2("I2C interface intialized (address = 0x%04X%s, %s mode, pull-ups %s)\n", i2c_address.value, !use_address ? " (N/A)" : "",
+				lsb_first ? "LSB" : "MSB", _pin_scl.flags.bits.pullup_on ? "on" : "off" );
 		} else {
 			pr_dbg2("I2C interface failed to intialize. Could not establish communication with I2C slave\n");
 		}
