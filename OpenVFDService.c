@@ -371,6 +371,9 @@ void select_display_type()
 			case DISPLAY_TYPE_5D_7S_G9SX:
 				ledCodes = LED_decode_tab3;
 				break;
+			case DISPLAY_TYPE_4D_7S_FREESATGTC:
+				ledCodes = LED_decode_tab4;
+				break;
 			default:
 				ledCodes = LED_decode_tab2;
 				break;

@@ -49,6 +49,7 @@ static unsigned char ram_grid_count = 5;
 static unsigned char ram_size = 10;
 static struct vfd_display_data vfd_display_data;
 extern const led_bitmap *ledCodes;
+extern unsigned char ledDot;
 
 struct controller_interface *init_fd650(struct vfd_dev *_dev)
 {
@@ -84,6 +85,10 @@ static unsigned char fd650_init(void)
 	switch(dev->dtb_active.display.type) {
 		case DISPLAY_TYPE_5D_7S_T95:
 			ledCodes = LED_decode_tab1;
+			break;
+		case DISPLAY_TYPE_4D_7S_FREESATGTC:
+			ledCodes = LED_decode_tab4;
+			ledDot = p4;
 			break;
 		default:
 			ledCodes = LED_decode_tab2;
@@ -212,7 +217,7 @@ static size_t fd650_write_data(const unsigned char *_data, size_t length)
 	for (i = 0; i <= length; i++)
 		tempBuf[dtb->dat_index[i]] = (unsigned char)(data[i] & 0xFF);
 	if (dtb->display.controller == CONTROLLER_FD650)
-		tempBuf[dtb->dat_index[1]] = ((data[0] | dev->status_led_mask) & ledDots[LED_DOT_SEC]) ? 0x80 : 0x00;
+		tempBuf[dtb->dat_index[0]] = ((data[0] | dev->status_led_mask) & ledDots[LED_DOT_SEC]) ? ledDot : 0x00;
 
 	return fd650_write_data_real(0, tempBuf, length) == 0 ? length : 0;
 }

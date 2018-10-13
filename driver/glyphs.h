@@ -20,6 +20,7 @@ typedef struct _led_bitmap {
 #define e1 0x10
 #define f1 0x20
 #define g1 0x40
+#define p1 0x80
 
 static const led_bitmap LED_decode_tab1[] = {
 /*
@@ -86,6 +87,7 @@ static const led_bitmap LED_decode_tab1[] = {
 #define e2 0x02
 #define f2 0x04
 #define g2 0x40
+#define p2 0x80
 
 static const led_bitmap LED_decode_tab2[] = {
 /*
@@ -149,6 +151,7 @@ static const led_bitmap LED_decode_tab2[] = {
 #define e3 0x10
 #define f3 0x04
 #define g3 0x40
+#define p3 0x80
 
 static const led_bitmap LED_decode_tab3[] = {
 /*
@@ -203,6 +206,70 @@ static const led_bitmap LED_decode_tab3[] = {
 	{'y', a3|c3|e3|f3|g3      },	{'Y', a3|c3|e3|f3|g3      },
 	{'z', a3|b3|d3|e3|g3      },	{'Z', a3|b3|d3|e3|g3      },
 	{'_', a3}, {'-', g3}, {' ', 0}, { 0xB0, c3|d3|e3|g3 }
+};
+
+#define a4 0x04
+#define b4 0x02
+#define c4 0x80
+#define d4 0x01
+#define e4 0x40
+#define f4 0x10
+#define g4 0x20
+#define p4 0x08
+
+static const led_bitmap LED_decode_tab4[] = {
+/*
+ *
+ *  dp
+ *       +--d/01--+
+ *       |        |
+ *  c/80 |        | e/40
+ *       +--g/20--+
+ *       |        |
+ *  b/02 |        | f/10
+ *       +--a/04--+.p/08
+ *
+ */
+
+	{0,   a4|b4|c4|d4|e4|f4   },	{1,   e4|f4               },
+	{2,   a4|b4|d4|e4|g4      },	{3,   a4|d4|e4|f4|g4      },
+	{4,   c4|e4|f4|g4         },	{5,   a4|c4|d4|f4|g4      },
+	{6,   a4|b4|c4|d4|f4|g4   },	{7,   d4|e4|f4            },
+	{8,   a4|b4|c4|d4|e4|f4|g4},	{9,   a4|c4|d4|e4|f4|g4   },
+
+	{'0', a4|b4|c4|d4|e4|f4   },	{'1', e4|f4               },
+	{'2', a4|b4|d4|e4|g4      },	{'3', a4|d4|e4|f4|g4      },
+	{'4', c4|e4|f4|g4         },	{'5', a4|c4|d4|f4|g4      },
+	{'6', a4|b4|c4|d4|f4|g4   },	{'7', d4|e4|f4            },
+	{'8', a4|b4|c4|d4|e4|f4|g4},	{'9', a4|c4|d4|e4|f4|g4   },
+
+	{'a', b4|c4|d4|e4|f4|g4   },	{'A', b4|c4|d4|e4|f4|g4   },
+	{'b', a4|b4|c4|f4|g4      },	{'B', a4|b4|c4|f4|g4      },
+	{'c', a4|b4|c4|d4         },	{'C', a4|b4|c4|d4         },
+	{'d', a4|b4|e4|f4|g4      },	{'D', a4|b4|e4|f4|g4      },
+	{'e', a4|b4|c4|d4|g4      },	{'E', a4|b4|c4|d4|g4      },
+	{'f', b4|c4|d4|g4         },	{'F', b4|c4|d4|g4         },
+	{'g', a4|b4|c4|d4|f4      },	{'G', a4|b4|c4|d4|f4      },
+	{'h', b4|c4|f4|g4         },	{'H', b4|c4|f4|g4         },
+	{'i', b4|c4               },	{'I', b4|c4               },
+	{'j', a4|b4|e4|f4         },	{'J', a4|b4|e4|f4         },
+	{'k', b4|c4|d4|f4|g4      },	{'K', b4|c4|d4|f4|g4      },
+	{'l', a4|b4|c4            },	{'L', a4|b4|c4            },
+	{'m', b4|d4|f4            },	{'M', b4|d4|f4            },
+	{'n', b4|c4|d4|e4|f4      },	{'N', b4|c4|d4|e4|f4      },
+	{'o', a4|b4|f4|g4         },	{'O', a4|b4|f4|g4         },
+	{'p', b4|c4|d4|e4|g4      },	{'P', b4|c4|d4|e4|g4      },
+	{'q', c4|d4|e4|f4|g4      },	{'Q', c4|d4|e4|f4|g4      },
+	{'r', b4|g4               },	{'R', b4|g4               },
+	{'s', a4|c4|d4|f4|g4      },	{'S', a4|c4|d4|f4|g4      },
+	{'t', a4|b4|c4|g4         },	{'T', a4|b4|c4|g4         },
+	{'u', a4|b4|f4            },	{'U', a4|b4|f4            },
+	{'v', a4|b4|c4|e4|f4      },	{'V', a4|b4|c4|e4|f4      },
+	{'w', a4|c4|e4            },	{'W', a4|c4|e4            },
+	{'x', b4|c4|e4|f4|g4      },	{'X', b4|c4|e4|f4|g4      },
+	{'y', a4|c4|e4|f4|g4      },	{'Y', a4|c4|e4|f4|g4      },
+	{'z', a4|b4|d4|e4|g4      },	{'Z', a4|b4|d4|e4|g4      },
+	{'_', a4}, {'-', g4}, {' ', 0}, { 0xB0, c4|d4|e4|g4 }
 };
 
 #endif

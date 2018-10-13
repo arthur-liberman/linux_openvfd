@@ -2,6 +2,7 @@
 
 #define LEDCODES_LEN	(sizeof(LED_decode_tab1)/sizeof(LED_decode_tab1[0]))
 const led_bitmap *ledCodes = LED_decode_tab1;
+unsigned char ledDot = p1;
 
 /**
  * Source for the transpose algorithm:

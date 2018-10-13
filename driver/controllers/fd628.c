@@ -51,6 +51,7 @@ static unsigned char ram_grid_count = 7;
 static unsigned char ram_size = 14;
 static struct vfd_display_data vfd_display_data;
 extern const led_bitmap *ledCodes;
+extern unsigned char ledDot;
 
 struct controller_interface *init_fd628(struct vfd_dev *_dev)
 {
@@ -296,10 +297,11 @@ static size_t fd628_write_data(const unsigned char *_data, size_t length)
 			dev->wbuf[dtb->dat_index[i]] = data[i];
 		break;
 	case DISPLAY_TYPE_FD620_REF:
+	case DISPLAY_TYPE_4D_7S_FREESATGTC:
 		for (i = 1; i < length; i++)
 			dev->wbuf[dtb->dat_index[i]] = data[i];
 		if (data[0] & dtb->led_dots[LED_DOT_SEC])
-			dev->wbuf[dtb->dat_index[0]] |= 0x80;				// DP is the colon.
+			dev->wbuf[dtb->dat_index[0]] |= ledDot;				// DP is the colon.
 		break;
 	}
 
@@ -335,7 +337,7 @@ static size_t fd628_write_data(const unsigned char *_data, size_t length)
 		// S1 S2 S3 S4 S5 xx xx xx xx xx xx S12 S13 S14 xx xx
 		// b0 b1 b2 b3 b4 b5 b6 b7 b0 b1 b2 b3  b4  b5  b6 b7
 		for (i = 0; i < length; i++)
-			dev->wbuf[i] |= (dev->wbuf[i] & 0xE0) << 6;
+			dev->wbuf[i] |= (dev->wbuf[i] & 0x00E0) << 6;
 		break;
 	case CONTROLLER_HBS658: {
 		// Memory map:
