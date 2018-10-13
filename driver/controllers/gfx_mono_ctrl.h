@@ -13,12 +13,12 @@ struct font {
 };
 
 struct rect {
-	unsigned char x1;
-	unsigned char y1;
-	unsigned char x2;
-	unsigned char y2;
-	unsigned char width;
-	unsigned char height;
+	unsigned short x1;
+	unsigned short y1;
+	unsigned short x2;
+	unsigned short y2;
+	unsigned short width;
+	unsigned short height;
 	unsigned char text_width;
 	unsigned char text_height;
 	unsigned char length;
@@ -41,7 +41,7 @@ struct specific_gfx_mono_ctrl
 	void (*clear)(void);
 	void (*set_power)(unsigned char state);
 	void (*set_contrast)(unsigned char value);
-	unsigned char (*set_xy)(unsigned char x, unsigned char y);
+	unsigned char (*set_xy)(unsigned short x, unsigned short y);
 	void (*print_char)(char ch, const struct font *font_struct, unsigned char x, unsigned char y);
 	void (*print_string)(const unsigned char *buffer, const struct rect *rect);
 

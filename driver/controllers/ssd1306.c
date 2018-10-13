@@ -11,7 +11,7 @@ static void sh1106_clear(void);
 static void ssd1306_clear(void);
 static void ssd1306_set_power(unsigned char state);
 static void ssd1306_set_contrast(unsigned char value);
-static unsigned char ssd1306_set_xy(unsigned char x, unsigned char y);
+static unsigned char ssd1306_set_xy(unsigned short x, unsigned short y);
 static void ssd1306_print_string(const unsigned char *buffer, const struct rect *rect);
 static void ssd1306_write_ctrl_command_buf(const unsigned char *buf, unsigned int length);
 static void ssd1306_write_ctrl_command(unsigned char cmd);
@@ -162,7 +162,7 @@ static void ssd1306_set_contrast(unsigned char value)
 	ssd1306_write_ctrl_command_buf(cmd_buf, sizeof(cmd_buf));
 }
 
-static unsigned char ssd1306_set_xy(unsigned char x, unsigned char y)
+static unsigned char ssd1306_set_xy(unsigned short x, unsigned short y)
 {
 	unsigned char ret = 0;
 	x += col_offset;

@@ -12,7 +12,7 @@ static unsigned char il3829_set_display_type(struct vfd_display *display);
 static void il3829_clear(void);
 static void il3829_set_power(unsigned char state);
 static void il3829_set_contrast(unsigned char value);
-static unsigned char il3829_set_xy(unsigned char x, unsigned char y);
+static unsigned char il3829_set_xy(unsigned short x, unsigned short y);
 static void il3829_set_area(const struct rect *rect);
 static void il3829_print_char(char ch, const struct font *font_struct, unsigned char x, unsigned char y);
 static void il3829_print_string(const unsigned char *buffer, const struct rect *rect);
@@ -301,7 +301,7 @@ static void il3829_set_contrast(unsigned char value)
 {
 }
 
-static unsigned char il3829_set_xy(unsigned char x, unsigned char y)
+static unsigned char il3829_set_xy(unsigned short x, unsigned short y)
 {
 	unsigned char ret = 0;
 	y += row_offset;

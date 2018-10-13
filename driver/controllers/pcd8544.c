@@ -9,7 +9,7 @@ static unsigned char pcd8544_set_display_type(struct vfd_display *display);
 static void pcd8544_clear(void);
 static void pcd8544_set_power(unsigned char state);
 static void pcd8544_set_contrast(unsigned char value);
-static unsigned char pcd8544_set_xy(unsigned char x, unsigned char y);
+static unsigned char pcd8544_set_xy(unsigned short x, unsigned short y);
 static void pcd8544_print_string(const unsigned char *buffer, const struct rect *rect);
 static void pcd8544_write_ctrl_command_buf(const unsigned char *buf, unsigned int length);
 static void pcd8544_write_ctrl_command(unsigned char cmd);
@@ -132,7 +132,7 @@ static void pcd8544_set_contrast(unsigned char value)
 	pcd8544_write_ctrl_command_buf(cmd_buf, sizeof(cmd_buf));
 }
 
-static unsigned char pcd8544_set_xy(unsigned char x, unsigned char y)
+static unsigned char pcd8544_set_xy(unsigned short x, unsigned short y)
 {
 	unsigned char ret = 0;
 	x += col_offset;
