@@ -39,6 +39,11 @@ static struct specific_gfx_mono_ctrl il3829_gfx_mono_ctrl = {
 	.screen_view = &screen_view,
 };
 
+enum {
+	TYPE_IL3829,
+	TYPE_IL3820,
+};
+
 struct il3829_display {
 	unsigned char columns				: 3;
 	unsigned char banks				: 3;
@@ -50,7 +55,8 @@ struct il3829_display {
 			unsigned char not_i2c		: 1;
 		} i2c;
 		struct {
-			unsigned char reserved1		: 7;
+			unsigned char disp_type		: 4;
+			unsigned char reserved1		: 3;
 			unsigned char is_spi		: 1;
 		} spi;
 	};
@@ -79,14 +85,12 @@ static void il3829_init_display(unsigned char is_full_mode);
 #define GxGDEP015OC1_POWER_DELAY 150
 #define GxGDEP015OC1_PU_DELAY 325
 #define GxGDEP015OC1_FU_DELAY 1300
-#define GxGDEP015OC1_X_PIXELS 200
-#define GxGDEP015OC1_Y_PIXELS 200
 
 const unsigned char LUTDefault_full[] =
 {
   0x32,  // command
-  0x50, 0xAA, 0x55, 0xAA, 0x11, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-  0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0x1F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+  0x02, 0x02, 0x01, 0x11, 0x12, 0x12, 0x22, 0x22, 0x66, 0x69, 0x69, 0x59, 0x58, 0x99, 0x99,
+  0x88, 0x00, 0x00, 0x00, 0x00, 0xF8, 0xB4, 0x13, 0x51, 0x35, 0x51, 0x51, 0x19, 0x01, 0x00
 };
 
 const unsigned char LUTDefault_part[] =
@@ -98,10 +102,10 @@ const unsigned char LUTDefault_part[] =
 
 static struct vfd_dev *dev = NULL;
 static struct protocol_interface *protocol;
-static unsigned char rows = GxGDEP015OC1_Y_PIXELS;
-static unsigned char banks = GxGDEP015OC1_X_PIXELS / 8;
+static unsigned short rows = 200;
+static unsigned short banks = 200 / 8;
 static unsigned char row_offset = 0;
-static const unsigned char ram_buffer_blank[] = { [0 ... ((GxGDEP015OC1_X_PIXELS * GxGDEP015OC1_Y_PIXELS / 8) - 1)] = 0xFF };
+static const unsigned char ram_buffer_blank[] = { [0 ... ((200 * 200 / 8) - 1)] = 0xFF };
 static const unsigned char is_full_mode = 1;
 static int pin_rst = -1;
 static int pin_dc = -1;
@@ -110,13 +114,33 @@ static struct il3829_display il3829_display;
 static struct write_list write_list;
 static unsigned char power_state = 0;
 
+static unsigned char is_needs_transpose(void)
+{
+	return il3829_display.spi.disp_type == TYPE_IL3820;
+}
+
 struct controller_interface *init_il3829(struct vfd_dev *_dev)
 {
 	dev = _dev;
 	INIT_LIST_HEAD(&write_list.list);
 	memcpy(&il3829_display, &dev->dtb_active.display, sizeof(il3829_display));
-	screen_view.columns = 25;
-	screen_view.rows = 200;
+	switch (il3829_display.spi.disp_type) {
+	case TYPE_IL3820:
+		banks = 128 / 8;
+		rows = 296;
+		break;
+	case TYPE_IL3829:
+		banks = 200 / 8;
+		rows = 200;
+		break;
+	}
+	if (is_needs_transpose()) {
+		screen_view.columns = rows / 8;
+		screen_view.rows = banks * 8;
+	} else {
+		screen_view.columns = banks;
+		screen_view.rows = rows;
+	}
 	screen_view.colomn_offset = 0;
 	screen_view.swap_banks_orientation = 1;
 	return init_gfx_mono_ctrl(_dev, &il3829_gfx_mono_ctrl);
@@ -329,8 +353,10 @@ static void il3829_print_char(char ch, const struct font *font_struct, unsigned 
 	unsigned short offset = 0;
 	struct rect rect = {
 		.x1 = x, .x2 = x + font_struct->font_width - 1, .y1 = y, .y2 = y + font_struct->font_height - 1,
-		.font = font_struct, .length = 1,
+		.font = font_struct, .length = 1, .width = font_struct->font_width, .height = font_struct->font_height,
 	};
+	if (is_needs_transpose())
+		swap(x, y);
 	if (x >= banks || y >= rows || ch < font_struct->font_offset || ch >= font_struct->font_offset + font_struct->font_char_count)
 		return;
 
@@ -347,6 +373,18 @@ static inline void il3829_adjust_buffer(const struct write_list *item)
 		item->buffer[i] = ~item->buffer[i];
 }
 
+static void transpose_rect(struct rect *rect)
+{
+	struct rect tmp = *rect;
+	rect->x1 = (tmp.y1 / 8);
+	rect->x2 = (tmp.y2 / 8);
+	rect->y1 = rows - 8 - (tmp.x2 * 8);
+	rect->y2 = rows - (tmp.x1 * 8);
+	rect->width = tmp.height / 8;
+	rect->height = tmp.width * 8;
+}
+
+extern void transpose_buffer(unsigned char *buffer, const struct rect *rect);
 static void il3829_print_string(const unsigned char *buffer, const struct rect *_rect)
 {
 	struct write_list *new_write;
@@ -364,6 +402,10 @@ static void il3829_print_string(const unsigned char *buffer, const struct rect *
 			memcpy(new_write->buffer, buffer, new_write->buffer_length);
 			il3829_adjust_buffer(new_write);
 
+			if (is_needs_transpose()) {
+				transpose_buffer(new_write->buffer, &new_write->rect);
+				transpose_rect(&new_write->rect);
+			}
 			il3829_set_area(&new_write->rect);
 			il3829_set_xy(new_write->rect.x1, new_write->rect.y1);
 			il3829_write_ctrl_command(0x24);
@@ -405,6 +447,10 @@ static void il3829_init_display(unsigned char is_full_mode)
 		0x03, // [1] Y increment, X increment
 	};
 
+	if (il3829_display.spi.disp_type == TYPE_IL3820) {
+		gate_buf[1] = 0x27;
+		gate_buf[2] = 0x01;
+	}
 	il3829_write_ctrl_command_data_buf(gate_buf, sizeof(gate_buf));
 	il3829_write_ctrl_command_data_buf(bssc_buf, sizeof(bssc_buf));
 	il3829_write_ctrl_command_data_buf(vcom_buf, sizeof(vcom_buf));

@@ -39,6 +39,7 @@ static struct controller_interface gfx_mono_ctrl_interface = {
 #define MAX_INDICATORS	4
 
 enum display_modes {
+	DISPLAY_MODE_296x128,
 	DISPLAY_MODE_200x200,
 	DISPLAY_MODE_128x32,
 	DISPLAY_MODE_96x32,
@@ -231,16 +232,32 @@ static void print_buffer(unsigned char *buf, const struct rect *rect, unsigned c
 #endif
 
 unsigned char t_buf[sizeof(ram_buffer)] = { 0 };
-static void transpose_buffer(unsigned char *buffer, const struct rect *rect)
+void transpose_buffer(unsigned char *buffer, const struct rect *rect)
 {
 	unsigned short i;
 	if (!rect->width || !rect->height)
 		return;
 
 	print_buffer(buffer, rect, 0);
-	for (i = 0; i < (rect->height * rect->width) / 8; i++) {
-		int d = (rect->height - 1 - i % rect->height) * (rect->width / 8) + (i / rect->height);
-		transpose8rS64(&buffer[i * 8], &t_buf[d * 8]);
+	if (swap_banks_orientation) {
+		unsigned char tmp[8];
+		unsigned short x, y;
+		for (y = 0; y < rect->height; y += 8) {
+			for (x = 0; x < rect->width; x++) {
+				int s = x + y * rect->width;
+				int d = 8 * (rect->width - 1 - x) * (rect->height / 8) + (y / 8);
+				for (i = 0; i < 8; i++)
+					tmp[i] = buffer[s + (i * rect->width)];
+				transpose8rS64(tmp, tmp);
+				for (i = 0; i < 8; i++)
+					t_buf[d + (i * rect->height / 8)] = tmp[i];
+			}
+		}
+	} else {
+		for (i = 0; i < (rect->height * rect->width) / 8; i++) {
+			int d = (rect->height - 1 - i % rect->height) * (rect->width / 8) + (i / rect->height);
+			transpose8rS64(&buffer[i * 8], &t_buf[d * 8]);
+		}
 	}
 	memcpy(buffer, t_buf, rect->height * rect->width);
 	print_buffer(buffer, rect, 1);
@@ -291,6 +308,13 @@ static void setup_fonts(void)
 	init_font(&font_indicators, icons16x16_V);
 	init_font(&font_small_text, Retro8x16_V);
 	switch (rows) {
+	case 128:
+		init_font(&font_text, Grotesk32x64_H);
+		init_font(&font_small_text, Grotesk16x32_H);
+		init_font(&font_icons, icons32x32_H);
+		init_font(&font_indicators, icons32x32_H);
+		display_mode = DISPLAY_MODE_296x128;
+		break;
 	case 200:
 		init_font(&font_text, Grotesk32x64_H);
 		init_font(&font_small_text, Grotesk16x32_H);
@@ -577,6 +601,7 @@ static unsigned char print_icon(unsigned char ch)
 	case DISPLAY_MODE_96x64	:
 		print_string(str, &font_icons, 0, font_text.font_height);
 		break;
+	case DISPLAY_MODE_296x128:
 	case DISPLAY_MODE_200x200:
 	case DISPLAY_MODE_80x48	:
 	case DISPLAY_MODE_128x64:
@@ -599,13 +624,17 @@ static void print_indicator(unsigned char ch, unsigned char state, unsigned char
 	indicators_on_screen[index] = str[0];
 	if (old_data.mode == DISPLAY_MODE_CLOCK) {
 		switch (display_mode) {
+		case DISPLAY_MODE_296x128:
 		case DISPLAY_MODE_128x32:
-			x = (24 - font_indicators.font_width) / 2; // (128 - 80) / 2 = 24
+		{
+			char size = (columns - (font_text.font_width * 5)) / 2;
+			x = (size - font_indicators.font_width) / 2;
 			if (index >= 2)
-				x += 104;
+				x += size + (font_text.font_width * 5);
 			y = font_indicators.font_height * (index % 2);
 			print_string(str, &font_indicators, x, y);
 			break;
+		}
 		case DISPLAY_MODE_96x32	:
 		case DISPLAY_MODE_80x32	:
 			break;
@@ -630,7 +659,7 @@ static void print_indicator(unsigned char ch, unsigned char state, unsigned char
 
 static void print_clock_date(const struct vfd_display_data *data, unsigned char force_print)
 {
-	if (rows == 200 && !gfx_mono_ctrl_display.flags_transpose)
+	if ((rows == 128 || rows == 200) && !gfx_mono_ctrl_display.flags_transpose)
 	{
 		force_print |= data->time_date.day != old_data.time_date.day || data->time_date.month != old_data.time_date.month || data->time_date.year != old_data.time_date.year;
 		if (force_print)
