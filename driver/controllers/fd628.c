@@ -314,6 +314,7 @@ static size_t fd628_write_data(const unsigned char *_data, size_t length)
 		memset(trans, 0, sizeof(trans));
 		for (i = 0; i < length; i++)
 			trans[i] = (unsigned char)dev->wbuf[i] << 1;
+		trans[ram_grid_count] = trans[0];
 		transpose8rS64(trans, trans);
 		memset(dev->wbuf, 0x00, sizeof(dev->wbuf));
 		for (i = 0; i < ram_grid_count; i++)
