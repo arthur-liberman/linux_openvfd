@@ -86,6 +86,9 @@ static unsigned char fd628_init(void)
 		case DISPLAY_TYPE_5D_7S_G9SX:
 			ledCodes = LED_decode_tab3;
 			break;
+		case DISPLAY_TYPE_5D_7S_TAP1:
+			ledCodes = LED_decode_tab5;
+			break;
 		default:
 			ledCodes = LED_decode_tab2;
 			break;
