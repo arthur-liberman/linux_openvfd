@@ -1,6 +1,6 @@
 #include <linux/gpio.h>
-#include "../protocols/i2c.h"
-#include "../protocols/spi.h"
+#include "../protocols/i2c_sw.h"
+#include "../protocols/spi_sw.h"
 #include "ssd1306.h"
 #include "gfx_mono_ctrl.h"
 
@@ -196,7 +196,7 @@ static void init_protocol(void)
 {
 	if (ssd1306_display.spi.is_spi) {
 		if (dev->gpio0_pin.pin >= 0 && (!ssd1306_display.spi.is_4w || dev->gpio1_pin.pin >= 0)) {
-			protocol = init_spi_3w(MSB_FIRST, dev->clk_pin, dev->dat_pin, dev->stb_pin, ssd1306_display.flags_low_freq ? SPI_DELAY_100KHz : SPI_DELAY_500KHz);
+			protocol = init_sw_spi_3w(MSB_FIRST, dev->clk_pin, dev->dat_pin, dev->stb_pin, ssd1306_display.flags_low_freq ? SPI_DELAY_100KHz : SPI_DELAY_500KHz);
 			if (protocol) {
 				pin_rst = dev->gpio0_pin.pin;
 				pin_dc = dev->gpio1_pin.pin;
@@ -208,7 +208,7 @@ static void init_protocol(void)
 			pr_dbg2("SSD1306 controller failed to intialize. Invalid RESET (%d) and/or DC (%d) pins\n", dev->gpio0_pin.pin, dev->gpio1_pin.pin);
 		}
 	} else {
-		protocol = init_i2c(ssd1306_display.i2c.address, MSB_FIRST, dev->clk_pin, dev->dat_pin, ssd1306_display.flags_low_freq ? I2C_DELAY_100KHz : I2C_DELAY_500KHz);
+		protocol = init_sw_i2c(ssd1306_display.i2c.address, MSB_FIRST, dev->clk_pin, dev->dat_pin, ssd1306_display.flags_low_freq ? I2C_DELAY_100KHz : I2C_DELAY_500KHz);
 	}
 }
 

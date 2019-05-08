@@ -1,5 +1,5 @@
-#include "../protocols/i2c.h"
-#include "../protocols/spi.h"
+#include "../protocols/i2c_sw.h"
+#include "../protocols/spi_sw.h"
 #include "fd628.h"
 
 /* ****************************** Define FD628 Commands ****************************** */
@@ -74,8 +74,8 @@ static unsigned char fd628_init(void)
 {
 	unsigned char slow_freq = dev->dtb_active.display.flags & DISPLAY_FLAG_LOW_FREQ;
 	protocol = dev->dtb_active.display.controller == CONTROLLER_HBS658 ?
-		init_i2c(0, LSB_FIRST, dev->clk_pin, dev->dat_pin, slow_freq ? I2C_DELAY_20KHz : I2C_DELAY_100KHz) :
-		init_spi_3w(LSB_FIRST, dev->clk_pin, dev->dat_pin, dev->stb_pin, slow_freq ? SPI_DELAY_20KHz : SPI_DELAY_100KHz);
+		init_sw_i2c(0, LSB_FIRST, dev->clk_pin, dev->dat_pin, slow_freq ? I2C_DELAY_20KHz : I2C_DELAY_100KHz) :
+		init_sw_spi_3w(LSB_FIRST, dev->clk_pin, dev->dat_pin, dev->stb_pin, slow_freq ? SPI_DELAY_20KHz : SPI_DELAY_100KHz);
 	if (!protocol)
 		return 0;
 

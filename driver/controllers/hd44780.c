@@ -1,4 +1,4 @@
-#include "../protocols/i2c.h"
+#include "../protocols/i2c_sw.h"
 #include "hd44780.h"
 
 /* **************************** Define HD44780 Constants ****************************** */
@@ -187,7 +187,7 @@ static unsigned char read_lcd(unsigned char mode) {
 static unsigned char hd47780_init(void)
 {
 	unsigned char cmd = 0;
-	protocol = init_i2c(dev->dtb_active.display.reserved & 0x7F, MSB_FIRST, dev->clk_pin, dev->dat_pin, I2C_DELAY_500KHz);
+	protocol = init_sw_i2c(dev->dtb_active.display.reserved & 0x7F, MSB_FIRST, dev->clk_pin, dev->dat_pin, I2C_DELAY_500KHz);
 	if (!protocol)
 		return 0;
 
