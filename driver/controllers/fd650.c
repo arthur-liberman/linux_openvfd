@@ -97,9 +97,19 @@ static unsigned char fd650_init(void)
 	return 1;
 }
 
+inline static unsigned char is_fd650(void)
+{
+	return dev->dtb_active.display.controller == CONTROLLER_FD650;
+}
+
 inline static unsigned char is_fd655(void)
 {
 	return dev->dtb_active.display.controller == CONTROLLER_FD655;
+}
+
+inline static unsigned char is_fd6551(void)
+{
+	return dev->dtb_active.display.controller == CONTROLLER_FD6551;
 }
 
 static unsigned short fd650_get_brightness_levels_count(void)
@@ -117,6 +127,8 @@ static unsigned char get_actual_brightness(void)
 	unsigned char brightness = 0;
 	if (is_fd655())
 		brightness = min(2, (dev->brightness + 1) & 0x3) << 5;	// 11B disables current limit.
+	else if (is_fd6551())
+		brightness = min(7, 7 - dev->brightness) << 1;
 	else
 		brightness = (dev->brightness + 1) << 4;		// 000B => 8/8 Duty cycle, 001B - 111B => 1/8 - 7/8 Duty cycle
 	return brightness;
@@ -152,7 +164,7 @@ static struct vfd_display *fd650_get_display_type(void)
 static unsigned char fd650_set_display_type(struct vfd_display *display)
 {
 	unsigned char ret = 0;
-	if (display->type < DISPLAY_TYPE_MAX && (display->controller == CONTROLLER_FD650 || display->controller == CONTROLLER_FD655))
+	if (display->type < DISPLAY_TYPE_MAX && (is_fd650() || is_fd655() || is_fd6551()))
 	{
 		dev->dtb_active.display = *display;
 		fd650_init();
@@ -216,7 +228,7 @@ static size_t fd650_write_data(const unsigned char *_data, size_t length)
 		data[0] |= (dev->status_led_mask & ~dtb->led_dots[LED_DOT_SEC]);
 	for (i = 0; i <= length; i++)
 		tempBuf[dtb->dat_index[i]] = (unsigned char)(data[i] & 0xFF);
-	if (dtb->display.controller == CONTROLLER_FD650)
+	if (is_fd650())
 		tempBuf[dtb->dat_index[0]] |= ((data[0] | dev->status_led_mask) & ledDots[LED_DOT_SEC]) ? ledDot : 0x00;
 
 	return fd650_write_data_real(0, tempBuf, length) == 0 ? length : 0;

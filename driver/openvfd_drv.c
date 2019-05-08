@@ -125,6 +125,10 @@ static void init_controller(struct vfd_dev *dev)
 		pr_dbg2("Select FD655 controller\n");
 		temp_ctlr = init_fd650(dev);
 		break;
+	case CONTROLLER_FD6551:
+		pr_dbg2("Select FD6551 controller\n");
+		temp_ctlr = init_fd650(dev);
+		break;
 	case CONTROLLER_IL3829:
 		pr_dbg2("Select IL3829 controller\n");
 		temp_ctlr = init_il3829(dev);
