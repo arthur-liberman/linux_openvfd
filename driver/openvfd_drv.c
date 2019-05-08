@@ -562,6 +562,7 @@ unsigned char vfd_gpio0[3] = { 0x00, 0x00, 0xFF };
 unsigned char vfd_gpio1[3] = { 0x00, 0x00, 0xFF };
 unsigned char vfd_gpio2[3] = { 0x00, 0x00, 0xFF };
 unsigned char vfd_gpio3[3] = { 0x00, 0x00, 0xFF };
+unsigned char vfd_gpio_protocol[2] = { 0x00, 0x00 };
 unsigned char vfd_chars[7] = { 0, 1, 2, 3, 4, 5, 6 };
 unsigned char vfd_dot_bits[8] = { 0, 1, 2, 3, 4, 5, 6, 0 };
 unsigned char vfd_display_type[4] = { 0x00, 0x00, 0x00, 0x00 };
@@ -572,6 +573,7 @@ int vfd_gpio0_argc = 3;
 int vfd_gpio1_argc = 3;
 int vfd_gpio2_argc = 3;
 int vfd_gpio3_argc = 3;
+int vfd_gpio_protocol_argc = 2;
 int vfd_chars_argc = 0;
 int vfd_dot_bits_argc = 0;
 int vfd_display_type_argc = 0;
@@ -583,6 +585,7 @@ module_param_array(vfd_gpio0, byte, &vfd_gpio0_argc, 0000);
 module_param_array(vfd_gpio1, byte, &vfd_gpio1_argc, 0000);
 module_param_array(vfd_gpio2, byte, &vfd_gpio2_argc, 0000);
 module_param_array(vfd_gpio3, byte, &vfd_gpio3_argc, 0000);
+module_param_array(vfd_gpio_protocol, byte, &vfd_gpio_protocol_argc, 0000);
 module_param_array(vfd_chars, byte, &vfd_chars_argc, 0000);
 module_param_array(vfd_dot_bits, byte, &vfd_dot_bits_argc, 0000);
 module_param_array(vfd_display_type, byte, &vfd_display_type_argc, 0000);
@@ -666,6 +669,7 @@ static int verify_module_params(struct vfd_dev *dev)
 {
 	int ret = (vfd_gpio_clk_argc == 3 && vfd_gpio_dat_argc == 3 && vfd_gpio_stb_argc == 3 &&
 			vfd_chars_argc >= 5 && vfd_dot_bits_argc >= 7 && vfd_display_type_argc == 4) ? 1 : -1;
+	u_int8 allow_skip_clk_dat_evaluation = vfd_gpio_protocol[0] > 0;
 
 	print_param_debug("vfd_gpio_clk:\t\t", vfd_gpio_clk_argc, vfd_gpio_clk);
 	print_param_debug("vfd_gpio_dat:\t\t", vfd_gpio_dat_argc, vfd_gpio_dat);
@@ -674,16 +678,20 @@ static int verify_module_params(struct vfd_dev *dev)
 	print_param_debug("vfd_gpio1:\t\t", vfd_gpio1_argc, vfd_gpio1);
 	print_param_debug("vfd_gpio2:\t\t", vfd_gpio2_argc, vfd_gpio2);
 	print_param_debug("vfd_gpio3:\t\t", vfd_gpio3_argc, vfd_gpio3);
+	print_param_debug("vfd_gpio_protocol:\t", vfd_gpio_protocol_argc, vfd_gpio_protocol);
 	print_param_debug("vfd_chars:\t\t", vfd_chars_argc, vfd_chars);
 	print_param_debug("vfd_dot_bits:\t\t", vfd_dot_bits_argc, vfd_dot_bits);
 	print_param_debug("vfd_display_type:\t", vfd_display_type_argc, vfd_display_type);
 
+	dev->hw_protocol.protocol = vfd_gpio_protocol[0];
+	dev->hw_protocol.device_id = vfd_gpio_protocol[1];
+
 	gpiochip_find(NULL, enum_gpio_chips);
 	pr_dbg2("Detected gpio chips:\t%s.\n", gpio_chip_names);
 	if (ret >= 0)
-		ret = evaluate_pin("vfd_gpio_clk", vfd_gpio_clk, &dev->clk_pin, 0);
+		ret = evaluate_pin("vfd_gpio_clk", vfd_gpio_clk, &dev->clk_pin, allow_skip_clk_dat_evaluation);
 	if (ret >= 0)
-		ret = evaluate_pin("vfd_gpio_dat", vfd_gpio_dat, &dev->dat_pin, 0);
+		ret = evaluate_pin("vfd_gpio_dat", vfd_gpio_dat, &dev->dat_pin, allow_skip_clk_dat_evaluation);
 	if (ret >= 0)
 		ret = evaluate_pin("vfd_gpio_stb", vfd_gpio_stb, &dev->stb_pin, 1);
 	if (ret >= 0)
@@ -744,6 +752,7 @@ static int openvfd_driver_probe(struct platform_device *pdev)
 	struct property *dot_bits_prop = NULL;
 	struct property *display_type_prop = NULL;
 	int ret = 0;
+	u_int8 allow_skip_clk_dat_request = vfd_gpio_protocol[0] > 0;
 
 	pr_dbg("%s get in\n", __func__);
 
@@ -833,9 +842,9 @@ static int openvfd_driver_probe(struct platform_device *pdev)
 			pdata->dev->dtb_active.display.type, pdata->dev->dtb_active.display.controller, pdata->dev->dtb_active.display.flags);
 	}
 
-	if (request_pin("gpio_clk", &pdata->dev->clk_pin, 0))
+	if (request_pin("gpio_clk", &pdata->dev->clk_pin, allow_skip_clk_dat_request))
 		goto get_gpio_req_fail;
-	if (request_pin("dat_pin", &pdata->dev->dat_pin, 0))
+	if (request_pin("dat_pin", &pdata->dev->dat_pin, allow_skip_clk_dat_request))
 		goto get_gpio_req_fail;
 	if (request_pin("stb_pin", &pdata->dev->stb_pin, 1))
 		goto get_gpio_req_fail;

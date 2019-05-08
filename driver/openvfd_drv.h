@@ -61,6 +61,7 @@
 #define MOD_NAME_GPIO1     "openvfd_gpio1"
 #define MOD_NAME_GPIO2     "openvfd_gpio2"
 #define MOD_NAME_GPIO3     "openvfd_gpio3"
+#define MOD_NAME_PROT      "openvfd_gpio_protocol"
 #define MOD_NAME_CHARS     "openvfd_chars"
 #define MOD_NAME_DOTS      "openvfd_dot_bits"
 #define MOD_NAME_TYPE      "openvfd_display_type"
@@ -105,6 +106,11 @@ struct vfd_pin {
 	} flags;
 };
 
+struct vfd_protocol {
+	u_int8 protocol;
+	u_int8 device_id;
+};
+
 struct vfd_dev {
 	struct vfd_pin clk_pin;
 	struct vfd_pin dat_pin;
@@ -113,6 +119,7 @@ struct vfd_dev {
 	struct vfd_pin gpio1_pin;
 	struct vfd_pin gpio2_pin;
 	struct vfd_pin gpio3_pin;
+	struct vfd_protocol hw_protocol;
 	u_int16 wbuf[7];
 	struct vfd_dtb_config dtb_active;
 	struct vfd_dtb_config dtb_default;
@@ -163,6 +170,12 @@ struct vfd_display_data {
 
 	char string_main[512];
 	char string_secondary[128];
+};
+
+enum {
+	PROTOCOL_NONE,
+	PROTOCOL_I2C,
+	PROTOCOL_MAX
 };
 
 enum {

@@ -1,4 +1,5 @@
 #include <linux/gpio.h>
+#include "../protocols/i2c_hw.h"
 #include "../protocols/i2c_sw.h"
 #include "../protocols/spi_sw.h"
 #include "pcd8544.h"
@@ -180,7 +181,10 @@ static unsigned char pcd8544_init(void)
 			pr_dbg2("PCD8544 controller failed to intialize. Invalid RESET (%d) and/or DC (%d) pins\n", dev->gpio0_pin.pin, dev->gpio1_pin.pin);
 		}
 	} else {
-		protocol = init_sw_i2c(pcd8544_display.i2c.address, MSB_FIRST, dev->clk_pin, dev->dat_pin, pcd8544_display.flags_low_freq ? I2C_DELAY_100KHz : I2C_DELAY_500KHz);
+		if (dev->hw_protocol.protocol == PROTOCOL_I2C)
+			protocol = init_hw_i2c(pcd8544_display.i2c.address, dev->hw_protocol.device_id);
+		else
+			protocol = init_sw_i2c(pcd8544_display.i2c.address, MSB_FIRST, dev->clk_pin, dev->dat_pin, pcd8544_display.flags_low_freq ? I2C_DELAY_100KHz : I2C_DELAY_500KHz);
 	}
 	if (!protocol)
 		return 0;
