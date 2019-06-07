@@ -50,12 +50,12 @@ inline void gpio_set_pullup(unsigned gpio, int value)
 }
 #endif
 
-static unsigned char i2c_sw_test_connection(void)
+static unsigned char i2c_sw_test_connection(const struct protocol_interface *protocol)
 {
 	return i2c_sw_write_cmd_data(NULL, 0, NULL, 0);
 }
 
-struct protocol_interface *init_sw_i2c(unsigned short _address, unsigned char _lsb_first, struct vfd_pin _pin_scl, struct vfd_pin _pin_sda, unsigned long _i2c_sw_delay)
+struct protocol_interface *init_sw_i2c(unsigned short _address, unsigned char _lsb_first, struct vfd_pin _pin_scl, struct vfd_pin _pin_sda, unsigned long _i2c_sw_delay, unsigned char(*test_connection)(const struct protocol_interface *protocol))
 {
 	struct protocol_interface *i2c_sw_ptr = NULL;
 	if (_pin_scl.pin >= 0 && _pin_sda.pin >= 0) {
@@ -76,7 +76,9 @@ struct protocol_interface *init_sw_i2c(unsigned short _address, unsigned char _l
 		if (_pin_sda.flags.bits.pullup_on)
 			gpio_set_pullup(_pin_sda.pin, 1);
 		i2c_sw_stop_condition();
-		if (!i2c_sw_test_connection()) {
+		if (!test_connection)
+			test_connection = i2c_sw_test_connection;
+		if (!test_connection(&i2c_sw_interface)) {
 			i2c_sw_ptr = &i2c_sw_interface;
 			pr_dbg2("SW I2C interface intialized (address = 0x%04X%s, %s mode, pull-ups %s)\n", i2c_sw_address.value, !use_address ? " (N/A)" : "",
 				lsb_first ? "LSB" : "MSB", _pin_scl.flags.bits.pullup_on ? "on" : "off" );
