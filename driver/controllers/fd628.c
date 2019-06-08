@@ -301,10 +301,11 @@ static size_t fd628_write_data(const unsigned char *_data, size_t length)
 		break;
 	case DISPLAY_TYPE_FD620_REF:
 	case DISPLAY_TYPE_4D_7S_FREESATGTC:
-		for (i = 1; i < length; i++)
+		for (i = 1; i < length; i++) {
 			dev->wbuf[dtb->dat_index[i]] = data[i];
-		if (data[0] & dtb->led_dots[LED_DOT_SEC])
-			dev->wbuf[dtb->dat_index[0]] |= ledDot;				// DP is the colon.
+			if (data[0] & dtb->led_dots[LED_DOT_SEC])
+				dev->wbuf[dtb->dat_index[i]] |= ledDot;				// DP is the colon.
+		}
 		break;
 	}
 
