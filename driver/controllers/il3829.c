@@ -488,7 +488,7 @@ static unsigned char il3829_init(void)
 		if (dev->hw_protocol.protocol == PROTOCOL_I2C)
 			protocol = init_hw_i2c(il3829_display.i2c.address, dev->hw_protocol.device_id);
 		else
-			protocol = init_sw_i2c(il3829_display.i2c.address, MSB_FIRST, dev->clk_pin, dev->dat_pin, il3829_display.flags_low_freq ? I2C_DELAY_100KHz : I2C_DELAY_500KHz, NULL);
+			protocol = init_sw_i2c(il3829_display.i2c.address, MSB_FIRST, 1, dev->clk_pin, dev->dat_pin, il3829_display.flags_low_freq ? I2C_DELAY_100KHz : I2C_DELAY_500KHz, NULL);
 	}
 	if (!protocol)
 		return 0;

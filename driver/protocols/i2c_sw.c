@@ -55,7 +55,7 @@ static unsigned char i2c_sw_test_connection(const struct protocol_interface *pro
 	return i2c_sw_write_cmd_data(NULL, 0, NULL, 0);
 }
 
-struct protocol_interface *init_sw_i2c(unsigned short _address, unsigned char _lsb_first, struct vfd_pin _pin_scl, struct vfd_pin _pin_sda, unsigned long _i2c_sw_delay, unsigned char(*test_connection)(const struct protocol_interface *protocol))
+struct protocol_interface *init_sw_i2c(unsigned short _address, unsigned char _lsb_first, unsigned char _clock_stretch_support, struct vfd_pin _pin_scl, struct vfd_pin _pin_sda, unsigned long _i2c_sw_delay, unsigned char(*test_connection)(const struct protocol_interface *protocol))
 {
 	struct protocol_interface *i2c_sw_ptr = NULL;
 	if (_pin_scl.pin >= 0 && _pin_sda.pin >= 0) {
@@ -70,7 +70,7 @@ struct protocol_interface *init_sw_i2c(unsigned short _address, unsigned char _l
 		pin_scl = _pin_scl;
 		pin_sda = _pin_sda;
 		i2c_sw_delay = _i2c_sw_delay;
-		clk_stretch_timeout = 10 * _i2c_sw_delay;
+		clk_stretch_timeout = _clock_stretch_support ? (10 * _i2c_sw_delay) : 0;
 		if (_pin_scl.flags.bits.pullup_on)
 			gpio_set_pullup(_pin_scl.pin, 1);
 		if (_pin_sda.flags.bits.pullup_on)
@@ -129,11 +129,15 @@ static inline unsigned char i2c_sw_ack(void)
 	udelay(i2c_sw_delay);
 	gpio_set_pin_high(&pin_scl);
 	udelay(i2c_sw_delay);
-	do {
-		scl = gpio_get_value(pin_scl.pin) ? 1 : 0;
-		udelay(1);
-	} while (!scl && timeout--);
-	ret = gpio_get_value(pin_sda.pin) ? 1 : 0;
+	if (timeout) {
+		do {
+			scl = gpio_get_value(pin_scl.pin) ? 1 : 0;
+			udelay(1);
+		} while (!scl && timeout--);
+		ret = gpio_get_value(pin_sda.pin) ? 1 : 0;
+	} else {
+		ret = 0;
+	}
 	gpio_set_pin_low(&pin_scl);
 	gpio_set_pin_low(&pin_sda);
 	udelay(i2c_sw_delay);
