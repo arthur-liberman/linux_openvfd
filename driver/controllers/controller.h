@@ -12,6 +12,8 @@ struct controller_interface {
 
 	unsigned char (*get_power)(void);
 	void (*set_power)(unsigned char state);
+	void (*power_suspend)(void);
+	void (*power_resume)(void);
 
 	struct vfd_display *(*get_display_type)(void);
 	unsigned char (*set_display_type)(struct vfd_display *display);

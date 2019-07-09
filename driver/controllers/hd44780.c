@@ -95,6 +95,8 @@ static unsigned short hd47780_get_brightness_level(void);
 static unsigned char hd47780_set_brightness_level(unsigned short level);
 static unsigned char hd47780_get_power(void);
 static void hd47780_set_power(unsigned char state);
+static void hd47780_power_suspend(void) { hd47780_set_power(0); }
+static void hd47780_power_resume(void) { hd47780_init(); }
 static struct vfd_display *hd47780_get_display_type(void);
 static unsigned char hd47780_set_display_type(struct vfd_display *display);
 static void hd47780_set_icon(const char *name, unsigned char state);
@@ -109,6 +111,8 @@ static struct controller_interface hd47780_interface = {
 	.set_brightness_level = hd47780_set_brightness_level,
 	.get_power = hd47780_get_power,
 	.set_power = hd47780_set_power,
+	.power_suspend = hd47780_power_suspend,
+	.power_resume = hd47780_power_resume,
 	.get_display_type = hd47780_get_display_type,
 	.set_display_type = hd47780_set_display_type,
 	.set_icon = hd47780_set_icon,

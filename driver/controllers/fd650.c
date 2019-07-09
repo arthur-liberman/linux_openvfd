@@ -19,6 +19,8 @@ static unsigned short fd650_get_brightness_level(void);
 static unsigned char fd650_set_brightness_level(unsigned short level);
 static unsigned char fd650_get_power(void);
 static void fd650_set_power(unsigned char state);
+static void fd650_power_suspend(void) { fd650_set_power(0); }
+static void fd650_power_resume(void) { fd650_set_power(1); }
 static struct vfd_display *fd650_get_display_type(void);
 static unsigned char fd650_set_display_type(struct vfd_display *display);
 static void fd650_set_icon(const char *name, unsigned char state);
@@ -33,6 +35,8 @@ static struct controller_interface fd650_interface = {
 	.set_brightness_level = fd650_set_brightness_level,
 	.get_power = fd650_get_power,
 	.set_power = fd650_set_power,
+	.power_suspend = fd650_power_suspend,
+	.power_resume = fd650_power_resume,
 	.get_display_type = fd650_get_display_type,
 	.set_display_type = fd650_set_display_type,
 	.set_icon = fd650_set_icon,

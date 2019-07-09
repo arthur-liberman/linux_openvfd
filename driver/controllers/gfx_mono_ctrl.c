@@ -14,6 +14,8 @@ static unsigned short gfx_mono_ctrl_get_brightness_level(void);
 static unsigned char gfx_mono_ctrl_set_brightness_level(unsigned short level);
 static unsigned char gfx_mono_ctrl_get_power(void);
 static void gfx_mono_ctrl_set_power(unsigned char state);
+static void gfx_mono_ctrl_power_suspend(void) { gfx_mono_ctrl_set_power(0); }
+static void gfx_mono_ctrl_power_resume(void) { gfx_mono_ctrl_init(); }
 static struct vfd_display *gfx_mono_ctrl_get_display_type(void);
 static unsigned char gfx_mono_ctrl_set_display_type(struct vfd_display *display);
 static void gfx_mono_ctrl_set_icon(const char *name, unsigned char state);
@@ -28,6 +30,8 @@ static struct controller_interface gfx_mono_ctrl_interface = {
 	.set_brightness_level = gfx_mono_ctrl_set_brightness_level,
 	.get_power = gfx_mono_ctrl_get_power,
 	.set_power = gfx_mono_ctrl_set_power,
+	.power_suspend = gfx_mono_ctrl_power_suspend,
+	.power_resume = gfx_mono_ctrl_power_resume,
 	.get_display_type = gfx_mono_ctrl_get_display_type,
 	.set_display_type = gfx_mono_ctrl_set_display_type,
 	.set_icon = gfx_mono_ctrl_set_icon,
@@ -375,7 +379,8 @@ static void setup_fonts(void)
 
 static unsigned char gfx_mono_ctrl_init(void)
 {
-	pr_dbg2("gfx_mono_ctrl_init - not implemented\n");
+	if (gfx_mono_ctrl_interface.init != gfx_mono_ctrl_init)
+		return gfx_mono_ctrl_interface.init();
 	return 0;
 }
 

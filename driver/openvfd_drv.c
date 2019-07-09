@@ -974,14 +974,18 @@ static void openvfd_driver_shutdown(struct platform_device *dev)
 static int openvfd_driver_suspend(struct platform_device *dev, pm_message_t state)
 {
 	pr_dbg("openvfd_driver_suspend");
-	set_power(0);
+	if (vfd_display_auto_power && controller && controller->power_suspend) {
+		controller->power_suspend();
+	}
 	return 0;
 }
 
 static int openvfd_driver_resume(struct platform_device *dev)
 {
 	pr_dbg("openvfd_driver_resume");
-	set_power(1);
+	if (vfd_display_auto_power && controller && controller->power_resume) {
+		controller->power_resume();
+	}
 	return 0;
 }
 
