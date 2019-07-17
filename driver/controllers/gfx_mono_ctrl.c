@@ -379,6 +379,7 @@ static void setup_fonts(void)
 
 static unsigned char gfx_mono_ctrl_init(void)
 {
+	old_data.mode = DISPLAY_MODE_NONE;
 	if (gfx_mono_ctrl_interface.init != gfx_mono_ctrl_init)
 		return gfx_mono_ctrl_interface.init();
 	return 0;

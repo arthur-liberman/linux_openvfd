@@ -195,6 +195,7 @@ static unsigned char hd47780_init(void)
 	if (!protocol)
 		return 0;
 
+	old_data.mode = DISPLAY_MODE_NONE;
 	columns = (dev->dtb_active.display.type & 0x1F) << 1;
 	rows = (dev->dtb_active.display.type >> 5) & 0x07;
 	rows++;
