@@ -19,6 +19,7 @@ bool set_display_type(int new_display_type);
 bool is_verbose(int argc, char *argv[]);
 bool is_demo_mode(int argc, char *argv[]);
 bool is_test_mode(int argc, char *argv[]);
+bool is_12h_mode(int argc, char *argv[]);
 int get_cmd_display_type(int argc, char *argv[]);
 int get_cmd_chars_order(int argc, char *argv[], u_int8 chars[], const int sz);
 bool print_usage(int argc, char *argv[]);
@@ -33,6 +34,11 @@ struct sync_data {
 		struct vfd_display_data display_data;
 		char buffer[sizeof(struct vfd_display_data)];
 	};
+};
+
+struct display_setup {
+	bool is_demo;
+	bool is_12h;
 };
 
 typedef struct _DotLedBitMap {
@@ -83,7 +89,7 @@ void mdelay(int n)
 
 struct sync_data sync_data;
 
-void led_display_loop(bool demo_mode)
+void led_display_loop(const struct display_setup *setup)
 {
 	static struct vfd_display_data data;
 	int ret = -1;
@@ -118,7 +124,7 @@ void led_display_loop(bool demo_mode)
 					time(&now);
 					timenow = localtime(&now);
 
-					if (demo_mode) {
+					if (setup->is_demo) {
 						data.mode = 1 + timenow->tm_sec / 12;
 						data.temperature = timenow->tm_hour + timenow->tm_min + timenow->tm_sec;
 						data.channel_data.channel = (u_int16)10*(timenow->tm_hour + timenow->tm_min + timenow->tm_sec);
@@ -140,7 +146,16 @@ void led_display_loop(bool demo_mode)
 					} else {
 						if (data.mode != DISPLAY_MODE_DATE)
 							data.mode = DISPLAY_MODE_CLOCK;
-						data.time_date.hours = timenow->tm_hour;
+						if (setup->is_12h) {
+							if (timenow->tm_hour == 0)
+								data.time_date.hours = 12;
+							else if (timenow->tm_hour > 12)
+								data.time_date.hours = timenow->tm_hour - 12;
+							else
+								data.time_date.hours = timenow->tm_hour;
+						} else {
+							data.time_date.hours = timenow->tm_hour;
+						}
 						data.time_date.minutes = timenow->tm_min;
 						data.time_date.seconds = timenow->tm_sec;
 						data.time_date.day_of_week = timenow->tm_wday;
@@ -281,8 +296,8 @@ void led_test_loop(bool cycle_display_types)
 
 void *display_thread_handler(void *arg)
 {
-	bool demo_mode = *(bool*)arg;
-	led_display_loop(demo_mode);
+	struct display_setup *setup = (struct display_setup*)arg;
+	led_display_loop(setup);
 	pthread_exit(NULL);
 }
 
@@ -439,13 +454,15 @@ int main(int argc, char *argv[])
 	if (test_mode)
 		ret = pthread_create(&disp_id, NULL, display_test_thread_handler, &cycle_display_types);
 	else {
+		struct display_setup setup = { 0 };
 		struct sigaction sig_handler = {.sa_handler=handle_signal};
 		memset(&sync_data, 0, sizeof(struct sync_data));
 		sync_data.isActive = true;
 		sigaction(SIGTERM, &sig_handler, 0);
 		sigaction(SIGINT, &sig_handler, 0);
-		test_mode = is_demo_mode(argc, argv);
-		ret = pthread_create(&disp_id, NULL, display_thread_handler, &test_mode);
+		setup.is_demo = is_demo_mode(argc, argv);
+		setup.is_12h = is_12h_mode(argc, argv);
+		ret = pthread_create(&disp_id, NULL, display_thread_handler, &setup);
 		if (ret == 0)
 			ret = pthread_create(&npipe_id, NULL, named_pipe_thread_handler, NULL);
 	}
@@ -488,6 +505,11 @@ bool is_demo_mode(int argc, char *argv[])
 bool is_test_mode(int argc, char *argv[])
 {
 	return is_cmd_option(argc, argv, "-t");
+}
+
+bool is_12h_mode(int argc, char *argv[])
+{
+	return is_cmd_option(argc, argv, "-12h");
 }
 
 int get_cmd_display_type(int argc, char *argv[])
