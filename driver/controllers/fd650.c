@@ -182,7 +182,9 @@ static void fd650_set_icon(const char *name, unsigned char state)
 {
 	struct vfd_dtb_config *dtb = &dev->dtb_active;
 	switch (dtb->display.type) {
+	case DISPLAY_TYPE_5D_7S_NORMAL:
 	case DISPLAY_TYPE_5D_7S_T95:
+	case DISPLAY_TYPE_5D_7S_G9SX:
 		if (strncmp(name,"alarm",5) == 0) {
 			dev->status_led_mask = state ? (dev->status_led_mask | dtb->led_dots[LED_DOT1_ALARM]) : (dev->status_led_mask & ~dtb->led_dots[LED_DOT1_ALARM]);
 		} else if (strncmp(name,"usb",3) == 0) {
@@ -197,6 +199,51 @@ static void fd650_set_icon(const char *name, unsigned char state)
 			dev->status_led_mask = state ? (dev->status_led_mask | dtb->led_dots[LED_DOT1_ETH]) : (dev->status_led_mask & ~dtb->led_dots[LED_DOT1_ETH]);
 		} else if (strncmp(name,"wifi",4) == 0) {
 			dev->status_led_mask = state ? (dev->status_led_mask | dtb->led_dots[LED_DOT1_WIFI]) : (dev->status_led_mask & ~dtb->led_dots[LED_DOT1_WIFI]);
+		}
+		break;
+	case DISPLAY_TYPE_5D_7S_X92:
+		if (strncmp(name,"apps",4) == 0) {
+			dev->status_led_mask = state ? (dev->status_led_mask | dtb->led_dots[LED_DOT2_APPS]) : (dev->status_led_mask & ~dtb->led_dots[LED_DOT2_APPS]);
+		} else if (strncmp(name,"setup",5) == 0) {
+			dev->status_led_mask = state ? (dev->status_led_mask | dtb->led_dots[LED_DOT2_SETUP]) : (dev->status_led_mask & ~dtb->led_dots[LED_DOT2_SETUP]);
+		} else if (strncmp(name,"usb",3) == 0) {
+			dev->status_led_mask = state ? (dev->status_led_mask | dtb->led_dots[LED_DOT2_USB]) : (dev->status_led_mask & ~dtb->led_dots[LED_DOT2_USB]);
+		} else if (strncmp(name,"sd",2) == 0) {
+			dev->status_led_mask = state ? (dev->status_led_mask | dtb->led_dots[LED_DOT2_CARD]) : (dev->status_led_mask & ~dtb->led_dots[LED_DOT2_CARD]);
+		} else if (strncmp(name,"colon",5) == 0) {
+			dev->status_led_mask = state ? (dev->status_led_mask | dtb->led_dots[LED_DOT2_SEC]) : (dev->status_led_mask & ~dtb->led_dots[LED_DOT2_SEC]);
+		} else if (strncmp(name,"hdmi",4) == 0) {
+			dev->status_led_mask = state ? (dev->status_led_mask | dtb->led_dots[LED_DOT2_HDMI]) : (dev->status_led_mask & ~dtb->led_dots[LED_DOT2_HDMI]);
+		} else if (strncmp(name,"cvbs",4) == 0) {
+			dev->status_led_mask = state ? (dev->status_led_mask | dtb->led_dots[LED_DOT2_CVBS]) : (dev->status_led_mask & ~dtb->led_dots[LED_DOT2_CVBS]);
+		}
+		break;
+	case DISPLAY_TYPE_5D_7S_ABOX:
+		if (strncmp(name,"power",5) == 0) {
+			dev->status_led_mask = state ? (dev->status_led_mask | dtb->led_dots[LED_DOT3_POWER]) : (dev->status_led_mask & ~dtb->led_dots[LED_DOT3_POWER]);
+		} else if (strncmp(name,"eth",3) == 0) {
+			dev->status_led_mask = state ? (dev->status_led_mask | dtb->led_dots[LED_DOT3_LAN]) : (dev->status_led_mask & ~dtb->led_dots[LED_DOT3_LAN]);
+		} else if (strncmp(name,"colon",5) == 0) {
+			dev->status_led_mask = state ? (dev->status_led_mask | dtb->led_dots[LED_DOT3_SEC]) : (dev->status_led_mask & ~dtb->led_dots[LED_DOT3_SEC]);
+		} else if (strncmp(name,"wifi",4) == 0) {
+			dev->status_led_mask = state ? (dev->status_led_mask | dtb->led_dots[LED_DOT3_WIFIHI] | dtb->led_dots[LED_DOT3_WIFILO]) : (dev->status_led_mask & ~(dtb->led_dots[LED_DOT3_WIFIHI] | dtb->led_dots[LED_DOT3_WIFILO]));
+		}
+		break;
+	case DISPLAY_TYPE_5D_7S_M9_PRO:
+		if (strncmp(name,"b-t",3) == 0) {
+			dev->status_led_mask = state ? (dev->status_led_mask | dtb->led_dots[LED_DOT4_BT]) : (dev->status_led_mask & ~dtb->led_dots[LED_DOT4_BT]);
+		} else if (strncmp(name,"eth",3) == 0) {
+			dev->status_led_mask = state ? (dev->status_led_mask | dtb->led_dots[LED_DOT4_ETH]) : (dev->status_led_mask & ~dtb->led_dots[LED_DOT4_ETH]);
+		} else if (strncmp(name,"wifi",4) == 0) {
+			dev->status_led_mask = state ? (dev->status_led_mask | dtb->led_dots[LED_DOT4_WIFI]) : (dev->status_led_mask & ~dtb->led_dots[LED_DOT4_WIFI]);
+		} else if (strncmp(name,"spdif",5) == 0) {
+			dev->status_led_mask = state ? (dev->status_led_mask | dtb->led_dots[LED_DOT4_SPDIF]) : (dev->status_led_mask & ~dtb->led_dots[LED_DOT4_SPDIF]);
+		} else if (strncmp(name,"colon",5) == 0) {
+			dev->status_led_mask = state ? (dev->status_led_mask | dtb->led_dots[LED_DOT4_SEC]) : (dev->status_led_mask & ~dtb->led_dots[LED_DOT4_SEC]);
+		} else if (strncmp(name,"hdmi",4) == 0) {
+			dev->status_led_mask = state ? (dev->status_led_mask | dtb->led_dots[LED_DOT4_HDMI]) : (dev->status_led_mask & ~dtb->led_dots[LED_DOT4_HDMI]);
+		} else if (strncmp(name,"cvbs",4) == 0) {
+			dev->status_led_mask = state ? (dev->status_led_mask | dtb->led_dots[LED_DOT4_AV]) : (dev->status_led_mask & ~dtb->led_dots[LED_DOT4_AV]);
 		}
 		break;
 	default:
