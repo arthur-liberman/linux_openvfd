@@ -40,6 +40,9 @@
 #ifdef CONFIG_HAS_EARLYSUSPEND
 #include <linux/earlysuspend.h>
 static struct early_suspend openvfd_early_suspend;
+#elif CONFIG_AMLOGIC_LEGACY_EARLY_SUSPEND
+#include <linux/amlogic/pm.h>
+static struct early_suspend openvfd_early_suspend;
 #endif
 
 unsigned char vfd_display_auto_power = 1;
@@ -541,7 +544,7 @@ static DEVICE_ATTR(led_cmd , S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP, led_cmd_show
 static DEVICE_ATTR(led_on , S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP, led_on_show , led_on_store);
 static DEVICE_ATTR(led_off , S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP, led_off_show , led_off_store);
 
-#ifdef CONFIG_HAS_EARLYSUSPEND
+#if defined(CONFIG_HAS_EARLYSUSPEND) || defined(CONFIG_AMLOGIC_LEGACY_EARLY_SUSPEND)
 static void openvfd_suspend(struct early_suspend *h)
 {
 	pr_info("%s!\n", __func__);
@@ -900,7 +903,7 @@ static int openvfd_driver_probe(struct platform_device *pdev)
 	FD628_WrDisp_AddrINC(0x00, 2*5, pdata->dev);
 #endif
 
-#ifdef CONFIG_HAS_EARLYSUSPEND
+#if defined(CONFIG_HAS_EARLYSUSPEND) || defined(CONFIG_AMLOGIC_LEGACY_EARLY_SUSPEND)
 	openvfd_early_suspend.level = EARLY_SUSPEND_LEVEL_BLANK_SCREEN;
 	openvfd_early_suspend.suspend = openvfd_suspend;
 	openvfd_early_suspend.resume = openvfd_resume;
@@ -938,7 +941,7 @@ static int openvfd_driver_probe(struct platform_device *pdev)
 static int openvfd_driver_remove(struct platform_device *pdev)
 {
 	set_power(0);
-#ifdef CONFIG_HAS_EARLYSUSPEND
+#if defined(CONFIG_HAS_EARLYSUSPEND) || defined(CONFIG_AMLOGIC_LEGACY_EARLY_SUSPEND)
 	unregister_early_suspend(&openvfd_early_suspend);
 #endif
 	led_classdev_unregister(&kp->cdev);
