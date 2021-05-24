@@ -273,7 +273,8 @@ static int set_display_brightness(struct vfd_dev *dev, u_int8 new_brightness)
 
 static void set_display_type(struct vfd_dev *dev, int new_display_type)
 {
-	memcpy(&dev->dtb_active.display, &new_display_type, sizeof(struct vfd_display));
+	struct vfd_display *display=(struct vfd_display *) &new_display_type;
+	dev->dtb_active.display.type = display->type;
 	init_controller(dev);
 }
 
