@@ -558,6 +558,7 @@ static void openvfd_resume(struct early_suspend *h)
 }
 #endif
 
+char *vfd_gpio_chip_name = NULL;
 unsigned char vfd_gpio_clk[3];
 unsigned char vfd_gpio_dat[3];
 unsigned char vfd_gpio_stb[3];
@@ -581,6 +582,7 @@ int vfd_chars_argc = 0;
 int vfd_dot_bits_argc = 0;
 int vfd_display_type_argc = 0;
 
+module_param(vfd_gpio_chip_name, charp, 0000);
 module_param_array(vfd_gpio_clk, byte, &vfd_gpio_clk_argc, 0000);
 module_param_array(vfd_gpio_dat, byte, &vfd_gpio_dat_argc, 0000);
 module_param_array(vfd_gpio_stb, byte, &vfd_gpio_stb_argc, 0000);
@@ -618,15 +620,18 @@ static int is_right_chip(struct gpio_chip *chip, void *data)
 static int get_chip_pin_number(const unsigned char gpio[])
 {
 	int pin = -1;
-	if (gpio[0] < 6) {
-		struct gpio_chip *chip;
+	struct gpio_chip *chip;
+	const char *bank_name = vfd_gpio_chip_name;
+	if (!bank_name && gpio[0] < 6) {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4,0,0)
 		const char *pin_banks[] = { "banks", "ao-bank", "gpio0", "gpio1", "gpio2", "gpio3" };
 #else
 		const char *pin_banks[] = { "periphs-banks", "aobus-banks", "gpio0", "gpio1", "gpio2", "gpio3" };
 #endif
-		const char *bank_name = pin_banks[gpio[0]];
+		bank_name = pin_banks[gpio[0]];
+	}
 
+	if (bank_name) {
 		chip = gpiochip_find((char *)bank_name, is_right_chip);
 		if (chip) {
 			if (chip->ngpio > gpio[1])
@@ -635,6 +640,8 @@ static int get_chip_pin_number(const unsigned char gpio[])
 		} else {
 			pr_dbg2("\"%s\" chip was not found\n", bank_name);
 		}
+	} else {
+		pr_dbg2("gpiochip name was not provided or gpiochip index %d is out of bounds\n", gpio[0]);
 	}
 
 	return pin;
