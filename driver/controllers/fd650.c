@@ -134,7 +134,7 @@ static unsigned char get_actual_brightness(void)
 	else if (is_fd6551())
 		brightness = min(7, 7 - dev->brightness) << 1;
 	else
-		brightness = (dev->brightness + 1) << 4;		// 000B => 8/8 Duty cycle, 001B - 111B => 1/8 - 7/8 Duty cycle
+		brightness = ((dev->brightness + 1) & 0x7) << 4;	// 000B => 8/8 Duty cycle, 001B - 111B => 1/8 - 7/8 Duty cycle
 	return brightness;
 }
 
