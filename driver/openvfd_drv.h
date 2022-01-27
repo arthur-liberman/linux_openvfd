@@ -31,7 +31,7 @@
 #define FALSE 0
 #endif
 
-#define  OPENVFD_DRIVER_VERSION	"V1.4.0"
+#define  OPENVFD_DRIVER_VERSION	"V1.4.1"
 
 /*
  * Ioctl definitions

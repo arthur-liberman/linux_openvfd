@@ -559,17 +559,17 @@ static void openvfd_resume(struct early_suspend *h)
 #endif
 
 char *vfd_gpio_chip_name = NULL;
-unsigned char vfd_gpio_clk[3];
-unsigned char vfd_gpio_dat[3];
-unsigned char vfd_gpio_stb[3];
-unsigned char vfd_gpio0[3] = { 0x00, 0x00, 0xFF };
-unsigned char vfd_gpio1[3] = { 0x00, 0x00, 0xFF };
-unsigned char vfd_gpio2[3] = { 0x00, 0x00, 0xFF };
-unsigned char vfd_gpio3[3] = { 0x00, 0x00, 0xFF };
-unsigned char vfd_gpio_protocol[2] = { 0x00, 0x00 };
-unsigned char vfd_chars[7] = { 0, 1, 2, 3, 4, 5, 6 };
-unsigned char vfd_dot_bits[8] = { 0, 1, 2, 3, 4, 5, 6, 0 };
-unsigned char vfd_display_type[4] = { 0x00, 0x00, 0x00, 0x00 };
+unsigned int vfd_gpio_clk[3];
+unsigned int vfd_gpio_dat[3];
+unsigned int vfd_gpio_stb[3];
+unsigned int vfd_gpio0[3] = { 0x00, 0x00, 0xFF };
+unsigned int vfd_gpio1[3] = { 0x00, 0x00, 0xFF };
+unsigned int vfd_gpio2[3] = { 0x00, 0x00, 0xFF };
+unsigned int vfd_gpio3[3] = { 0x00, 0x00, 0xFF };
+unsigned int vfd_gpio_protocol[2] = { 0x00, 0x00 };
+unsigned int vfd_chars[7] = { 0, 1, 2, 3, 4, 5, 6 };
+unsigned int vfd_dot_bits[8] = { 0, 1, 2, 3, 4, 5, 6, 0 };
+unsigned int vfd_display_type[4] = { 0x00, 0x00, 0x00, 0x00 };
 int vfd_gpio_clk_argc = 0;
 int vfd_gpio_dat_argc = 0;
 int vfd_gpio_stb_argc = 0;
@@ -583,20 +583,20 @@ int vfd_dot_bits_argc = 0;
 int vfd_display_type_argc = 0;
 
 module_param(vfd_gpio_chip_name, charp, 0000);
-module_param_array(vfd_gpio_clk, byte, &vfd_gpio_clk_argc, 0000);
-module_param_array(vfd_gpio_dat, byte, &vfd_gpio_dat_argc, 0000);
-module_param_array(vfd_gpio_stb, byte, &vfd_gpio_stb_argc, 0000);
-module_param_array(vfd_gpio0, byte, &vfd_gpio0_argc, 0000);
-module_param_array(vfd_gpio1, byte, &vfd_gpio1_argc, 0000);
-module_param_array(vfd_gpio2, byte, &vfd_gpio2_argc, 0000);
-module_param_array(vfd_gpio3, byte, &vfd_gpio3_argc, 0000);
-module_param_array(vfd_gpio_protocol, byte, &vfd_gpio_protocol_argc, 0000);
-module_param_array(vfd_chars, byte, &vfd_chars_argc, 0000);
-module_param_array(vfd_dot_bits, byte, &vfd_dot_bits_argc, 0000);
-module_param_array(vfd_display_type, byte, &vfd_display_type_argc, 0000);
+module_param_array(vfd_gpio_clk, uint, &vfd_gpio_clk_argc, 0000);
+module_param_array(vfd_gpio_dat, uint, &vfd_gpio_dat_argc, 0000);
+module_param_array(vfd_gpio_stb, uint, &vfd_gpio_stb_argc, 0000);
+module_param_array(vfd_gpio0, uint, &vfd_gpio0_argc, 0000);
+module_param_array(vfd_gpio1, uint, &vfd_gpio1_argc, 0000);
+module_param_array(vfd_gpio2, uint, &vfd_gpio2_argc, 0000);
+module_param_array(vfd_gpio3, uint, &vfd_gpio3_argc, 0000);
+module_param_array(vfd_gpio_protocol, uint, &vfd_gpio_protocol_argc, 0000);
+module_param_array(vfd_chars, uint, &vfd_chars_argc, 0000);
+module_param_array(vfd_dot_bits, uint, &vfd_dot_bits_argc, 0000);
+module_param_array(vfd_display_type, uint, &vfd_display_type_argc, 0000);
 module_param(vfd_display_auto_power, byte, 0000);
 
-static void print_param_debug(const char *label, int argc, unsigned char param[])
+static void print_param_debug(const char *label, int argc, unsigned int param[])
 {
 	int i, len = 0;
 	char buffer[1024];
@@ -617,7 +617,7 @@ static int is_right_chip(struct gpio_chip *chip, void *data)
 	return 0;
 }
 
-static int get_chip_pin_number(const unsigned char gpio[])
+static int get_chip_pin_number(const unsigned int gpio[])
 {
 	int pin = -1;
 	struct gpio_chip *chip;
@@ -647,7 +647,7 @@ static int get_chip_pin_number(const unsigned char gpio[])
 	return pin;
 }
 
-int evaluate_pin(const char *name, const unsigned char *vfd_arg, struct vfd_pin *pin, unsigned char enable_skip_evaluation)
+int evaluate_pin(const char *name, const unsigned int *vfd_arg, struct vfd_pin *pin, unsigned char enable_skip_evaluation)
 {
 	int ret = 0;
 	if (enable_skip_evaluation && vfd_arg[2] == 0xFF) {
@@ -655,7 +655,7 @@ int evaluate_pin(const char *name, const unsigned char *vfd_arg, struct vfd_pin 
 		pr_dbg2("Skipping %s evaluation (0xFF)\n", name);
 	}
 	else if ((ret = pin->pin = get_chip_pin_number(vfd_arg)) >= 0)
-		pin->flags.value = (unsigned int)vfd_arg[2];
+		pin->flags.value = vfd_arg[2];
 	else
 		pr_error("Could not get pin number for %s\n", name);
 	return ret;
@@ -693,8 +693,8 @@ static int verify_module_params(struct vfd_dev *dev)
 	print_param_debug("vfd_dot_bits:\t\t", vfd_dot_bits_argc, vfd_dot_bits);
 	print_param_debug("vfd_display_type:\t", vfd_display_type_argc, vfd_display_type);
 
-	dev->hw_protocol.protocol = vfd_gpio_protocol[0];
-	dev->hw_protocol.device_id = vfd_gpio_protocol[1];
+	dev->hw_protocol.protocol = (u_int8)vfd_gpio_protocol[0];
+	dev->hw_protocol.device_id = (u_int8)vfd_gpio_protocol[1];
 
 	gpiochip_find(NULL, enum_gpio_chips);
 	pr_dbg2("Detected gpio chips:\t%s.\n", gpio_chip_names);
@@ -716,13 +716,13 @@ static int verify_module_params(struct vfd_dev *dev)
 	if (ret >= 0) {
 		int i;
 		for (i = 0; i < 7; i++)
-			dev->dtb_active.dat_index[i] = vfd_chars[i];
+			dev->dtb_active.dat_index[i] = (u_int8)vfd_chars[i];
 		for (i = 0; i < 8; i++)
-			dev->dtb_active.led_dots[i] = ledDots[vfd_dot_bits[i]];
-		dev->dtb_active.display.type = vfd_display_type[0];
-		dev->dtb_active.display.reserved = vfd_display_type[1];
-		dev->dtb_active.display.flags = vfd_display_type[2];
-		dev->dtb_active.display.controller = vfd_display_type[3];
+			dev->dtb_active.led_dots[i] = (u_int8)ledDots[vfd_dot_bits[i]];
+		dev->dtb_active.display.type = (u_int8)vfd_display_type[0];
+		dev->dtb_active.display.reserved = (u_int8)vfd_display_type[1];
+		dev->dtb_active.display.flags = (u_int8)vfd_display_type[2];
+		dev->dtb_active.display.controller = (u_int8)vfd_display_type[3];
 	}
 
 	return ret >= 0;
