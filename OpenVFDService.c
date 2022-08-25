@@ -16,6 +16,7 @@
 
 void select_display_type(void);
 bool set_display_type(int new_display_type);
+const char *get_user_string(int argc, char *argv[]);
 bool is_verbose(int argc, char *argv[]);
 bool is_demo_mode(int argc, char *argv[]);
 bool is_test_mode(int argc, char *argv[]);
@@ -39,6 +40,7 @@ struct sync_data {
 struct display_setup {
 	bool is_demo;
 	bool is_12h;
+	const char *user_string;
 };
 
 typedef struct _DotLedBitMap {
@@ -92,13 +94,22 @@ struct sync_data sync_data;
 
 void led_display_loop(const struct display_setup *setup)
 {
-	static struct vfd_display_data data;
+	static struct vfd_display_data data = { 0 };
+	bool use_user_string = false;
 	int ret = -1;
 
 	time_t now;
 	struct tm *timenow;
 
 	memset(&data, 0, sizeof(data));
+
+	if (setup->user_string) {
+		use_user_string = true;
+		data.mode = DISPLAY_MODE_TITLE;
+		snprintf(data.string_main, sizeof(data.string_secondary), setup->user_string);
+		snprintf(data.string_secondary, sizeof(data.string_secondary), "User string:");
+	}
+
 	while(sync_data.isActive) {
 		if (!pthread_mutex_lock(&sync_data.mutex)) {
 			ret = pthread_cond_timedwait(&sync_data.cond, &sync_data.mutex, &sync_data.abs_time);
@@ -113,12 +124,14 @@ void led_display_loop(const struct display_setup *setup)
 				select_display_type();
 				if (sync_data.useBuffer && (sync_data.display_data.mode == DISPLAY_MODE_CLOCK ||
 						sync_data.display_data.mode == DISPLAY_MODE_DATE)) {
+					use_user_string = false;
 					sync_data.useBuffer = false;
 					sync_data.display_data.colon_on = data.colon_on;
 					data = sync_data.display_data;
 				}
 
 				if (sync_data.useBuffer) {
+					use_user_string = false;
 					data = sync_data.display_data;
 				} else {
 					// Get current time
@@ -144,7 +157,7 @@ void led_display_loop(const struct display_setup *setup)
 						// Really long movie title.
 						snprintf(data.string_main, sizeof(data.string_secondary), "The Saga of the Viking Women and their Voyage to the Waters of the Great Sea Serpent");
 						snprintf(data.string_secondary, sizeof(data.string_secondary), "Now playing:");
-					} else {
+					} else if (!use_user_string) {
 						if (data.mode != DISPLAY_MODE_DATE)
 							data.mode = DISPLAY_MODE_CLOCK;
 						if (setup->is_12h) {
@@ -460,6 +473,7 @@ int main(int argc, char *argv[])
 		sigaction(SIGINT, &sig_handler, 0);
 		setup.is_demo = is_demo_mode(argc, argv);
 		setup.is_12h = is_12h_mode(argc, argv);
+		setup.user_string = get_user_string(argc, argv);
 		ret = pthread_create(&disp_id, NULL, display_thread_handler, &setup);
 		if (ret == 0)
 			ret = pthread_create(&npipe_id, NULL, named_pipe_thread_handler, NULL);
@@ -488,6 +502,17 @@ bool is_cmd_option(int argc, char *argv[], const char *str)
 	}
 
 	return ret;
+}
+
+const char *get_user_string(int argc, char *argv[])
+{
+	int i;
+	for (i = 1; i < argc; i++) {
+		if ((!strcmp(argv[i], "-s") || !strcmp(argv[i], "--string")) && ++i < argc) {
+			return argv[i];
+		}
+	}
+	return NULL;
 }
 
 bool is_verbose(int argc, char *argv[])
@@ -576,6 +601,7 @@ bool print_usage(int argc, char *argv[])
 		if (!strcmp(argv[i], "-h") || !strcmp(argv[i], "--help")) {
 			ret = true;
 			printf("\nUsage: OpenVFDService [-t] [-dt TYPE] [-h]\n\n");
+			printf("\t-s USER_STRING\tRun OpenVFDService in custom string mode.\n\t\t\tDisplays the USER_STRING on the screen.");
 			printf("\t-t\t\tRun OpenVFDService in display test mode.\n");
 			printf("\t-dm\t\tRun OpenVFDService in display demo mode.\n");
 			printf("\t-dt N\t\tSpecifies which display type to use.\n");
