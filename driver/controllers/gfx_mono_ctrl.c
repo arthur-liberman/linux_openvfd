@@ -307,7 +307,7 @@ static void print_string(const char *str, const struct font *font_struct, unsign
 	specific_gfx_mono_ctrl.print_string(ram_buffer, &rect);
 }
 
-static void prepare_and_print_string(const char *str, const struct font *font_struct, unsigned char x, unsigned char y)
+static unsigned char prepare_and_print_string(const char *str, const struct font *font_struct, unsigned char x, unsigned char y)
 {
 	char buffer[512];
 	struct rect rect;
@@ -322,6 +322,7 @@ static void prepare_and_print_string(const char *str, const struct font *font_st
 			print_string(str, font_struct, x, y);
 		}
 	}
+	return rect.length;
 }
 
 static void setup_fonts(void)
@@ -860,8 +861,11 @@ static void print_playback_time(const struct vfd_display_data *data)
 
 static void print_title(const struct vfd_display_data *data)
 {
-	prepare_and_print_string(data->string_secondary, &font_small_text, 0, 0);
-	prepare_and_print_string(data->string_main, &font_text, 0, font_small_text.font_height);
+	unsigned char offset = (unsigned char)max((size_t)0, (columns - (font_text.font_width * strlen(data->string_main))) / 2);
+	if (strlen(data->string_secondary) > 0 && prepare_and_print_string(data->string_main, &font_text, offset, font_small_text.font_height))
+		prepare_and_print_string(data->string_secondary, &font_small_text, 0, 0);
+	else
+		prepare_and_print_string(data->string_main, &font_text, offset, 0);
 }
 
 static void print_date(const struct vfd_display_data *data)
