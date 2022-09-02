@@ -17,6 +17,7 @@
 void select_display_type(void);
 bool set_display_type(int new_display_type);
 const char *get_user_string(int argc, char *argv[]);
+const char *get_secondary_user_string(int argc, char *argv[]);
 bool is_verbose(int argc, char *argv[]);
 bool is_demo_mode(int argc, char *argv[]);
 bool is_test_mode(int argc, char *argv[]);
@@ -41,6 +42,7 @@ struct display_setup {
 	bool is_demo;
 	bool is_12h;
 	const char *user_string;
+	const char *secondary_user_string;
 };
 
 typedef struct _DotLedBitMap {
@@ -107,7 +109,8 @@ void led_display_loop(const struct display_setup *setup)
 		use_user_string = true;
 		data.mode = DISPLAY_MODE_TITLE;
 		snprintf(data.string_main, sizeof(data.string_secondary), setup->user_string);
-		snprintf(data.string_secondary, sizeof(data.string_secondary), "User string:");
+		if (setup->secondary_user_string)
+			snprintf(data.string_secondary, sizeof(data.string_secondary), setup->secondary_user_string);
 	}
 
 	while(sync_data.isActive) {
@@ -474,6 +477,8 @@ int main(int argc, char *argv[])
 		setup.is_demo = is_demo_mode(argc, argv);
 		setup.is_12h = is_12h_mode(argc, argv);
 		setup.user_string = get_user_string(argc, argv);
+		if (setup.user_string)
+			setup.secondary_user_string = get_secondary_user_string(argc, argv);
 		ret = pthread_create(&disp_id, NULL, display_thread_handler, &setup);
 		if (ret == 0)
 			ret = pthread_create(&npipe_id, NULL, named_pipe_thread_handler, NULL);
@@ -509,6 +514,17 @@ const char *get_user_string(int argc, char *argv[])
 	int i;
 	for (i = 1; i < argc; i++) {
 		if ((!strcmp(argv[i], "-s") || !strcmp(argv[i], "--string")) && ++i < argc) {
+			return argv[i];
+		}
+	}
+	return NULL;
+}
+
+const char *get_secondary_user_string(int argc, char *argv[])
+{
+	int i;
+	for (i = 1; i < argc; i++) {
+		if ((!strcmp(argv[i], "-ss") || !strcmp(argv[i], "--secondary-string")) && ++i < argc) {
 			return argv[i];
 		}
 	}
@@ -602,6 +618,7 @@ bool print_usage(int argc, char *argv[])
 			ret = true;
 			printf("\nUsage: OpenVFDService [-t] [-dt TYPE] [-h]\n\n");
 			printf("\t-s USER_STRING\tRun OpenVFDService in custom string mode.\n\t\t\tDisplays the USER_STRING on the screen.");
+			printf("\t-ss SECONDARY_USER_STRING\tDisplay a smaller secondary string\n\t\t\tin addtion to USER_STRING.");
 			printf("\t-t\t\tRun OpenVFDService in display test mode.\n");
 			printf("\t-dm\t\tRun OpenVFDService in display demo mode.\n");
 			printf("\t-dt N\t\tSpecifies which display type to use.\n");
