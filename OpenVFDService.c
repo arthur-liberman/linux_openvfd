@@ -63,6 +63,7 @@ static struct vfd_display display_type;
 
 int openvfd_fd;
 bool verbose = false;
+#define VERBOSE_PRINTF(s) if (verbose) printf(s)
 
 uint8_t char_to_mask(uint8_t ch)
 {
@@ -335,18 +336,15 @@ void *named_pipe_thread_handler(void *arg)
 		if (ret > 0 && !pthread_mutex_lock(&sync_data.mutex)) {
 			skipSignal = 0;
 			if (ret == sizeof(sync_data.display_data)) {
-				if (verbose)
-					printf("Write display data\n");
+				VERBOSE_PRINTF("Write display data\n");
 				memcpy(&sync_data.display_data, buf, sizeof(sync_data.display_data));
 				sync_data.useBuffer = true;
 			} else {
-				if (verbose)
-					printf("Write unknown data\n");
+				VERBOSE_PRINTF("Write unknown data\n");
 				switch ((unsigned char)buf[0]) {
 				case 0:
 				default:
-					if (verbose)
-						printf("case 0, default\n");
+					VERBOSE_PRINTF("case 0, default\n");
 					sync_data.useBuffer = true;
 					sync_data.display_data.mode = DISPLAY_MODE_CLOCK;
 					break;
