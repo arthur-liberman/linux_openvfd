@@ -31,7 +31,7 @@
 #define FALSE 0
 #endif
 
-#define  OPENVFD_DRIVER_VERSION	"V1.4.2"
+#define  OPENVFD_DRIVER_VERSION	"V1.4.3"
 
 /*
  * Ioctl definitions
@@ -82,6 +82,7 @@ struct vfd_display {
 struct vfd_dtb_config {
 	u_int8 dat_index[7];
 	u_int8 led_dots[8];
+	u_int8 led_dot_index[7];
 	struct vfd_display display;
 };
 

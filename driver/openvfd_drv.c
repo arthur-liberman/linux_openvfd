@@ -715,8 +715,10 @@ static int verify_module_params(struct vfd_dev *dev)
 
 	if (ret >= 0) {
 		int i;
-		for (i = 0; i < 7; i++)
+		for (i = 0; i < 7; i++) {
 			dev->dtb_active.dat_index[i] = (u_int8)vfd_chars[i];
+			dev->dtb_active.led_dot_index[i] = (u_int8)vfd_dot_bits[i];
+		}
 		for (i = 0; i < 8; i++)
 			dev->dtb_active.led_dots[i] = (u_int8)ledDots[vfd_dot_bits[i]];
 		dev->dtb_active.display.type = (u_int8)vfd_display_type[0];
