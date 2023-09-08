@@ -281,10 +281,10 @@ static size_t fd650_write_data(const unsigned char *_data, size_t length)
 	for (i = 0; i <= length; i++)
 		tempBuf[dtb->dat_index[i]] = (unsigned char)(data[i] & 0xFF);
 	if (is_fd650()) {
-		tempBuf[dtb->dat_index[0]] |= ((data[0] | dev->status_led_mask) & ledDots[LED_DOT_SEC]) ? ledDot : 0x00;
-		for (i = 1; i <= length; i++) {
+		tempBuf[dtb->dat_index[0]] |= (data[0] & dtb->led_dots[LED_DOT_SEC]) ? ledDot : 0x00;
+		for (i = 1; i < length; i++) {
 			if (dtb->dat_index[i] != dtb->dat_index[0])
-				tempBuf[dtb->dat_index[i]] |= (data[0] & ledDots[dtb->led_dot_index[i]]) ? ledDot : 0x00;
+				tempBuf[dtb->dat_index[i]] |= (data[0] & dtb->led_dots[dtb->led_dot_index[i]]) ? ledDot : 0x00;
 		}
 	}
 
