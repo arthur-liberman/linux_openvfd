@@ -230,6 +230,21 @@ static void fd650_set_icon(const char *name, unsigned char state)
 			dev->status_led_mask = state ? (dev->status_led_mask | dtb->led_dots[LED_DOT3_WIFIHI] | dtb->led_dots[LED_DOT3_WIFILO]) : (dev->status_led_mask & ~(dtb->led_dots[LED_DOT3_WIFIHI] | dtb->led_dots[LED_DOT3_WIFILO]));
 		}
 		break;
+	case DISPLAY_TYPE_5D_X96_X9:
+		if (strncmp(name,"apps",4) == 0) {
+			dev->status_led_mask = state ? (dev->status_led_mask | dtb->led_dots[LED_DOT5_APPS]) : (dev->status_led_mask & ~dtb->led_dots[LED_DOT5_APPS]);
+		} else if (strncmp(name,"usb",3) == 0) {
+			dev->status_led_mask = state ? (dev->status_led_mask | dtb->led_dots[LED_DOT5_USB]) : (dev->status_led_mask & ~dtb->led_dots[LED_DOT5_USB]);
+		} else if (strncmp(name,"sd",2) == 0) {
+			dev->status_led_mask = state ? (dev->status_led_mask | dtb->led_dots[LED_DOT5_CARD]) : (dev->status_led_mask & ~dtb->led_dots[LED_DOT5_CARD]);
+		} else if (strncmp(name,"colon",5) == 0) {
+			dev->status_led_mask = state ? (dev->status_led_mask | dtb->led_dots[LED_DOT5_SEC]) : (dev->status_led_mask & ~dtb->led_dots[LED_DOT5_SEC]);
+		} else if (strncmp(name,"eth",3) == 0) {
+			dev->status_led_mask = state ? (dev->status_led_mask | dtb->led_dots[LED_DOT5_ETH]) : (dev->status_led_mask & ~dtb->led_dots[LED_DOT5_ETH]);
+		} else if (strncmp(name,"wifi",4) == 0) {
+			dev->status_led_mask = state ? (dev->status_led_mask | dtb->led_dots[LED_DOT5_WIFIHI] | dtb->led_dots[LED_DOT5_WIFILO]) : (dev->status_led_mask & ~(dtb->led_dots[LED_DOT5_WIFIHI] | dtb->led_dots[LED_DOT5_WIFILO]));
+		}
+		break;
 	case DISPLAY_TYPE_5D_7S_M9_PRO:
 		if (strncmp(name,"b-t",3) == 0) {
 			dev->status_led_mask = state ? (dev->status_led_mask | dtb->led_dots[LED_DOT4_BT]) : (dev->status_led_mask & ~dtb->led_dots[LED_DOT4_BT]);
