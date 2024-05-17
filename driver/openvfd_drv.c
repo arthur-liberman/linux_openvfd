@@ -618,6 +618,24 @@ static int is_right_chip(struct gpio_chip *chip, void *data)
 	return 0;
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,7,0)
+struct gpio_chip *gpiochip_find(void *data,
+                int (*match)(struct gpio_chip *gc,
+                         void *data))
+{
+    struct gpio_device *gdev;
+    struct gpio_chip *gc = NULL;
+
+    gdev = gpio_device_find(data, match);
+    if (gdev) {
+        gc = gdev->chip;
+        gpio_device_put(gdev);
+    }
+
+    return gc;
+}
+#endif
+
 static int get_chip_pin_number(const unsigned int gpio[])
 {
 	int pin = -1;
