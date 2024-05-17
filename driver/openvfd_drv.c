@@ -36,6 +36,7 @@
 #include <linux/of_gpio.h>
 #include "openvfd_drv.h"
 #include "controllers/controller_list.h"
+#include "gpiolib.h"
 
 #ifdef CONFIG_HAS_EARLYSUSPEND
 #include <linux/earlysuspend.h>
