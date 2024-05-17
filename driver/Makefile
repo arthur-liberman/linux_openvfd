@@ -1,11 +1,11 @@
 ifeq ($(KERNELRELEASE),)
 		PWD = $(shell pwd)
-	        KERNELDIR = ../../../
+	        KERNELDIR = /lib/modules/$(shell uname -r)/build
 modules:
-	        $(MAKE) -C $(KERNELDIR) M=$(PWD) ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- modules
+	        $(MAKE) -C $(KERNELDIR) M=$(PWD) modules
 
 modules_install:
-	        $(MAKE) -C $(KERNELDIR) M=$(PWD) ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- modules_install
+	        $(MAKE) -C $(KERNELDIR) M=$(PWD) modules_install
 			                                  
 clean:                    
 	        rm -rf  *.o *.ko .tmp_versions *.mod.c modules.order  Module.symvers ssd253x-ts.* 
