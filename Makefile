@@ -3,4 +3,4 @@ default:
 	$(MAKE) modules
 
 OpenVFDService: OpenVFDService.c
-	$(CC) $(CFLAGS) -Wall -w -o $@ $^ -lm -lpthread
+	$(CC) $(CFLAGS) -Wall -w -o $@ $^ -lm -lpthread $(LDFLAGS)
