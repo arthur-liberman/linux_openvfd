@@ -751,7 +751,12 @@ static int verify_module_params(struct vfd_dev *dev)
 void get_pin_from_dt(const char *name, const struct platform_device *pdev, struct vfd_pin *pin)
 {
 	if (of_find_property(pdev->dev.of_node, name, NULL)) {
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6,3,0))
+		pin->flags.value = 0;
+		pin->pin = of_get_named_gpio(pdev->dev.of_node, name, 0);
+#else
 		pin->pin = of_get_named_gpio_flags(pdev->dev.of_node, name, 0, &pin->flags.value);
+#endif
 		pr_dbg2("%s: pin = %d, flags = 0x%02X\n", name, pin->pin, pin->flags.value);
 	} else {
 		pin->pin = -2;
