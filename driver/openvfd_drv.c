@@ -204,6 +204,14 @@ static int openvfd_dev_open(struct inode *inode, struct file *file)
 	return 0;
 }
 
+static inline
+void display_text(const char* text) {
+	if (controller == NULL) return;
+	u_int16 data[7] = { 0 };
+	str_to_masks(data, text);
+	controller->write_data((unsigned char*)data, sizeof(data));
+}
+
 static int openvfd_dev_release(struct inode *inode, struct file *file)
 {
 	set_power(0);
