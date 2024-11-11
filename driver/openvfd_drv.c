@@ -34,6 +34,8 @@
 #include <linux/poll.h>
 #include <linux/gpio.h>
 #include <linux/of_gpio.h>
+#include <linux/notifier.h>
+#include <linux/reboot.h>
 #include "openvfd_drv.h"
 #include "controllers/controller_list.h"
 
@@ -1072,8 +1074,10 @@ static int openvfd_driver_remove(struct platform_device *pdev)
 
 static void openvfd_driver_shutdown(struct platform_device *dev)
 {
-	pr_dbg("openvfd_driver_shutdown");
-	set_power(0);
+	if (dev == NULL) pr_dbg2("OpenVFD System shutdown.\n");
+	else             pr_dbg2("OpenVFD Driver shutdown.\n");
+	if (vfd_show_stop) display_text("shut");
+	else               set_power(0);
 }
 
 static int openvfd_driver_suspend(struct platform_device *dev, pm_message_t state)
@@ -1116,11 +1120,24 @@ static struct platform_driver openvfd_driver = {
 		   },
 };
 
+static int openvfd_notify_sys(struct notifier_block *this, unsigned long code, void *unused)
+{
+	openvfd_driver_shutdown(NULL);
+	return NOTIFY_DONE;
+}
+
+static struct notifier_block openvfd_notifier = {
+	.notifier_call = openvfd_notify_sys,
+};
+
 static int __init openvfd_driver_init(void)
 {
 	pr_dbg("OpenVFD Driver init.\n");
 	mutex_init(&mutex);
-	return platform_driver_register(&openvfd_driver);
+	int ret = platform_driver_register(&openvfd_driver);
+	if (ret) return ret;
+
+	return register_reboot_notifier(&openvfd_notifier);
 }
 
 static void __exit openvfd_driver_exit(void)
@@ -1128,6 +1145,7 @@ static void __exit openvfd_driver_exit(void)
 	pr_dbg("OpenVFD Driver exit.\n");
 	mutex_destroy(&mutex);
 	platform_driver_unregister(&openvfd_driver);
+	unregister_reboot_notifier(&openvfd_notifier);
 }
 
 module_init(openvfd_driver_init);
