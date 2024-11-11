@@ -39,10 +39,10 @@
 #include "openvfd_drv.h"
 #include "controllers/controller_list.h"
 
-#ifdef CONFIG_HAS_EARLYSUSPEND
+#if defined(CONFIG_HAS_EARLYSUSPEND)
 #include <linux/earlysuspend.h>
 static struct early_suspend openvfd_early_suspend;
-#elif CONFIG_AMLOGIC_LEGACY_EARLY_SUSPEND
+#elif defined(CONFIG_AMLOGIC_LEGACY_EARLY_SUSPEND)
 #include <linux/amlogic/pm.h>
 static struct early_suspend openvfd_early_suspend;
 #endif
