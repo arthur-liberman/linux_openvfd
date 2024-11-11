@@ -573,13 +573,13 @@ static DEVICE_ATTR(led_off , S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP, led_off_show
 #if defined(CONFIG_HAS_EARLYSUSPEND) || defined(CONFIG_AMLOGIC_LEGACY_EARLY_SUSPEND)
 static void openvfd_suspend(struct early_suspend *h)
 {
-	pr_info("%s!\n", __func__);
+	pr_info("OpenVFD: %s!\n", __func__);
 	set_power(0);
 }
 
 static void openvfd_resume(struct early_suspend *h)
 {
-	pr_info("%s!\n", __func__);
+	pr_info("OpenVFD: %s!\n", __func__);
 	set_power(1);
 }
 #endif
@@ -1067,6 +1067,7 @@ static int openvfd_driver_remove(struct platform_device *pdev)
 	kfree(pdata);
 	pdata = NULL;
 #endif
+	pr_dbg2("OpenVFD Driver removed.\n");
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6,11,0)
 	return 0;
 #endif
@@ -1132,7 +1133,7 @@ static struct notifier_block openvfd_notifier = {
 
 static int __init openvfd_driver_init(void)
 {
-	pr_dbg("OpenVFD Driver init.\n");
+	pr_dbg2("OpenVFD Driver init.\n");
 	mutex_init(&mutex);
 	int ret = platform_driver_register(&openvfd_driver);
 	if (ret) return ret;
@@ -1142,10 +1143,10 @@ static int __init openvfd_driver_init(void)
 
 static void __exit openvfd_driver_exit(void)
 {
-	pr_dbg("OpenVFD Driver exit.\n");
 	mutex_destroy(&mutex);
 	platform_driver_unregister(&openvfd_driver);
 	unregister_reboot_notifier(&openvfd_notifier);
+	pr_dbg2("OpenVFD Driver exit.\n");
 }
 
 module_init(openvfd_driver_init);
