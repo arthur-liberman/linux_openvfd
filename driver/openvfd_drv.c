@@ -47,6 +47,8 @@ static struct early_suspend openvfd_early_suspend;
 
 unsigned char vfd_display_auto_power = 1;
 static uint vfd_brightness = FD628_Brightness_8;
+unsigned char vfd_show_boot = 1;
+unsigned char vfd_show_stop = 1;
 
 static struct vfd_platform_data *pdata = NULL;
 struct kp {
@@ -214,7 +216,9 @@ void display_text(const char* text) {
 
 static int openvfd_dev_release(struct inode *inode, struct file *file)
 {
-	set_power(0);
+	if (vfd_show_stop) display_text("----");
+	else               set_power(0);
+
 	file->private_data = NULL;
 	pr_dbg("succes to close  openvfd_dev.............\n");
 	return 0;
@@ -616,6 +620,8 @@ module_param_array(vfd_dot_bits, uint, &vfd_dot_bits_argc, 0000);
 module_param_array(vfd_display_type, uint, &vfd_display_type_argc, 0000);
 module_param(vfd_display_auto_power, byte, 0000);
 module_param(vfd_brightness, uint, 0444);
+module_param(vfd_show_boot, byte, 0000);
+module_param(vfd_show_stop, byte, 0000);
 
 static void print_param_debug(const char *label, int argc, unsigned int param[])
 {
@@ -988,24 +994,8 @@ static int openvfd_driver_probe(struct platform_device *pdev)
 	if (device_create_file(kp->cdev.dev, &dev_attr_led_cmd))
 		pr_error("device_create_file dev_attr_led_cmd failed\n");
 	init_controller(pdata->dev);
-#if 0
-	// TODO: Display 'boot' during POST/boot.
-	// 'boot'
-	//  1 1 0  0 1 1 1  b => 0x7C
-	//  1 1 0  0 0 1 1  o => 0x5C
-	//  1 0 0  0 1 1 1  t => 0x78
-	__u8 data[7];
-	data[0] = 0x00;
-	data[1] = pdata->dev->dtb_active.display.flags & DISPLAY_TYPE_TRANSPOSED ? 0x7C : 0x67;
-	data[2] = pdata->dev->dtb_active.display.flags & DISPLAY_TYPE_TRANSPOSED ? 0x5C : 0x63;
-	data[3] = pdata->dev->dtb_active.display.flags & DISPLAY_TYPE_TRANSPOSED ? 0x5C : 0x63;
-	data[4] = pdata->dev->dtb_active.display.flags & DISPLAY_TYPE_TRANSPOSED ? 0x78 : 0x47;
-	for (i = 0; i < 5; i++) {
-		pdata->dev->wbuf[pdata->dev->dtb_active.dat_index[i]] = data[i];
-	}
-	// Write data in incremental mode
-	FD628_WrDisp_AddrINC(0x00, 2*5, pdata->dev);
-#endif
+
+	if (vfd_show_boot) display_text("boot");
 
 #if defined(CONFIG_HAS_EARLYSUSPEND) || defined(CONFIG_AMLOGIC_LEGACY_EARLY_SUSPEND)
 	openvfd_early_suspend.level = EARLY_SUSPEND_LEVEL_BLANK_SCREEN;
@@ -1048,7 +1038,9 @@ static void openvfd_driver_remove(struct platform_device *pdev)
 static int openvfd_driver_remove(struct platform_device *pdev)
 #endif
 {
-	set_power(0);
+	if (vfd_show_stop) display_text("stop");
+	else               set_power(0);
+
 #if defined(CONFIG_HAS_EARLYSUSPEND) || defined(CONFIG_AMLOGIC_LEGACY_EARLY_SUSPEND)
 	unregister_early_suspend(&openvfd_early_suspend);
 #endif
