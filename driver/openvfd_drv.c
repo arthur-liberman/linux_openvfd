@@ -197,8 +197,11 @@ static void init_controller(struct vfd_dev *dev)
 	}
 }
 
+static const char* current_text = NULL;
+
 static int openvfd_dev_open(struct inode *inode, struct file *file)
 {
+	current_text = NULL;
 	struct vfd_dev *dev = NULL;
 	file->private_data = pdata->dev;
 	dev = file->private_data;
@@ -210,10 +213,11 @@ static int openvfd_dev_open(struct inode *inode, struct file *file)
 
 static inline
 void display_text(const char* text) {
-	if (controller == NULL) return;
+	if (controller == NULL || text == NULL) return;
 	u_int16 data[7] = { 0 };
 	str_to_masks(data, text);
 	controller->write_data((unsigned char*)data, sizeof(data));
+	current_text = text;
 }
 
 static int openvfd_dev_release(struct inode *inode, struct file *file)
@@ -547,6 +551,7 @@ static ssize_t led_on_store(struct device *dev,
 {
 	mutex_lock(&mutex);
 	controller->set_icon(buf, 1);
+	display_text(current_text);
 	mutex_unlock(&mutex);
 	return size;
 }
@@ -562,6 +567,7 @@ static ssize_t led_off_store(struct device *dev,
 {
 	mutex_lock(&mutex);
 	controller->set_icon(buf, 0);
+	display_text(current_text);
 	mutex_unlock(&mutex);
 	return size;
 }
@@ -997,7 +1003,10 @@ static int openvfd_driver_probe(struct platform_device *pdev)
 		pr_error("device_create_file dev_attr_led_cmd failed\n");
 	init_controller(pdata->dev);
 
-	if (vfd_show_boot) display_text("boot");
+	if (vfd_show_boot) {
+		unlocked_set_power(1);
+		display_text("boot");
+	}
 
 #if defined(CONFIG_HAS_EARLYSUSPEND) || defined(CONFIG_AMLOGIC_LEGACY_EARLY_SUSPEND)
 	openvfd_early_suspend.level = EARLY_SUSPEND_LEVEL_BLANK_SCREEN;
