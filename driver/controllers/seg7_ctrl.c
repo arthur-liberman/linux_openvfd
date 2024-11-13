@@ -37,13 +37,6 @@ static unsigned char char_to_mask(unsigned char ch)
 	return 0;
 }
 
-void str_to_masks(unsigned short *raw_wdata, const char* string_main)
-{
-	raw_wdata[0] = 0;
-	for (int i = 1; i <= 4; i++)
-		raw_wdata[i] = string_main[i - 1] ? char_to_mask(string_main[i - 1]) : 0;
-}
-
 size_t seg7_write_display_data(const struct vfd_display_data *data, unsigned short *raw_wdata, size_t sz)
 {
 	size_t i, len;

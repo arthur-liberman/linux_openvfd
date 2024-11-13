@@ -312,6 +312,4 @@ typedef enum  _Brightness {					/* FD628 Brightness levels */
 	FD628_Brightness_8
 }Brightness;
 
-extern void str_to_masks(unsigned short *raw_wdata, const char* string_main);
-
 #endif
