@@ -578,9 +578,25 @@ static ssize_t led_off_store(struct device *dev,
 	return size;
 }
 
+static ssize_t text_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	return scnprintf(buf, PAGE_SIZE, "%s\n", current_display_data.string_main);
+}
+
+static ssize_t text_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
+{
+	mutex_lock(&mutex);
+	display_text(buf);
+	mutex_unlock(&mutex);
+	return size;
+}
+
 static DEVICE_ATTR(led_cmd , S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP, led_cmd_show , led_cmd_store);
-static DEVICE_ATTR(led_on , S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP, led_on_show , led_on_store);
+static DEVICE_ATTR(led_on  , S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP, led_on_show , led_on_store);
 static DEVICE_ATTR(led_off , S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP, led_off_show , led_off_store);
+static DEVICE_ATTR(text    , S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP, text_show , text_store);
 
 #if defined(CONFIG_HAS_EARLYSUSPEND) || defined(CONFIG_AMLOGIC_LEGACY_EARLY_SUSPEND)
 static void openvfd_suspend(struct early_suspend *h)
@@ -1007,6 +1023,8 @@ static int openvfd_driver_probe(struct platform_device *pdev)
 		pr_error("device_create_file dev_attr_led_off failed\n");
 	if (device_create_file(kp->cdev.dev, &dev_attr_led_cmd))
 		pr_error("device_create_file dev_attr_led_cmd failed\n");
+	if (device_create_file(kp->cdev.dev, &dev_attr_text))
+		pr_error("device_create_file dev_attr_text failed\n");
 	init_controller(pdata->dev);
 
 	if (vfd_show_boot) {
