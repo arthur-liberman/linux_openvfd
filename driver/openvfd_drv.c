@@ -34,18 +34,22 @@
 #include <linux/poll.h>
 #include <linux/gpio.h>
 #include <linux/of_gpio.h>
+#include <linux/notifier.h>
+#include <linux/reboot.h>
 #include "openvfd_drv.h"
 #include "controllers/controller_list.h"
 
-#ifdef CONFIG_HAS_EARLYSUSPEND
+#if defined(CONFIG_HAS_EARLYSUSPEND)
 #include <linux/earlysuspend.h>
 static struct early_suspend openvfd_early_suspend;
-#elif CONFIG_AMLOGIC_LEGACY_EARLY_SUSPEND
+#elif defined(CONFIG_AMLOGIC_LEGACY_EARLY_SUSPEND)
 #include <linux/amlogic/pm.h>
 static struct early_suspend openvfd_early_suspend;
 #endif
 
 unsigned char vfd_display_auto_power = 1;
+unsigned char vfd_show_boot = 1;
+unsigned char vfd_show_stop = 1;
 
 static struct vfd_platform_data *pdata = NULL;
 struct kp {
@@ -180,9 +184,29 @@ static int openvfd_dev_open(struct inode *inode, struct file *file)
 	return 0;
 }
 
+static struct vfd_display_data current_display_data;
+
+static inline
+size_t display_data(struct vfd_display_data* data) {
+	size_t ret = controller->write_display_data(data);
+	if (data != &current_display_data)
+		current_display_data = *data;
+	return ret;
+}
+
+static inline
+void display_text(const char* text) {
+	memset(&current_display_data, 0, sizeof(current_display_data));
+	current_display_data.mode = DISPLAY_MODE_TITLE;
+	snprintf(current_display_data.string_main, sizeof(current_display_data.string_main), text);
+	display_data(&current_display_data);
+}
+
 static int openvfd_dev_release(struct inode *inode, struct file *file)
 {
-	set_power(0);
+	if (vfd_show_stop) display_text("----");
+	else               set_power(0);
+
 	file->private_data = NULL;
 	pr_dbg("succes to close  openvfd_dev.............\n");
 	return 0;
@@ -233,7 +257,7 @@ static ssize_t openvfd_dev_write(struct file *filp, const char __user * buf,
 		missing = copy_from_user(&data, buf, count);
 		if (missing == 0 && count > 0) {
 			mutex_lock(&mutex);
-			if (controller->write_display_data(&data))
+			if (display_data(&data))
 				pr_dbg("openvfd_dev_write count : %ld\n", count);
 			else {
 				status = -1;
@@ -418,7 +442,7 @@ static void deregister_openvfd_driver(void)
 static void openvfd_brightness_set(struct led_classdev *cdev,
 	enum led_brightness brightness)
 {
-	pr_info("brightness = %d\n", brightness);
+	pr_info("OpenVFD: brightness = %d\n", brightness);
 
 	if(pdata == NULL)
 		return;
@@ -521,6 +545,7 @@ static ssize_t led_on_store(struct device *dev,
 {
 	mutex_lock(&mutex);
 	controller->set_icon(buf, 1);
+	display_data(&current_display_data);
 	mutex_unlock(&mutex);
 	return size;
 }
@@ -536,24 +561,41 @@ static ssize_t led_off_store(struct device *dev,
 {
 	mutex_lock(&mutex);
 	controller->set_icon(buf, 0);
+	display_data(&current_display_data);
+	mutex_unlock(&mutex);
+	return size;
+}
+
+static ssize_t text_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	return scnprintf(buf, PAGE_SIZE, "%s\n", current_display_data.string_main);
+}
+
+static ssize_t text_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
+{
+	mutex_lock(&mutex);
+	display_text(buf);
 	mutex_unlock(&mutex);
 	return size;
 }
 
 static DEVICE_ATTR(led_cmd , S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP, led_cmd_show , led_cmd_store);
-static DEVICE_ATTR(led_on , S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP, led_on_show , led_on_store);
+static DEVICE_ATTR(led_on  , S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP, led_on_show , led_on_store);
 static DEVICE_ATTR(led_off , S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP, led_off_show , led_off_store);
+static DEVICE_ATTR(text    , S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP, text_show , text_store);
 
 #if defined(CONFIG_HAS_EARLYSUSPEND) || defined(CONFIG_AMLOGIC_LEGACY_EARLY_SUSPEND)
 static void openvfd_suspend(struct early_suspend *h)
 {
-	pr_info("%s!\n", __func__);
+	pr_info("OpenVFD: %s!\n", __func__);
 	set_power(0);
 }
 
 static void openvfd_resume(struct early_suspend *h)
 {
-	pr_info("%s!\n", __func__);
+	pr_info("OpenVFD: %s!\n", __func__);
 	set_power(1);
 }
 #endif
@@ -595,6 +637,8 @@ module_param_array(vfd_chars, uint, &vfd_chars_argc, 0000);
 module_param_array(vfd_dot_bits, uint, &vfd_dot_bits_argc, 0000);
 module_param_array(vfd_display_type, uint, &vfd_display_type_argc, 0000);
 module_param(vfd_display_auto_power, byte, 0000);
+module_param(vfd_show_boot, byte, 0000);
+module_param(vfd_show_stop, byte, 0000);
 
 static void print_param_debug(const char *label, int argc, unsigned int param[])
 {
@@ -915,25 +959,13 @@ static int openvfd_driver_probe(struct platform_device *pdev)
 	device_create_file(kp->cdev.dev, &dev_attr_led_on);
 	device_create_file(kp->cdev.dev, &dev_attr_led_off);
 	device_create_file(kp->cdev.dev, &dev_attr_led_cmd);
+	device_create_file(kp->cdev.dev, &dev_attr_text);
 	init_controller(pdata->dev);
-#if 0
-	// TODO: Display 'boot' during POST/boot.
-	// 'boot'
-	//  1 1 0  0 1 1 1  b => 0x7C
-	//  1 1 0  0 0 1 1  o => 0x5C
-	//  1 0 0  0 1 1 1  t => 0x78
-	__u8 data[7];
-	data[0] = 0x00;
-	data[1] = pdata->dev->dtb_active.display.flags & DISPLAY_TYPE_TRANSPOSED ? 0x7C : 0x67;
-	data[2] = pdata->dev->dtb_active.display.flags & DISPLAY_TYPE_TRANSPOSED ? 0x5C : 0x63;
-	data[3] = pdata->dev->dtb_active.display.flags & DISPLAY_TYPE_TRANSPOSED ? 0x5C : 0x63;
-	data[4] = pdata->dev->dtb_active.display.flags & DISPLAY_TYPE_TRANSPOSED ? 0x78 : 0x47;
-	for (i = 0; i < 5; i++) {
-		pdata->dev->wbuf[pdata->dev->dtb_active.dat_index[i]] = data[i];
+
+	if (vfd_show_boot) {
+		unlocked_set_power(1);
+		display_text("boot");
 	}
-	// Write data in incremental mode
-	FD628_WrDisp_AddrINC(0x00, 2*5, pdata->dev);
-#endif
 
 #if defined(CONFIG_HAS_EARLYSUSPEND) || defined(CONFIG_AMLOGIC_LEGACY_EARLY_SUSPEND)
 	openvfd_early_suspend.level = EARLY_SUSPEND_LEVEL_BLANK_SCREEN;
@@ -972,7 +1004,9 @@ static int openvfd_driver_probe(struct platform_device *pdev)
 
 static int openvfd_driver_remove(struct platform_device *pdev)
 {
-	set_power(0);
+	if (vfd_show_stop) display_text("stop");
+	else               set_power(0);
+
 #if defined(CONFIG_HAS_EARLYSUSPEND) || defined(CONFIG_AMLOGIC_LEGACY_EARLY_SUSPEND)
 	unregister_early_suspend(&openvfd_early_suspend);
 #endif
@@ -997,13 +1031,16 @@ static int openvfd_driver_remove(struct platform_device *pdev)
 	kfree(pdata);
 	pdata = NULL;
 #endif
+	pr_dbg2("OpenVFD Driver removed.\n");
 	return 0;
 }
 
 static void openvfd_driver_shutdown(struct platform_device *dev)
 {
-	pr_dbg("openvfd_driver_shutdown");
-	set_power(0);
+	if (dev == NULL) pr_dbg2("OpenVFD System shutdown.\n");
+	else             pr_dbg2("OpenVFD Driver shutdown.\n");
+	if (vfd_show_stop) display_text("shut");
+	else               set_power(0);
 }
 
 static int openvfd_driver_suspend(struct platform_device *dev, pm_message_t state)
@@ -1046,18 +1083,32 @@ static struct platform_driver openvfd_driver = {
 		   },
 };
 
+static int openvfd_notify_sys(struct notifier_block *this, unsigned long code, void *unused)
+{
+	openvfd_driver_shutdown(NULL);
+	return NOTIFY_DONE;
+}
+
+static struct notifier_block openvfd_notifier = {
+	.notifier_call = openvfd_notify_sys,
+};
+
 static int __init openvfd_driver_init(void)
 {
-	pr_dbg("OpenVFD Driver init.\n");
+	pr_dbg2("OpenVFD Driver init.\n");
 	mutex_init(&mutex);
-	return platform_driver_register(&openvfd_driver);
+	int ret = platform_driver_register(&openvfd_driver);
+	if (ret) return ret;
+
+	return register_reboot_notifier(&openvfd_notifier);
 }
 
 static void __exit openvfd_driver_exit(void)
 {
-	pr_dbg("OpenVFD Driver exit.\n");
 	mutex_destroy(&mutex);
 	platform_driver_unregister(&openvfd_driver);
+	unregister_reboot_notifier(&openvfd_notifier);
+	pr_dbg2("OpenVFD Driver exit.\n");
 }
 
 module_init(openvfd_driver_init);
