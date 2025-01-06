@@ -418,10 +418,16 @@ static void deregister_openvfd_driver(void)
 static void openvfd_brightness_set(struct led_classdev *cdev,
 	enum led_brightness brightness)
 {
-	pr_info("brightness = %d\n", brightness);
+    if(pdata == NULL)
+        return;
 
-	if(pdata == NULL)
-		return;
+    mutex_lock(&mutex);
+    int ret = !set_display_brightness(pdata->dev, brightness);
+    mutex_unlock(&mutex);
+    if (ret)
+        pr_info("cant set brightness %d\n", ret);
+    else
+        pr_info("brightness = %d\n", brightness);
 }
 
 static int led_cmd_ioc = 0;
@@ -905,6 +911,8 @@ static int openvfd_driver_probe(struct platform_device *pdev)
 	}
 	kp->cdev.name = DEV_NAME;
 	kp->cdev.brightness_set = openvfd_brightness_set;
+	kp->cdev.max_brightness = FD628_Brightness_8;
+	kp->cdev.brightness = kp->cdev.max_brightness;
 	ret = led_classdev_register(&pdev->dev, &kp->cdev);
 	if (ret < 0) {
 		kfree(kp);
