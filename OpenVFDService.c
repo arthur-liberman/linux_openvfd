@@ -27,6 +27,7 @@ bool is_test_mode(int argc, char *argv[]);
 bool is_12h_mode(int argc, char *argv[]);
 bool is_carousel_mode(int argc, char *argv[]);
 bool parse_carousel_durations(int argc, char *argv[], int durations[3]);
+bool is_date_mday_first(int argc, char *argv[]);
 int get_cpu_temp(void);
 int get_cmd_display_type(int argc, char *argv[]);
 int get_cmd_chars_order(int argc, char *argv[], u_int8 chars[], const int sz);
@@ -48,6 +49,7 @@ struct display_setup {
 	bool is_demo;
 	bool is_12h;
 	bool is_carousel;
+	bool date_mday_first;		/* true: MM.DD, false(default): DD.MM */
 	int carousel_durations[3];	/* durations in 500ms ticks */
 	const char *user_string;
 	const char *secondary_user_string;
@@ -104,14 +106,19 @@ struct sync_data sync_data;
 
 int get_cpu_temp(void)
 {
-	FILE *fp = fopen("/sys/class/thermal/thermal_zone0/temp", "r");
-	int temp = 0;
-	if (fp) {
-		if (fscanf(fp, "%d", &temp) == 1)
-			temp /= 1000;
+	char path[64];
+	int i, t, temp = 0;
+	for (i = 0; i < 8; i++) {
+		FILE *fp;
+		snprintf(path, sizeof(path), "/sys/class/thermal/thermal_zone%d/temp", i);
+		fp = fopen(path, "r");
+		if (!fp)
+			break;
+		if (fscanf(fp, "%d", &t) == 1 && t > temp)
+			temp = t;
 		fclose(fp);
 	}
-	return temp;
+	return temp / 1000;
 }
 
 void led_display_loop(const struct display_setup *setup)
@@ -231,7 +238,8 @@ void led_display_loop(const struct display_setup *setup)
 								data.mode = DISPLAY_MODE_DATE;
 								data.time_date.day = timenow->tm_mday;
 								data.time_date.month = timenow->tm_mon;
-								data.time_secondary._reserved = 1;
+								/* _reserved=0: DD.MM (default), _reserved=1: MM.DD (-mdf) */
+								data.time_secondary._reserved = setup->date_mday_first ? 1 : 0;
 								} else {
 								data.mode = DISPLAY_MODE_TEMPERATURE;
 								data.temperature = get_cpu_temp();
@@ -555,6 +563,7 @@ int main(int argc, char *argv[])
 		setup.is_demo = is_demo_mode(argc, argv);
 		setup.is_12h = is_12h_mode(argc, argv);
 		setup.is_carousel = is_carousel_mode(argc, argv);
+		setup.date_mday_first = is_date_mday_first(argc, argv);
 		/* default durations: 5s CLOCK, 3s DATE, 3s TEMP */
 		setup.carousel_durations[0] = 10;
 		setup.carousel_durations[1] = 6;
@@ -634,6 +643,12 @@ bool is_test_mode(int argc, char *argv[])
 bool is_12h_mode(int argc, char *argv[])
 {
 	return is_cmd_option(argc, argv, "-12h");
+}
+
+/* -mdf: month-day-first, display date as MM.DD instead of default DD.MM */
+bool is_date_mday_first(int argc, char *argv[])
+{
+	return is_cmd_option(argc, argv, "-mdf");
 }
 
 bool is_carousel_mode(int argc, char *argv[])
@@ -735,6 +750,7 @@ bool print_usage(int argc, char *argv[])
 			printf("\t-dm\t\tRun OpenVFDService in display demo mode.\n");
 			printf("\t-carousel\tRun OpenVFDService in carousel mode.\n\t\t\tCycles through CLOCK -> DATE -> TEMPERATURE.\n");
 			printf("\t-cd S,S,S\tCarousel durations in seconds (CLOCK,DATE,TEMP).\n\t\t\tDefault: 5,3,3. Implies -carousel.\n");
+			printf("\t-mdf\t\tDate format: month-day-first (MM.DD). Default is DD.MM.\n");
 			printf("\t-dt N\t\tSpecifies which display type to use.\n");
 			printf("\t-co N...\t< D HH:MM > Order of display chars.\n\t\t\tValid values are 0 - 6.\n\t\t\t(D=dots, represented by a single char)\n");
 			printf("\t-h\t\tThis text.\n\n");
