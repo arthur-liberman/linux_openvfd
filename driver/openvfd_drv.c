@@ -95,7 +95,7 @@ static int unlocked_set_display_brightness(u_int8 new_brightness)
     int ret = controller->set_brightness_level(new_brightness);
     if (!ret){
         pr_info("OpenVFD: Can't set brightness to %d, %d\n", new_brightness, ret);
-        return ret;
+        return -EIO;
     }
 
     pr_info("OpenVFD: Brightness is set to %d\n", new_brightness);
@@ -249,42 +249,45 @@ static ssize_t openvfd_dev_read(struct file *filp, char __user * buf,
 static ssize_t openvfd_dev_write(struct file *filp, const char __user * buf,
 				   size_t count, loff_t * f_pos)
 {
-	ssize_t status = 0;
-	unsigned long missing;
+	ssize_t status = count;
 	static struct vfd_display_data data;
 
 	if (count == sizeof(data)) {
-		missing = copy_from_user(&data, buf, count);
-		if (missing == 0 && count > 0) {
+		if (!copy_from_user(&data, buf, count)) {
 			mutex_lock(&mutex);
 			if (controller->write_display_data(&data))
 				pr_dbg("openvfd_dev_write count : %ld\n", count);
 			else {
-				status = -1;
+				status = -EIO;
 				pr_error("openvfd_dev_write failed to write %ld bytes (display_data)\n", count);
 			}
 			mutex_unlock(&mutex);
+		} else {
+			status = -EFAULT;
+			pr_error("openvfd_dev_write failed copy_from_user\n");
 		}
 	} else if (count > 0) {
 		unsigned char *raw_data;
 		pr_dbg2("openvfd_dev_write: count = %ld, sizeof(data) = %ld\n", count, sizeof(data));
 		raw_data = kzalloc(count, GFP_KERNEL);
-		if (raw_data) {
-			missing = copy_from_user(raw_data, buf, count);
+		if (!raw_data) {
+			pr_error("openvfd_dev_write failed to allocate %ld bytes (raw_data)\n", count);
+			return -ENOMEM;
+		}
+		if (!copy_from_user(raw_data, buf, count)) {
 			mutex_lock(&mutex);
 			if (controller->write_data((unsigned char*)raw_data, count))
 				pr_dbg("openvfd_dev_write count : %ld\n", count);
 			else {
-				status = -1;
+				status = -EIO;
 				pr_error("openvfd_dev_write failed to write %ld bytes (raw_data)\n", count);
 			}
 			mutex_unlock(&mutex);
-			kfree(raw_data);
+		} else {
+			status = -EFAULT;
+			pr_error("openvfd_dev_write failed copy_from_user (raw_data)\n");
 		}
-		else {
-			status = -1;
-			pr_error("openvfd_dev_write failed to allocate %ld bytes (raw_data)\n", count);
-		}
+		kfree(raw_data);
 	}
 
 	return status;
@@ -359,8 +362,8 @@ static long openvfd_dev_ioctl(struct file *filp, unsigned int cmd,
 		break;
 	case VFD_IOC_SBRIGHT:
 		ret = __get_user(temp, (int __user *)arg);
-		if (!ret && !unlocked_set_display_brightness((u_int8)temp))
-			ret = -ERANGE;
+		if (!ret && unlocked_set_display_brightness((u_int8)temp))
+			ret = -EIO;
 		break;
 	case VFD_IOC_GBRIGHT:
 		ret = __put_user(dev->brightness, (int __user *)arg);
@@ -485,8 +488,8 @@ static ssize_t led_cmd_store(struct device *_dev,
 			//FD628_SET_DISPLAY_MODE(dev->mode, dev);
 			break;
 		case VFD_IOC_SBRIGHT:
-			if (!unlocked_set_display_brightness((u_int8)temp))
-				size = -ERANGE;
+			if (unlocked_set_display_brightness((u_int8)temp))
+				size = -EIO;
 			break;
 		case VFD_IOC_POWER:
 			controller->set_power(temp);
@@ -613,9 +616,9 @@ static void print_param_debug(const char *label, int argc, unsigned int param[])
 	len = scnprintf(buffer, sizeof(buffer), "%s", label);
 	if (argc)
 		for (i = 0; i < argc; i++)
-			len += scnprintf(buffer + len, sizeof(buffer), "#%d = 0x%02X; ", i, param[i]);
+			len += scnprintf(buffer + len, sizeof(buffer) - len, "#%d = 0x%02X; ", i, param[i]);
 	else
-		len += scnprintf(buffer + len, sizeof(buffer), "Empty.");
+		len += scnprintf(buffer + len, sizeof(buffer) - len, "Empty.");
 	pr_dbg2("%s\n", buffer);
 }
 
@@ -784,6 +787,8 @@ static int verify_module_params(struct vfd_dev *dev)
 
 	if (ret >= 0) {
 		int i;
+		for (i = 0; i < 8; i++)
+			vfd_dot_bits[i] = vfd_dot_bits[i] >= LED_DOT_MAX ? 0 : vfd_dot_bits[i];
 		for (i = 0; i < 7; i++) {
 			dev->dtb_active.dat_index[i] = (u_int8)vfd_chars[i];
 			dev->dtb_active.led_dot_index[i] = (u_int8)vfd_dot_bits[i];
@@ -839,6 +844,7 @@ static int openvfd_driver_probe(struct platform_device *pdev)
 	struct property *display_type_prop = NULL;
 	int ret = 0;
 	u_int8 allow_skip_clk_dat_request = vfd_gpio_protocol[0] > 0;
+	u_int32 mutex_locked = 0;
 
 	pr_dbg("%s get in\n", __func__);
 
@@ -914,8 +920,9 @@ static int openvfd_driver_probe(struct platform_device *pdev)
 		if (dot_bits_prop) {
 			__u8 *d = (__u8*)dot_bits_prop->value;
 			pr_dbg2("dot_bits_prop->length = %d\n", dot_bits_prop->length);
-			for (i = 0; i < dot_bits_prop->length; i++) {
-				pdata->dev->dtb_active.led_dots[i] = ledDots[d[i]];
+			for (i = 0; i < LED_DOT_MAX; i++) {
+				if (d[i] < LED_DOT_MAX) 
+					pdata->dev->dtb_active.led_dots[i] = ledDots[d[i]];
 				pr_dbg2("dot_bit #%d: %d\n", i, d[i]);
 			}
 		}
@@ -947,6 +954,7 @@ static int openvfd_driver_probe(struct platform_device *pdev)
 	pdata->dev->brightness = vfd_brightness;
 
 	mutex_lock(&mutex);
+	mutex_locked = 1;
 	register_openvfd_driver();
 	kp = kzalloc(sizeof(struct kp) ,  GFP_KERNEL);
 	if (!kp) {
@@ -965,9 +973,12 @@ static int openvfd_driver_probe(struct platform_device *pdev)
 		return ret;
 	}
 
-	device_create_file(kp->cdev.dev, &dev_attr_led_on);
-	device_create_file(kp->cdev.dev, &dev_attr_led_off);
-	device_create_file(kp->cdev.dev, &dev_attr_led_cmd);
+	if (device_create_file(kp->cdev.dev, &dev_attr_led_on))
+		pr_error("device_create_file dev_attr_led_on failed\n");
+	if (device_create_file(kp->cdev.dev, &dev_attr_led_off))
+		pr_error("device_create_file dev_attr_led_off failed\n");
+	if (device_create_file(kp->cdev.dev, &dev_attr_led_cmd))
+		pr_error("device_create_file dev_attr_led_cmd failed\n");
 	init_controller(pdata->dev);
 #if 0
 	// TODO: Display 'boot' during POST/boot.
@@ -1018,7 +1029,7 @@ static int openvfd_driver_probe(struct platform_device *pdev)
 	  get_openvfd_mem_fail:
 	kfree(pdata);
 	  get_openvfd_node_fail:
-	if (pdata && pdata->dev)
+	if (mutex_locked)
 		mutex_unlock(&mutex);
 	return state;
 }
