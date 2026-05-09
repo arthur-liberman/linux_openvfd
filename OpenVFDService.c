@@ -111,9 +111,9 @@ void led_display_loop(const struct display_setup *setup)
 	if (setup->user_string) {
 		use_user_string = true;
 		data.mode = DISPLAY_MODE_TITLE;
-		snprintf(data.string_main, sizeof(data.string_secondary), setup->user_string);
+		snprintf(data.string_main, sizeof(data.string_main), "%s", setup->user_string);
 		if (setup->secondary_user_string)
-			snprintf(data.string_secondary, sizeof(data.string_secondary), setup->secondary_user_string);
+			snprintf(data.string_secondary, sizeof(data.string_secondary), "%s", setup->secondary_user_string);
 	}
 
 	while(sync_data.isActive) {
@@ -161,7 +161,7 @@ void led_display_loop(const struct display_setup *setup)
 						data.time_secondary.seconds = timenow->tm_sec;
 						data.colon_on = !data.colon_on;
 						// Really long movie title.
-						snprintf(data.string_main, sizeof(data.string_secondary), "The Saga of the Viking Women and their Voyage to the Waters of the Great Sea Serpent");
+						snprintf(data.string_main, sizeof(data.string_main), "The Saga of the Viking Women and their Voyage to the Waters of the Great Sea Serpent");
 						snprintf(data.string_secondary, sizeof(data.string_secondary), "Now playing:");
 					} else if (!use_user_string) {
 						if (data.mode != DISPLAY_MODE_DATE)
