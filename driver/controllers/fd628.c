@@ -181,10 +181,18 @@ static struct vfd_display *fd628_get_display_type(void)
 	return &dev->dtb_active.display;
 }
 
+inline static unsigned char is_fd628_compatible(u_int8 controller)
+{
+	return  controller == CONTROLLER_FD628 ||
+	        controller == CONTROLLER_FD620 ||
+	        controller == CONTROLLER_TM1618 ||
+	        controller == CONTROLLER_HBS658;
+}
+
 static unsigned char fd628_set_display_type(struct vfd_display *display)
 {
 	unsigned char ret = 0;
-	if (display->type < DISPLAY_TYPE_MAX && display->controller < CONTROLLER_7S_MAX && display->controller == CONTROLLER_FD650)
+	if (display->type < DISPLAY_TYPE_MAX && display->controller < CONTROLLER_7S_MAX && is_fd628_compatible(display->controller))
 	{
 		dev->dtb_active.display = *display;
 		fd628_init();

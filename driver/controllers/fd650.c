@@ -117,6 +117,13 @@ inline static unsigned char is_fd6551(void)
 	return dev->dtb_active.display.controller == CONTROLLER_FD6551;
 }
 
+inline static unsigned char is_fd650_compatible(u_int8 controller)
+{
+	return  controller == CONTROLLER_FD650 ||
+	        controller == CONTROLLER_FD655 ||
+	        controller == CONTROLLER_FD6551;
+}
+
 static unsigned short fd650_get_brightness_levels_count(void)
 {
 	return is_fd655() ? 3 : 8;
@@ -169,7 +176,7 @@ static struct vfd_display *fd650_get_display_type(void)
 static unsigned char fd650_set_display_type(struct vfd_display *display)
 {
 	unsigned char ret = 0;
-	if (display->type < DISPLAY_TYPE_MAX && (is_fd650() || is_fd655() || is_fd6551()))
+	if (display->type < DISPLAY_TYPE_MAX && is_fd650_compatible(display->controller))
 	{
 		dev->dtb_active.display = *display;
 		fd650_init();
