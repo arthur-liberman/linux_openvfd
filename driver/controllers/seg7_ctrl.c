@@ -74,7 +74,11 @@ size_t seg7_write_display_data(const struct vfd_display_data *data, unsigned sho
 			raw_wdata[i] = data->string_main[i - 1] ? char_to_mask(data->string_main[i - 1]) : 0;
 		break;
 	case DISPLAY_MODE_TEMPERATURE:
-		len = scnprintf(buffer, sizeof(buffer), "%d%c%c", data->temperature % 1000, 0xB0, 'c'); // ascii 176 = degree
+		/* Show as "XX°c" (≤99) or "XXX°" (≥100, no room for 'c') */
+		if (data->temperature >= 100)
+			len = scnprintf(buffer, sizeof(buffer), "%3d%c", data->temperature % 1000, 0xB0);
+		else
+			len = scnprintf(buffer, sizeof(buffer), "%2d%c%c", data->temperature, 0xB0, 'c');
 		if (len > 4)
 			len = 4;
 		for (i = 0; i < len; i++)

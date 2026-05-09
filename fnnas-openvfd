@@ -1,0 +1,346 @@
+#!/bin/bash
+#==========================================================================
+#
+# This file is licensed under the terms of the GNU General Public
+# License version 2. This program is licensed "as is" without any
+# warranty of any kind, whether express or implied.
+#
+# This file is a part of the remake fnnas
+# https://github.com/ophub/fnnas
+#
+# Description: LED display control
+# Copyright (C) 2022- https://github.com/unifreq/openwrt_packit
+# Copyright (C) 2022- https://github.com/ophub/fnnas
+#
+# Function          : Command
+# Default           : fnnas-openvfd
+# One-key to open   : fnnas-openvfd <boxid>
+# One-key to stop   : fnnas-openvfd 0
+# Update config     : fnnas-openvfd -u
+#
+#============================= Functions list =============================
+#
+# do_start          : Turn on the LED screen display
+# do_stop           : Turn off the LED screen display
+# do_update_conf    : Update OpenVFD config files
+# do_select_box     : Select and apply config by device ID
+#
+#==========================================================================
+#
+# OpenVFD files storage path
+openvfd_path="/usr/share/openvfd"
+openvfd_service="${openvfd_path}/vfdservice"
+# OpenVFD files download repository
+openvfd_repo="https://github.com/ophub/amlogic-s9xxx-armbian.git"
+openvfd_dir="build-armbian/armbian-files/platform-files/amlogic/rootfs/usr/share/openvfd"
+# Carousel mode flag
+carousel_flag=""
+# Carousel durations (seconds): CLOCK,DATE,TEMP
+carousel_durations=""
+#
+# Set font color
+STEPS="[\033[95m STEPS \033[0m]"
+INFO="[\033[94m INFO \033[0m]"
+SUCCESS="[\033[92m SUCCESS \033[0m]"
+OPTIONS="[\033[93m OPTIONS \033[0m]"
+ERROR="[\033[91m ERROR \033[0m]"
+#
+#==========================================================================
+
+# Show error message
+error_msg() {
+    echo -e "${ERROR} ${1}"
+    exit 1
+}
+
+# Restart vfdservice with current carousel setting
+restart_vfdservice() {
+    if pgrep -x "vfdservice" >/dev/null 2>&1; then
+        killall -9 vfdservice 2>/dev/null
+        sleep 1
+        "${openvfd_service}" ${carousel_flag} ${carousel_durations} &
+        echo -e "${SUCCESS} vfdservice restarted with carousel ${carousel_flag:+ON}${carousel_flag:-OFF}"
+    fi
+}
+
+# Update openvfd config files
+do_update_conf() {
+    echo -e "${STEPS} Updating OpenVFD config files..."
+
+    # Check dependencies
+    [[ -z "$(dpkg -l | awk '{print $2}' | grep -w "^git$")" ]] && sudo apt-get update && sudo apt-get install -y git
+
+    # Get the latest scripts
+    git_tmp_path="$(mktemp -d)"
+    cd ${git_tmp_path}
+    git init --quiet
+    git config core.sparseCheckout true
+    echo "${openvfd_dir}/*" >>.git/info/sparse-checkout
+    git remote add origin ${openvfd_repo}
+    git pull --quiet --depth=1 origin main
+    [[ "${?}" -ne "0" ]] && error_msg "Failed to download [ ${openvfd_repo} ] scripts."
+
+    # Update related files
+    mkdir -p ${openvfd_path}
+    cp -af --no-preserve=ownership ${git_tmp_path}/${openvfd_dir}/* ${openvfd_path}
+    [[ "${?}" -ne "0" ]] && error_msg "Failed to sync [ ${openvfd_repo} ] scripts."
+    chmod +x ${openvfd_path}/vfdservice
+
+    # Clean up temporary files
+    rm -rf ${git_tmp_path} 2>/dev/null
+
+    sync && sleep 3
+    echo -e "${SUCCESS} OpenVFD config files updated successfully."
+    exit 0
+}
+
+# Turn on the LED screen display
+do_start() {
+    echo -e "${STEPS} Starting LED screen display..."
+
+    # Check config files and services
+    conf_file="${openvfd_path}/conf/${1}"
+    if [[ -s "${conf_file}" && -x "${openvfd_service}" ]]; then
+        source "${conf_file}" 2>/dev/null
+        echo -e "${INFO} Using LED Profiles: ${conf_file}"
+    else
+        error_msg "The LED profile [ ${conf_file} ] does not exist!"
+    fi
+
+    # Kill existing service to avoid conflicts
+    killall -9 vfdservice 2>/dev/null
+    sleep 1
+
+    modprobe openvfd vfd_gpio_clk=${vfd_gpio_clk} \
+        vfd_gpio_dat=${vfd_gpio_dat} \
+        vfd_gpio_stb=${vfd_gpio_stb:-0,0,0xFF} \
+        vfd_gpio0=${vfd_gpio0:-0,0,0xFF} \
+        vfd_gpio1=${vfd_gpio1:-0,0,0xFF} \
+        vfd_gpio2=${vfd_gpio2:-0,0,0xFF} \
+        vfd_gpio3=${vfd_gpio3:-0,0,0xFF} \
+        vfd_gpio_protocol=${vfd_gpio_protocol:-0,0} \
+        vfd_chars=${vfd_chars} vfd_dot_bits=${vfd_dot_bits} \
+        vfd_display_type=${vfd_display_type}
+
+    "${openvfd_service}" ${carousel_flag} ${carousel_durations} &
+
+    trap "killall ${openvfd_service}; rmmod openvfd; exit" 2 3 15
+
+    if [[ -n "${functions}" ]]; then
+        for func in ${functions}; do
+            echo -e "${INFO} turn led ${func} on ... "
+            echo "${func}" >/sys/class/leds/openvfd/led_on 2>/dev/null
+        done
+    fi
+
+    if [[ -n "${carousel_flag}" ]]; then
+        echo -e "${INFO} Carousel mode: CLOCK -> DATE -> TEMPERATURE"
+    fi
+
+    echo -e "${SUCCESS} LED display enabled!"
+    exit 0
+}
+
+# Turn off the LED screen display
+do_stop() {
+    echo -e "${STEPS} Turning off LED screen display..."
+
+    killall -9 vfdservice 2>/dev/null
+    rmmod openvfd -f 2>/dev/null
+
+    echo -e "${SUCCESS} LED display disabled!"
+    exit 0
+}
+
+# Enable auto-start in system service script
+# Enable auto-start in system service script
+# Enable auto-start in system service script
+do_enable_autostart() {
+    local auto_file="/etc/custom_service/start_service.sh"
+    [[ ! -f "${auto_file}" ]] && error_msg "Auto-start service file not found: ${auto_file}"
+
+    echo -e "${STEPS} Configuring OpenVFD auto-start..."
+
+    # Show current values
+    local cur_enable cur_boxid cur_restart
+    cur_enable=$(grep -oP 'openvfd_enable="\K[^"]*' "${auto_file}" 2>/dev/null || echo "no")
+    cur_boxid=$(grep -oP 'openvfd_boxid="\K[^"]*' "${auto_file}" 2>/dev/null || echo "99")
+    cur_restart=$(grep -oP 'openvfd_restart="\K[^"]*' "${auto_file}" 2>/dev/null || echo "no")
+    echo -e "${INFO} Current: enable=${cur_enable} boxid=${cur_boxid} restart=${cur_restart}"
+
+    echo -ne "${OPTIONS} Enter boxid (default: ${cur_boxid}): "
+    read boxid_val
+    boxid_val="${boxid_val:-${cur_boxid}}"
+
+    echo -ne "${OPTIONS} Enable carousel mode? (y/N): "
+    read carousel_val
+
+    if [[ "${carousel_val,,}" == "y" ]]; then
+        while true; do
+            echo -ne "${OPTIONS} Carousel durations CLOCK,DATE,TEMP (default: 5,3,3): "
+            read cd_val
+            cd_val="${cd_val:-5,3,3}"
+            if [[ "${cd_val}" =~ ^[0-9]+,[0-9]+,[0-9]+$ ]]; then
+                break
+            fi
+            echo -e "\033[91m[ ERROR ]\033[0m Format must be N,N,N (e.g. 5,3,3). Got: \'${cd_val}\'"
+        done
+    fi
+
+    echo -ne "${OPTIONS} Restart to clear BOOT? (y/N): "
+    read restart_val
+
+    # Update the three config variables
+    sed -i 's|^#*openvfd_enable=.*|openvfd_enable="yes"|g' "${auto_file}"
+    sed -i "s|^#*openvfd_boxid=.*|openvfd_boxid=\"${boxid_val}\"|g" "${auto_file}"
+
+    if [[ "${restart_val,,}" == "y" ]]; then
+        sed -i 's|^#*openvfd_restart=.*|openvfd_restart="yes"|g' "${auto_file}"
+    else
+        sed -i 's|^#*openvfd_restart=.*|openvfd_restart="no"|g' "${auto_file}"
+    fi
+
+    # Update fnnas-openvfd call lines for carousel
+    if [[ "${carousel_val,,}" == "y" ]]; then
+        # Normalize any existing carousel form first, then add new -c -cd form
+        sed -i 's|fnnas-openvfd -c -cd [0-9,]* "${openvfd_boxid}"|fnnas-openvfd "${openvfd_boxid}"|g' "${auto_file}"
+        sed -i 's|fnnas-openvfd -carousel -cd [0-9,]* "${openvfd_boxid}"|fnnas-openvfd "${openvfd_boxid}"|g' "${auto_file}"
+        sed -i 's|fnnas-openvfd "${openvfd_boxid}"|fnnas-openvfd -c -cd '"${cd_val}"' "${openvfd_boxid}"|g' "${auto_file}"
+        echo -e "${INFO} Carousel durations: ${cd_val}"
+    else
+        sed -i 's|fnnas-openvfd -c -cd [0-9,]* "${openvfd_boxid}"|fnnas-openvfd "${openvfd_boxid}"|g' "${auto_file}"
+        sed -i 's|fnnas-openvfd -carousel -cd [0-9,]* "${openvfd_boxid}"|fnnas-openvfd "${openvfd_boxid}"|g' "${auto_file}"
+    fi
+
+    echo -e "${SUCCESS} Auto-start configured!"
+    echo -e "${INFO} boxid=${boxid_val}  carousel=${carousel_val,,:-no}  restart=${restart_val,,:-no}"
+    echo -e "${INFO} Reboot to auto-start, or run: /etc/custom_service/start_service.sh"
+}
+
+
+
+
+
+# Select and apply config by device ID
+do_select_box() {
+    # Check for carousel in second argument
+    if [[ "${2}" == "c" || "${2}" == "carousel" ]]; then
+        carousel_flag="-carousel"
+    fi
+
+    case "${1}" in
+    11 | x96max) do_start x96max.conf ;;
+    12 | x96maxplus) do_start x96maxplus.conf ;;
+    13 | x96air) do_start x96air.conf ;;
+    14 | h96max-x3) do_start h96max-x3.conf ;;
+    15 | hk1-x3) do_start hk1-x3.conf ;;
+    16 | hk1box) do_start hk1box.conf ;;
+    17 | tx3) do_start tx3.conf ;;
+    18 | tx3-mini) do_start tx3-mini.conf ;;
+    19 | t95) do_start t95.conf ;;
+    20 | t95z-plus) do_start t95z-plus.conf ;;
+    21 | tx9-pro) do_start tx9-pro.conf ;;
+    22 | x92) do_start x92.conf ;;
+    23 | whale) do_start whale.conf ;;
+    24 | x88pro-x3) do_start x88pro-x3.conf ;;
+    99 | diy) do_start diy.conf ;;
+    0 | stop) do_stop ;;
+    1 | quit) echo "quit!" && exit 0 ;;
+    d | durations)
+        echo -ne "${OPTIONS} Enter durations (CLOCK,DATE,TEMP seconds, 0=skip): "
+        read dval
+        if [[ -n "${dval}" ]]; then
+            carousel_flag="-carousel"
+            carousel_durations="-cd ${dval}"
+            echo -e "${SUCCESS} Durations set: ${dval}"
+            restart_vfdservice
+        fi
+        ;;
+    a | auto-start)
+        do_enable_autostart
+        ;;
+    c | carousel)
+        if [[ -z "${carousel_flag}" ]]; then
+            carousel_flag="-carousel"
+            echo -e "${SUCCESS} Carousel mode ON (CLOCK -> DATE -> TEMPERATURE)"
+        else
+            carousel_flag=""
+            echo -e "${INFO} Carousel mode OFF"
+        fi
+        restart_vfdservice
+        ;;
+    *) error_msg "Invalid input ID!" ;;
+    esac
+}
+
+# Parse optional flags before boxid
+while [[ "${1}" == -* || "${1}" == "c" || "${1}" == "carousel" ]]; do
+    case "${1}" in
+    -a | --auto-start)
+        do_enable_autostart
+        exit 0
+        ;;
+    -c | --carousel)
+        carousel_flag="-carousel"
+        shift
+        ;;
+    -cd | --carousel-duration)
+        carousel_flag="-carousel"
+        carousel_durations="-cd ${2}"
+        shift 2
+        ;;
+    -u | --update)
+        do_update_conf
+        ;;
+    *)
+        break
+        ;;
+    esac
+done
+
+# Execute according to the classification of input parameters
+case "${1}" in
+[0-9]*)
+    do_select_box "${1}" "${2}"
+    ;;
+*)
+    clear
+    carousel_status="OFF"
+    [[ -n "${carousel_flag}" ]] && carousel_status="ON"
+    cat <<EOF
+
+        ┌────────[ Enable LED ]─────────┐
+        │                               │
+        │    11. x96max (s905x2)        │
+        │    12. x96maxplus (s905x3)    │
+        │    13. x96air (s905x3)        │
+        │    14. h96max-x3 (s905x3)     │
+        │    15. hk1-x3 (s905x3)        │
+        │    16. hk1box (s905x3)        │
+        │    17. tx3 (s905x3)           │
+        │    18. tx3-mini (s905w)       │
+        │    19. t95 (s905x)            │
+        │    20. t95z-plus (s912)       │
+        │    21. tx9-pro (s912)         │
+        │    22. x92 (s912)             │
+        │    23. whale (s905x3)         │
+        |    24. x88pro-x3 (s905x3)     |
+        │    99. diy                    │
+        │                               │
+        ├──────[ Other Operations ]─────┤
+        │                               │
+        │    -u. update                 │
+        │     0. stop                   │
+        │     1. quit                   │
+        │     a. auto-start           │
+        │     c. carousel [${carousel_status}]      │
+        │     d. durations            │
+        │                               │
+        └───────────────────────────────┘
+
+EOF
+    echo -ne "${OPTIONS} Please Input ID: "
+    read boxid
+    do_select_box "${boxid}"
+    ;;
+esac
