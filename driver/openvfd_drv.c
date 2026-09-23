@@ -49,8 +49,8 @@ static struct early_suspend openvfd_early_suspend;
 
 unsigned char vfd_display_auto_power = 1;
 static uint vfd_brightness = FD628_Brightness_8;
-unsigned char vfd_show_boot = 1;
-unsigned char vfd_show_stop = 1;
+unsigned char vfd_show_boot = 0;
+unsigned char vfd_show_stop = 0;
 
 static struct vfd_platform_data *pdata = NULL;
 struct kp {
@@ -222,7 +222,7 @@ static inline
 void display_text(const char* text) {
 	memset(&current_display_data, 0, sizeof(current_display_data));
 	current_display_data.mode = DISPLAY_MODE_TITLE;
-	snprintf(current_display_data.string_main, sizeof(current_display_data.string_main), text);
+	snprintf(current_display_data.string_main, sizeof(current_display_data.string_main), "%s", text);
 	display_data(&current_display_data);
 }
 
@@ -587,8 +587,18 @@ static ssize_t text_show(struct device *dev,
 static ssize_t text_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t size)
 {
+	char text[sizeof(current_display_data.string_main)];
+	size_t len = size;
+
+	if (len >= sizeof(text))
+		len = sizeof(text) - 1;
+	while (len > 0 && (buf[len - 1] == '\n' || buf[len - 1] == '\r'))
+		len--;
+	memcpy(text, buf, len);
+	text[len] = '\0';
+
 	mutex_lock(&mutex);
-	display_text(buf);
+	display_text(text);
 	mutex_unlock(&mutex);
 	return size;
 }
@@ -1166,10 +1176,13 @@ static struct notifier_block openvfd_notifier = {
 
 static int __init openvfd_driver_init(void)
 {
+	int ret;
+
 	pr_dbg2("OpenVFD Driver init.\n");
 	mutex_init(&mutex);
-	int ret = platform_driver_register(&openvfd_driver);
-	if (ret) return ret;
+	ret = platform_driver_register(&openvfd_driver);
+	if (ret)
+		return ret;
 
 	return register_reboot_notifier(&openvfd_notifier);
 }
