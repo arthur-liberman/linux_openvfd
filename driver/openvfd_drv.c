@@ -220,6 +220,8 @@ size_t unlocked_display_data(struct vfd_display_data *data)
 	ret = controller->write_display_data(data);
 	if (data != &current_display_data)
 		current_display_data = *data;
+	current_display_data.string_main[sizeof(current_display_data.string_main) - 1] = '\0';
+	current_display_data.string_secondary[sizeof(current_display_data.string_secondary) - 1] = '\0';
 	return ret;
 }
 
@@ -255,7 +257,6 @@ static ssize_t openvfd_dev_read(struct file *filp, char __user * buf,
 	__u32 disk = 0;
 	struct vfd_dev *dev = filp->private_data;
 	__u32 diskvalue = 0;
-	int ret = 0;
 	int rbuf[2] = { 0 };
 	//pr_dbg("start read keyboard value...............\r\n");
 	if (dev->Keyboard_diskstatus == 1) {
@@ -269,12 +270,11 @@ static ssize_t openvfd_dev_read(struct file *filp, char __user * buf,
 		rbuf[0] = disk;
 	else
 		rbuf[0] = diskvalue;
-	//pr_dbg("Keyboard value:%d\n, status : %d\n",rbuf[0],rbuf[1]);
-	ret = copy_to_user(buf, rbuf, sizeof(rbuf));
-	if (ret == 0)
-		return sizeof(rbuf);
-	else
-		return ret;
+	if (count < sizeof(rbuf))
+		return -EINVAL;
+	if (copy_to_user(buf, rbuf, sizeof(rbuf)))
+		return -EFAULT;
+	return sizeof(rbuf);
 }
 
 /**
@@ -305,6 +305,9 @@ static ssize_t openvfd_dev_write(struct file *filp, const char __user * buf,
 		}
 	} else if (count > 0) {
 		unsigned char *raw_data;
+
+		if (count > PAGE_SIZE)
+			return -EINVAL;
 		pr_dbg2("openvfd_dev_write: count = %ld, sizeof(data) = %ld\n", count, sizeof(data));
 		raw_data = kzalloc(count, GFP_KERNEL);
 		if (!raw_data) {
@@ -313,7 +316,7 @@ static ssize_t openvfd_dev_write(struct file *filp, const char __user * buf,
 		}
 		if (!copy_from_user(raw_data, buf, count)) {
 			mutex_lock(&mutex);
-			if (controller->write_data((unsigned char*)raw_data, count))
+			if (controller && controller->write_data((unsigned char *)raw_data, count))
 				pr_dbg("openvfd_dev_write count : %ld\n", count);
 			else {
 				status = -EIO;
@@ -334,6 +337,18 @@ static void set_display_type(struct vfd_dev *dev, int new_display_type)
 {
 	memcpy(&dev->dtb_active.display, &new_display_type, sizeof(struct vfd_display));
 	init_controller(dev);
+}
+
+static void sanitize_dat_index(struct vfd_dev *dev)
+{
+	size_t i;
+	const size_t n = sizeof(dev->dtb_active.dat_index) / sizeof(dev->dtb_active.dat_index[0]);
+	const size_t wbuf_n = sizeof(dev->wbuf) / sizeof(dev->wbuf[0]);
+
+	for (i = 0; i < n; i++) {
+		if (dev->dtb_active.dat_index[i] >= wbuf_n)
+			dev->dtb_active.dat_index[i] = (i < wbuf_n) ? (u_int8)i : 0;
+	}
 }
 
 static long openvfd_dev_ioctl(struct file *filp, unsigned int cmd,
@@ -381,8 +396,10 @@ static long openvfd_dev_ioctl(struct file *filp, unsigned int cmd,
 		break;
 	case VFD_IOC_SCHARS_ORDER:
 		ret = __copy_from_user(temp_chars_order, (__u8 __user *)arg, sizeof(dev->dtb_active.dat_index));
-		if (!ret)
+		if (!ret) {
 			memcpy(dev->dtb_active.dat_index, temp_chars_order, sizeof(dev->dtb_active.dat_index));
+			sanitize_dat_index(dev);
+		}
 		break;
 	case VFD_IOC_SMODE:	/* Set: arg points to the value */
 		ret = __get_user(dev->mode, (int __user *)arg);
@@ -538,9 +555,10 @@ static ssize_t led_cmd_store(struct device *_dev,
 			set_display_type(dev, (int)temp);
 			break;
 		case VFD_IOC_SCHARS_ORDER:
-			if (size >= sizeof(dev->dtb_active.dat_index)+sizeof(int))
+			if (size >= sizeof(dev->dtb_active.dat_index)+sizeof(int)) {
 				memcpy(dev->dtb_active.dat_index, buf, sizeof(dev->dtb_active.dat_index));
-			else
+				sanitize_dat_index(dev);
+			} else
 				size = -EFAULT;
 			break;
 		case VFD_IOC_USE_DTB_CONFIG:
@@ -559,6 +577,21 @@ static ssize_t led_cmd_store(struct device *_dev,
 	return size;
 }
 
+static size_t copy_sysfs_token(char *dst, size_t dst_size, const char *buf, size_t size)
+{
+	size_t len = size;
+
+	if (dst_size == 0)
+		return 0;
+	if (len >= dst_size)
+		len = dst_size - 1;
+	while (len > 0 && (buf[len - 1] == '\n' || buf[len - 1] == '\r'))
+		len--;
+	memcpy(dst, buf, len);
+	dst[len] = '\0';
+	return len;
+}
+
 static ssize_t led_on_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
@@ -568,8 +601,11 @@ static ssize_t led_on_show(struct device *dev,
 static ssize_t led_on_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t size)
 {
+	char name[32];
+
+	copy_sysfs_token(name, sizeof(name), buf, size);
 	mutex_lock(&mutex);
-	controller->set_icon(buf, 1);
+	controller->set_icon(name, 1);
 	unlocked_display_data(&current_display_data);
 	mutex_unlock(&mutex);
 	return size;
@@ -584,8 +620,11 @@ static ssize_t led_off_show(struct device *dev,
 static ssize_t led_off_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t size)
 {
+	char name[32];
+
+	copy_sysfs_token(name, sizeof(name), buf, size);
 	mutex_lock(&mutex);
-	controller->set_icon(buf, 0);
+	controller->set_icon(name, 0);
 	unlocked_display_data(&current_display_data);
 	mutex_unlock(&mutex);
 	return size;
@@ -594,7 +633,14 @@ static ssize_t led_off_store(struct device *dev,
 static ssize_t text_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
-	return scnprintf(buf, PAGE_SIZE, "%s\n", current_display_data.string_main);
+	ssize_t ret;
+
+	mutex_lock(&mutex);
+	ret = scnprintf(buf, PAGE_SIZE, "%.*s\n",
+		(int)sizeof(current_display_data.string_main),
+		current_display_data.string_main);
+	mutex_unlock(&mutex);
+	return ret;
 }
 
 static ssize_t text_store(struct device *dev,
@@ -860,6 +906,7 @@ static int verify_module_params(struct vfd_dev *dev)
 			dev->dtb_active.dat_index[i] = (u_int8)vfd_chars[i];
 			dev->dtb_active.led_dot_index[i] = (u_int8)vfd_dot_bits[i];
 		}
+		sanitize_dat_index(dev);
 		for (i = 0; i < 8; i++)
 			dev->dtb_active.led_dots[i] = (u_int8)ledDots[vfd_dot_bits[i]];
 		dev->dtb_active.display.type = (u_int8)vfd_display_type[0];
@@ -969,6 +1016,7 @@ static int openvfd_driver_probe(struct platform_device *pdev)
 				pdata->dev->dtb_active.dat_index[i] = c[i];
 				pr_dbg2("char #%d: %d\n", i, c[i]);
 			}
+			sanitize_dat_index(pdata->dev);
 		}
 
 		dot_bits_prop = of_find_property(pdev->dev.of_node, MOD_NAME_DOTS, NULL);

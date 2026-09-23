@@ -325,15 +325,23 @@ static size_t fd628_write_data(const unsigned char *_data, size_t length)
 	case DISPLAY_TYPE_5D_7S_G9SX:
 	case DISPLAY_TYPE_5D_X96_X9:
 	default:
-		for (i = 0; i < length; i++)
-			dev->wbuf[dtb->dat_index[i]] = data[i];
+		for (i = 0; i < length; i++) {
+			unsigned char pos = dtb->dat_index[i];
+
+			if (pos < sizeof(dev->wbuf) / sizeof(dev->wbuf[0]))
+				dev->wbuf[pos] = data[i];
+		}
 		break;
 	case DISPLAY_TYPE_FD620_REF:
 	case DISPLAY_TYPE_4D_7S_FREESATGTC:
 		for (i = 1; i < length; i++) {
-			dev->wbuf[dtb->dat_index[i]] = data[i];
+			unsigned char pos = dtb->dat_index[i];
+
+			if (pos >= sizeof(dev->wbuf) / sizeof(dev->wbuf[0]))
+				continue;
+			dev->wbuf[pos] = data[i];
 			if (data[0] & dtb->led_dots[LED_DOT_SEC])
-				dev->wbuf[dtb->dat_index[i]] |= ledDot;				// DP is the colon.
+				dev->wbuf[pos] |= ledDot;				// DP is the colon.
 		}
 		break;
 	}
