@@ -211,19 +211,32 @@ static int openvfd_dev_open(struct inode *inode, struct file *file)
 static struct vfd_display_data current_display_data;
 
 static inline
-size_t display_data(struct vfd_display_data* data) {
-	size_t ret = controller->write_display_data(data);
+size_t unlocked_display_data(struct vfd_display_data *data)
+{
+	size_t ret;
+
+	if (!controller)
+		return 0;
+	ret = controller->write_display_data(data);
 	if (data != &current_display_data)
 		current_display_data = *data;
 	return ret;
 }
 
 static inline
-void display_text(const char* text) {
+void unlocked_display_text(const char *text)
+{
 	memset(&current_display_data, 0, sizeof(current_display_data));
 	current_display_data.mode = DISPLAY_MODE_TITLE;
 	snprintf(current_display_data.string_main, sizeof(current_display_data.string_main), "%s", text);
-	display_data(&current_display_data);
+	unlocked_display_data(&current_display_data);
+}
+
+static void display_text(const char *text)
+{
+	mutex_lock(&mutex);
+	unlocked_display_text(text);
+	mutex_unlock(&mutex);
 }
 
 static int openvfd_dev_release(struct inode *inode, struct file *file)
@@ -274,12 +287,12 @@ static ssize_t openvfd_dev_write(struct file *filp, const char __user * buf,
 				   size_t count, loff_t * f_pos)
 {
 	ssize_t status = count;
-	static struct vfd_display_data data;
+	struct vfd_display_data data;
 
 	if (count == sizeof(data)) {
 		if (!copy_from_user(&data, buf, count)) {
 			mutex_lock(&mutex);
-			if (display_data(&data))
+			if (unlocked_display_data(&data))
 				pr_dbg("openvfd_dev_write count : %ld\n", count);
 			else {
 				status = -EIO;
@@ -557,7 +570,7 @@ static ssize_t led_on_store(struct device *dev,
 {
 	mutex_lock(&mutex);
 	controller->set_icon(buf, 1);
-	display_data(&current_display_data);
+	unlocked_display_data(&current_display_data);
 	mutex_unlock(&mutex);
 	return size;
 }
@@ -573,7 +586,7 @@ static ssize_t led_off_store(struct device *dev,
 {
 	mutex_lock(&mutex);
 	controller->set_icon(buf, 0);
-	display_data(&current_display_data);
+	unlocked_display_data(&current_display_data);
 	mutex_unlock(&mutex);
 	return size;
 }
@@ -598,7 +611,7 @@ static ssize_t text_store(struct device *dev,
 	text[len] = '\0';
 
 	mutex_lock(&mutex);
-	display_text(text);
+	unlocked_display_text(text);
 	mutex_unlock(&mutex);
 	return size;
 }
@@ -1039,7 +1052,7 @@ static int openvfd_driver_probe(struct platform_device *pdev)
 
 	if (vfd_show_boot) {
 		unlocked_set_power(1);
-		display_text("boot");
+		unlocked_display_text("boot");
 	}
 
 #if defined(CONFIG_HAS_EARLYSUSPEND) || defined(CONFIG_AMLOGIC_LEGACY_EARLY_SUSPEND)
