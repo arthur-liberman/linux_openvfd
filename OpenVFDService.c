@@ -35,7 +35,7 @@ int get_cmd_chars_order(int argc, char *argv[], u_int8 chars[], const int sz);
 bool print_usage(int argc, char *argv[]);
 
 struct sync_data {
-	bool isActive;
+	volatile sig_atomic_t isActive;
 	pthread_mutex_t mutex;
 	pthread_cond_t cond;
 	struct timespec abs_time;
@@ -339,7 +339,7 @@ void led_test_loop(bool cycle_display_types)
 	printf("Initializing...\n");
 	if (!cycle_display_types)
 		printf("Process ID = %d\n", pid);
-	while (1) {
+	while (sync_data.isActive) {
 		int i;
 		const int len = 7;
 		unsigned short wb[7];
@@ -404,6 +404,36 @@ void *display_test_thread_handler(void *arg)
 	pthread_exit(NULL);
 }
 
+static int create_control_fifo(void)
+{
+	mode_t oldmask;
+	int fd;
+
+	unlink(PIPE_PATH);
+	oldmask = umask(0077);
+	if (mkfifo(PIPE_PATH, S_IRUSR | S_IWUSR) != 0) {
+		umask(oldmask);
+		printf("Unable to create a fifo; errno=%d\n", errno);
+		return -1;
+	}
+	umask(oldmask);
+	chmod(PIPE_PATH, S_IRUSR | S_IWUSR);
+
+	fd = open(PIPE_PATH, O_RDWR | O_NONBLOCK);
+	if (fd < 0) {
+		printf("Unable to open fifo; errno=%d\n", errno);
+		unlink(PIPE_PATH);
+		return -1;
+	}
+	/* Keep a writer open so later reads block for data instead of EOF. */
+	{
+		int flags = fcntl(fd, F_GETFL);
+		if (flags >= 0)
+			fcntl(fd, F_SETFL, flags & ~O_NONBLOCK);
+	}
+	return fd;
+}
+
 void *named_pipe_thread_handler(void *arg)
 {
 	int file;
@@ -411,16 +441,20 @@ void *named_pipe_thread_handler(void *arg)
 	int ret = 0, i;
 	unsigned char skipSignal;
 
-	unlink(PIPE_PATH);
-	if ((mkfifo(PIPE_PATH, 0666)) != 0) {
-		printf("Unable to create a fifo; errno=%d\n",errno);
-		pthread_exit(NULL);                    /* Print error message and return */
-	}
+	(void)arg;
+	file = create_control_fifo();
+	if (file < 0)
+		pthread_exit(NULL);
 
 	while (sync_data.isActive) {
-		file = open(PIPE_PATH, O_RDONLY);
-		ret = read(file, buf, sizeof(buf));
-		close(file);
+		ret = read(file, buf, sizeof(buf) - 1);
+		if (ret <= 0) {
+			if (!sync_data.isActive)
+				break;
+			if (ret < 0 && (errno == EAGAIN || errno == EINTR))
+				continue;
+			break;
+		}
 		buf[ret] = '\0';
 		if (verbose) {
 			printf("ret = %d, %s\n", ret, buf);
@@ -428,7 +462,7 @@ void *named_pipe_thread_handler(void *arg)
 				printf("0x%02X, ", buf[i]);
 			printf("\n");
 		}
-		if (ret > 0 && !pthread_mutex_lock(&sync_data.mutex)) {
+		if (!pthread_mutex_lock(&sync_data.mutex)) {
 			skipSignal = 0;
 			if (ret == sizeof(sync_data.display_data)) {
 				VERBOSE_PRINTF("Write display data\n");
@@ -465,6 +499,7 @@ void *named_pipe_thread_handler(void *arg)
 		}
 	}
 
+	close(file);
 	unlink(PIPE_PATH);
 	pthread_exit(NULL);
 }
@@ -510,10 +545,23 @@ bool set_display_type(int new_display_type)
 void handle_signal(int signal)
 {
 	int file;
-	sync_data.isActive = false;
-	file = open(PIPE_PATH, O_WRONLY);
-	write(file, "\1", 1);
+	char wake = 1;
+
+	(void)signal;
+	sync_data.isActive = 0;
+	file = open(PIPE_PATH, O_WRONLY | O_NONBLOCK);
+	if (file < 0)
+		return;
+	write(file, &wake, 1);
 	close(file);
+}
+
+static void init_sync_data(void)
+{
+	memset(&sync_data, 0, sizeof(sync_data));
+	pthread_mutex_init(&sync_data.mutex, NULL);
+	pthread_cond_init(&sync_data.cond, NULL);
+	sync_data.isActive = 1;
 }
 
 int main(int argc, char *argv[])
@@ -544,15 +592,17 @@ int main(int argc, char *argv[])
 	select_display_type();
 
 	test_mode = is_test_mode(argc, argv);
+	init_sync_data();
+	{
+		struct sigaction sig_handler = {.sa_handler = handle_signal};
+		sigemptyset(&sig_handler.sa_mask);
+		sigaction(SIGTERM, &sig_handler, 0);
+		sigaction(SIGINT, &sig_handler, 0);
+	}
 	if (test_mode)
 		ret = pthread_create(&disp_id, NULL, display_test_thread_handler, &cycle_display_types);
 	else {
 		struct display_setup setup = { 0 };
-		struct sigaction sig_handler = {.sa_handler=handle_signal};
-		memset(&sync_data, 0, sizeof(struct sync_data));
-		sync_data.isActive = true;
-		sigaction(SIGTERM, &sig_handler, 0);
-		sigaction(SIGINT, &sig_handler, 0);
 		setup.is_demo = is_demo_mode(argc, argv);
 		setup.is_12h = is_12h_mode(argc, argv);
 		setup.is_carousel = is_carousel_mode(argc, argv);
