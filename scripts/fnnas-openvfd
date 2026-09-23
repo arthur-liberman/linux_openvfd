@@ -39,6 +39,7 @@ carousel_flag=""
 carousel_durations=""
 #
 # Set font color
+# Set font color
 STEPS="[\033[95m STEPS \033[0m]"
 INFO="[\033[94m INFO \033[0m]"
 SUCCESS="[\033[92m SUCCESS \033[0m]"
@@ -53,12 +54,42 @@ error_msg() {
     exit 1
 }
 
+is_duration_list() {
+    [[ "${1}" =~ ^[0-9]+,[0-9]+,[0-9]+$ ]]
+}
+
+is_boxid() {
+    [[ "${1}" =~ ^[0-9]+$ ]]
+}
+
+stop_vfdservice() {
+    if pgrep -x vfdservice >/dev/null 2>&1; then
+        pkill -TERM -x vfdservice 2>/dev/null || true
+        sleep 1
+        if pgrep -x vfdservice >/dev/null 2>&1; then
+            pkill -KILL -x vfdservice 2>/dev/null || true
+            sleep 1
+        fi
+    fi
+}
+
+start_vfdservice() {
+    if [[ -n "${carousel_durations}" && -n "${carousel_flag}" ]]; then
+        "${openvfd_service}" "${carousel_flag}" -cd "${carousel_durations}" &
+    elif [[ -n "${carousel_durations}" ]]; then
+        "${openvfd_service}" -cd "${carousel_durations}" &
+    elif [[ -n "${carousel_flag}" ]]; then
+        "${openvfd_service}" "${carousel_flag}" &
+    else
+        "${openvfd_service}" &
+    fi
+}
+
 # Restart vfdservice with current carousel setting
 restart_vfdservice() {
-    if pgrep -x "vfdservice" >/dev/null 2>&1; then
-        killall -9 vfdservice 2>/dev/null
-        sleep 1
-        "${openvfd_service}" ${carousel_flag} ${carousel_durations} &
+    if pgrep -x vfdservice >/dev/null 2>&1; then
+        stop_vfdservice
+        start_vfdservice
         echo -e "${SUCCESS} vfdservice restarted with carousel ${carousel_flag:+ON}${carousel_flag:-OFF}"
     fi
 }
@@ -66,28 +97,28 @@ restart_vfdservice() {
 # Update openvfd config files
 do_update_conf() {
     echo -e "${STEPS} Updating OpenVFD config files..."
+    echo -e "${INFO} Fetching unsigned conf files from ${openvfd_repo}."
+    echo -e "${INFO} Device profiles only; the local vfdservice binary is left unchanged."
 
     # Check dependencies
     [[ -z "$(dpkg -l | awk '{print $2}' | grep -w "^git$")" ]] && sudo apt-get update && sudo apt-get install -y git
 
-    # Get the latest scripts
     git_tmp_path="$(mktemp -d)"
-    cd ${git_tmp_path}
+    trap 'rm -rf "${git_tmp_path}"' EXIT
+    cd "${git_tmp_path}" || error_msg "Failed to enter temporary directory."
     git init --quiet
     git config core.sparseCheckout true
-    echo "${openvfd_dir}/*" >>.git/info/sparse-checkout
-    git remote add origin ${openvfd_repo}
+    echo "${openvfd_dir}/conf/*" >>.git/info/sparse-checkout
+    git remote add origin "${openvfd_repo}"
     git pull --quiet --depth=1 origin main
     [[ "${?}" -ne "0" ]] && error_msg "Failed to download [ ${openvfd_repo} ] scripts."
 
-    # Update related files
-    mkdir -p ${openvfd_path}
-    cp -af --no-preserve=ownership ${git_tmp_path}/${openvfd_dir}/* ${openvfd_path}
-    [[ "${?}" -ne "0" ]] && error_msg "Failed to sync [ ${openvfd_repo} ] scripts."
-    chmod +x ${openvfd_path}/vfdservice
+    mkdir -p "${openvfd_path}/conf"
+    cp -af --no-preserve=ownership "${git_tmp_path}/${openvfd_dir}/conf/." "${openvfd_path}/conf/"
+    [[ "${?}" -ne "0" ]] && error_msg "Failed to sync [ ${openvfd_repo} ] conf files."
 
-    # Clean up temporary files
-    rm -rf ${git_tmp_path} 2>/dev/null
+    rm -rf "${git_tmp_path}" 2>/dev/null
+    trap - EXIT
 
     sync && sleep 3
     echo -e "${SUCCESS} OpenVFD config files updated successfully."
@@ -100,34 +131,41 @@ do_start() {
 
     # Check config files and services
     conf_file="${openvfd_path}/conf/${1}"
+    if [[ "${1}" == */* || "${1}" == .* ]]; then
+        error_msg "Invalid LED profile name."
+    fi
     if [[ -s "${conf_file}" && -x "${openvfd_service}" ]]; then
+        # shellcheck source=/dev/null
         source "${conf_file}" 2>/dev/null
         echo -e "${INFO} Using LED Profiles: ${conf_file}"
     else
         error_msg "The LED profile [ ${conf_file} ] does not exist!"
     fi
 
-    # Kill existing service to avoid conflicts
-    killall -9 vfdservice 2>/dev/null
-    sleep 1
+    stop_vfdservice
 
-    modprobe openvfd vfd_gpio_clk=${vfd_gpio_clk} \
-        vfd_gpio_dat=${vfd_gpio_dat} \
-        vfd_gpio_stb=${vfd_gpio_stb:-0,0,0xFF} \
-        vfd_gpio0=${vfd_gpio0:-0,0,0xFF} \
-        vfd_gpio1=${vfd_gpio1:-0,0,0xFF} \
-        vfd_gpio2=${vfd_gpio2:-0,0,0xFF} \
-        vfd_gpio3=${vfd_gpio3:-0,0,0xFF} \
-        vfd_gpio_protocol=${vfd_gpio_protocol:-0,0} \
-        vfd_chars=${vfd_chars} vfd_dot_bits=${vfd_dot_bits} \
-        vfd_display_type=${vfd_display_type}
+    if ! modprobe openvfd "vfd_gpio_clk=${vfd_gpio_clk}" \
+        "vfd_gpio_dat=${vfd_gpio_dat}" \
+        "vfd_gpio_stb=${vfd_gpio_stb:-0,0,0xFF}" \
+        "vfd_gpio0=${vfd_gpio0:-0,0,0xFF}" \
+        "vfd_gpio1=${vfd_gpio1:-0,0,0xFF}" \
+        "vfd_gpio2=${vfd_gpio2:-0,0,0xFF}" \
+        "vfd_gpio3=${vfd_gpio3:-0,0,0xFF}" \
+        "vfd_gpio_protocol=${vfd_gpio_protocol:-0,0}" \
+        "vfd_chars=${vfd_chars}" "vfd_dot_bits=${vfd_dot_bits}" \
+        "vfd_display_type=${vfd_display_type}"; then
+        error_msg "Failed to load the openvfd module."
+    fi
 
-    "${openvfd_service}" ${carousel_flag} ${carousel_durations} &
+    start_vfdservice
 
-    trap "killall ${openvfd_service}; rmmod openvfd; exit" 2 3 15
+    trap 'stop_vfdservice; rmmod openvfd 2>/dev/null; exit' 2 3 15
 
     if [[ -n "${functions}" ]]; then
         for func in ${functions}; do
+            if [[ ! "${func}" =~ ^[A-Za-z0-9_]+$ ]]; then
+                continue
+            fi
             echo -e "${INFO} turn led ${func} on ... "
             echo "${func}" >/sys/class/leds/openvfd/led_on 2>/dev/null
         done
@@ -145,15 +183,17 @@ do_start() {
 do_stop() {
     echo -e "${STEPS} Turning off LED screen display..."
 
-    killall -9 vfdservice 2>/dev/null
-    rmmod openvfd -f 2>/dev/null
+    stop_vfdservice
+    if lsmod | grep -q '^openvfd\>'; then
+        if ! rmmod openvfd; then
+            error_msg "Failed to unload openvfd (device still in use?)."
+        fi
+    fi
 
     echo -e "${SUCCESS} LED display disabled!"
     exit 0
 }
 
-# Enable auto-start in system service script
-# Enable auto-start in system service script
 # Enable auto-start in system service script
 do_enable_autostart() {
     local auto_file="/etc/custom_service/start_service.sh"
@@ -171,6 +211,9 @@ do_enable_autostart() {
     echo -ne "${OPTIONS} Enter boxid (default: ${cur_boxid}): "
     read boxid_val
     boxid_val="${boxid_val:-${cur_boxid}}"
+    if ! is_boxid "${boxid_val}"; then
+        error_msg "boxid must be numeric."
+    fi
 
     echo -ne "${OPTIONS} Enable carousel mode? (y/N): "
     read carousel_val
@@ -180,7 +223,7 @@ do_enable_autostart() {
             echo -ne "${OPTIONS} Carousel durations CLOCK,DATE,TEMP (default: 5,3,3): "
             read cd_val
             cd_val="${cd_val:-5,3,3}"
-            if [[ "${cd_val}" =~ ^[0-9]+,[0-9]+,[0-9]+$ ]]; then
+            if is_duration_list "${cd_val}"; then
                 break
             fi
             echo -e "\033[91m[ ERROR ]\033[0m Format must be N,N,N (e.g. 5,3,3). Got: \'${cd_val}\'"
@@ -252,8 +295,11 @@ do_select_box() {
         echo -ne "${OPTIONS} Enter durations (CLOCK,DATE,TEMP seconds, 0=skip): "
         read dval
         if [[ -n "${dval}" ]]; then
+            if ! is_duration_list "${dval}"; then
+                error_msg "Format must be N,N,N (e.g. 5,3,3)."
+            fi
             carousel_flag="--carousel"
-            carousel_durations="-cd ${dval}"
+            carousel_durations="${dval}"
             echo -e "${SUCCESS} Durations set: ${dval}"
             restart_vfdservice
         fi
@@ -287,8 +333,11 @@ while [[ "${1}" == -* || "${1}" == "c" || "${1}" == "carousel" ]]; do
         shift
         ;;
     -cd | --carousel-duration)
+        if ! is_duration_list "${2}"; then
+            error_msg "Carousel durations must be N,N,N (e.g. 5,3,3)."
+        fi
         carousel_flag="--carousel"
-        carousel_durations="-cd ${2}"
+        carousel_durations="${2}"
         shift 2
         ;;
     -u | --update)
