@@ -205,11 +205,13 @@ do_enable_autostart() {
         # Normalize any existing carousel form first, then add new -c -cd form
         sed -i 's|fnnas-openvfd -c -cd [0-9,]* "${openvfd_boxid}"|fnnas-openvfd "${openvfd_boxid}"|g' "${auto_file}"
         sed -i 's|fnnas-openvfd -carousel -cd [0-9,]* "${openvfd_boxid}"|fnnas-openvfd "${openvfd_boxid}"|g' "${auto_file}"
+        sed -i 's|fnnas-openvfd --carousel -cd [0-9,]* "${openvfd_boxid}"|fnnas-openvfd "${openvfd_boxid}"|g' "${auto_file}"
         sed -i 's|fnnas-openvfd "${openvfd_boxid}"|fnnas-openvfd -c -cd '"${cd_val}"' "${openvfd_boxid}"|g' "${auto_file}"
         echo -e "${INFO} Carousel durations: ${cd_val}"
     else
         sed -i 's|fnnas-openvfd -c -cd [0-9,]* "${openvfd_boxid}"|fnnas-openvfd "${openvfd_boxid}"|g' "${auto_file}"
         sed -i 's|fnnas-openvfd -carousel -cd [0-9,]* "${openvfd_boxid}"|fnnas-openvfd "${openvfd_boxid}"|g' "${auto_file}"
+        sed -i 's|fnnas-openvfd --carousel -cd [0-9,]* "${openvfd_boxid}"|fnnas-openvfd "${openvfd_boxid}"|g' "${auto_file}"
     fi
 
     echo -e "${SUCCESS} Auto-start configured!"
@@ -225,7 +227,7 @@ do_enable_autostart() {
 do_select_box() {
     # Check for carousel in second argument
     if [[ "${2}" == "c" || "${2}" == "carousel" ]]; then
-        carousel_flag="-carousel"
+        carousel_flag="--carousel"
     fi
 
     case "${1}" in
@@ -250,7 +252,7 @@ do_select_box() {
         echo -ne "${OPTIONS} Enter durations (CLOCK,DATE,TEMP seconds, 0=skip): "
         read dval
         if [[ -n "${dval}" ]]; then
-            carousel_flag="-carousel"
+            carousel_flag="--carousel"
             carousel_durations="-cd ${dval}"
             echo -e "${SUCCESS} Durations set: ${dval}"
             restart_vfdservice
@@ -261,7 +263,7 @@ do_select_box() {
         ;;
     c | carousel)
         if [[ -z "${carousel_flag}" ]]; then
-            carousel_flag="-carousel"
+            carousel_flag="--carousel"
             echo -e "${SUCCESS} Carousel mode ON (CLOCK -> DATE -> TEMPERATURE)"
         else
             carousel_flag=""
@@ -281,11 +283,11 @@ while [[ "${1}" == -* || "${1}" == "c" || "${1}" == "carousel" ]]; do
         exit 0
         ;;
     -c | --carousel)
-        carousel_flag="-carousel"
+        carousel_flag="--carousel"
         shift
         ;;
     -cd | --carousel-duration)
-        carousel_flag="-carousel"
+        carousel_flag="--carousel"
         carousel_durations="-cd ${2}"
         shift 2
         ;;

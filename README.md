@@ -59,7 +59,7 @@ This repository contains the Linux kernel driver and userspace service for FD628
 Usage: vfdservice [OPTIONS] <display_type>
 
 Options:
-  -carousel       Enable carousel mode (CLOCK → DATE → TEMP rotation)
+  --carousel      Enable carousel mode (CLOCK → DATE → TEMP rotation)
   -cd S,S,S       Carousel durations in seconds (CLOCK,DATE,TEMP). Default: 5,3,3
   -mdf            Date format: month-day-first (MM.DD). Default is DD.MM
   -12h            Use 12-hour clock format
@@ -79,7 +79,7 @@ highest reported value to handle SoCs where CPU temp is not in zone0.
 
 ### fnnas-openvfd — Control Script
 
-`fnnas-openvfd` is a shell wrapper for managing `OpenVFDService` on FnNAS / Armbian-based systems.
+`scripts/fnnas-openvfd` is an optional shell wrapper for managing `OpenVFDService` on FnNAS / Armbian-based systems. Its `-c` / `--carousel` flag is passed to `vfdservice` as `--carousel`.
 
 ```bash
 # Start display for a known device (box ID 99 = GT-King Pro)
@@ -184,7 +184,7 @@ vfd_display_type='0x01,0x00,0x00,0x00'  # type,reserved,flags,controller
 用法：vfdservice [选项] <display_type>
 
 选项说明：
-  -carousel       启用走马灯模式（时钟 → 日期 → 温度 轮播）
+  --carousel      启用走马灯模式（时钟 → 日期 → 温度 轮播）
   -cd S,S,S       各阶段持续时间（秒），格式：时钟,日期,温度，默认 5,3,3
                   某项设为 0 表示跳过该阶段
   -mdf            日期格式：月在前（MM.DD），默认为日在前（DD.MM）
@@ -203,7 +203,7 @@ vfd_display_type='0x01,0x00,0x00,0x00'  # type,reserved,flags,controller
 
 ### fnnas-openvfd — 控制脚本
 
-`fnnas-openvfd` 是专为 FnNAS / Armbian 系统设计的 shell 封装脚本，用于管理 `OpenVFDService`。
+`scripts/fnnas-openvfd` 是可选的 shell 封装脚本，用于在 FnNAS / Armbian 上管理 `OpenVFDService`。脚本的 `-c` / `--carousel` 会作为 `--carousel` 传给 `vfdservice`。
 
 ```bash
 # 启动指定设备的显示（boxid 99 = GT-King Pro，走马灯模式，时长 5,3,3 秒）
@@ -221,8 +221,8 @@ fnnas-openvfd
 | `-cd N,N,N` | 设置走马灯各阶段时长（秒）|
 | `-a` / `--autostart` | 配置开机自启（写入启动脚本）|
 
-> **注意**：`fnnas-openvfd` 使用 `-c` 参数启用走马灯，该参数内部会转换为传给 `vfdservice` 的 `-carousel` 参数。
-> 请勿直接在调用 `fnnas-openvfd` 时使用 `-carousel`，否则会被识别为未知参数，导致进入交互菜单。
+> **注意**：`fnnas-openvfd` 使用 `-c` / `--carousel` 启用走马灯，并把它传给 `vfdservice` 的 `--carousel`。
+> 单横线的 `-carousel` 不是脚本参数，会被当成未知输入并进入交互菜单。
 
 ### 编译内核模块
 
