@@ -10,6 +10,7 @@
 #include <sys/ioctl.h>
 #include <pthread.h>
 #include <stdint.h>
+#include <limits.h>
 #include <signal.h>
 #include "driver/openvfd_drv.h"
 
@@ -25,6 +26,10 @@ bool is_verbose(int argc, char *argv[]);
 bool is_demo_mode(int argc, char *argv[]);
 bool is_test_mode(int argc, char *argv[]);
 bool is_12h_mode(int argc, char *argv[]);
+bool is_carousel_mode(int argc, char *argv[]);
+int parse_carousel_durations(int argc, char *argv[], int durations[3]);
+bool is_date_mday_first(int argc, char *argv[]);
+int get_cpu_temp(void);
 int get_cmd_display_type(int argc, char *argv[]);
 int get_cmd_chars_order(int argc, char *argv[], u_int8 chars[], const int sz);
 bool print_usage(int argc, char *argv[]);
@@ -44,6 +49,9 @@ struct sync_data {
 struct display_setup {
 	bool is_demo;
 	bool is_12h;
+	bool is_carousel;
+	bool date_mday_first;		/* true: MM.DD, false(default): DD.MM */
+	int carousel_durations[3];	/* durations in 500ms ticks */
 	const char *user_string;
 	const char *secondary_user_string;
 };
@@ -97,6 +105,79 @@ void mdelay(int n)
 
 struct sync_data sync_data;
 
+int get_cpu_temp(void)
+{
+	char path[64];
+	int i, t, temp = 0;
+	for (i = 0; i < 8; i++) {
+		FILE *fp;
+		snprintf(path, sizeof(path), "/sys/class/thermal/thermal_zone%d/temp", i);
+		fp = fopen(path, "r");
+		if (!fp)
+			continue;
+		if (fscanf(fp, "%d", &t) == 1 && t > temp)
+			temp = t;
+		fclose(fp);
+	}
+	return temp / 1000;
+}
+
+void fill_clock_date(struct vfd_display_data *data, const struct tm *timenow, bool is_12h)
+{
+	if (is_12h) {
+		if (timenow->tm_hour == 0)
+			data->time_date.hours = 12;
+		else if (timenow->tm_hour > 12)
+			data->time_date.hours = timenow->tm_hour - 12;
+		else
+			data->time_date.hours = timenow->tm_hour;
+	} else {
+		data->time_date.hours = timenow->tm_hour;
+	}
+	data->time_date.minutes = timenow->tm_min;
+	data->time_date.seconds = timenow->tm_sec;
+	data->time_date.day_of_week = timenow->tm_wday;
+	data->time_date.day = timenow->tm_mday;
+	data->time_date.month = timenow->tm_mon;
+	data->time_date.year = timenow->tm_year + 1900;
+}
+
+/* CLOCK=0, DATE=1, TEMP=2. Falls back to clock when no duration is active. */
+int carousel_display_mode(const struct display_setup *setup, int *state, int *tick)
+{
+	int active = 0, only = 0, i;
+
+	for (i = 0; i < 3; i++) {
+		if (setup->carousel_durations[i] > 0) {
+			active++;
+			only = i;
+		}
+	}
+	if (active == 0)
+		return DISPLAY_MODE_CLOCK;
+	if (active == 1) {
+		*state = only;
+	} else {
+		int skip;
+
+		(*tick)++;
+		if (*tick >= setup->carousel_durations[*state]) {
+			*tick = 0;
+			for (skip = 0; skip < 3; skip++) {
+				*state = (*state + 1) % 3;
+				if (setup->carousel_durations[*state] > 0)
+					break;
+			}
+		}
+	}
+
+	if (*state == 1)
+		return DISPLAY_MODE_DATE;
+	if (*state == 2)
+		return DISPLAY_MODE_TEMPERATURE;
+	return DISPLAY_MODE_CLOCK;
+}
+
 void led_display_loop(const struct display_setup *setup)
 {
 	static struct vfd_display_data data = { 0 };
@@ -105,6 +186,9 @@ void led_display_loop(const struct display_setup *setup)
 
 	time_t now;
 	struct tm *timenow;
+
+	static int carousel_state = 0;
+	static int carousel_tick = 0;
 
 	memset(&data, 0, sizeof(data));
 
@@ -164,25 +248,17 @@ void led_display_loop(const struct display_setup *setup)
 						snprintf(data.string_main, sizeof(data.string_main), "The Saga of the Viking Women and their Voyage to the Waters of the Great Sea Serpent");
 						snprintf(data.string_secondary, sizeof(data.string_secondary), "Now playing:");
 					} else if (!use_user_string) {
-						if (data.mode != DISPLAY_MODE_DATE)
-							data.mode = DISPLAY_MODE_CLOCK;
-						if (setup->is_12h) {
-							if (timenow->tm_hour == 0)
-								data.time_date.hours = 12;
-							else if (timenow->tm_hour > 12)
-								data.time_date.hours = timenow->tm_hour - 12;
-							else
-								data.time_date.hours = timenow->tm_hour;
-						} else {
-							data.time_date.hours = timenow->tm_hour;
-						}
-						data.time_date.minutes = timenow->tm_min;
-						data.time_date.seconds = timenow->tm_sec;
-						data.time_date.day_of_week = timenow->tm_wday;
-						data.time_date.day = timenow->tm_mday;
-						data.time_date.month = timenow->tm_mon;
-						data.time_date.year = timenow->tm_year + 1900;
+						fill_clock_date(&data, timenow, setup->is_12h);
 						data.colon_on = !data.colon_on;
+						/* _reserved=0: DD.MM (default), _reserved=1: MM.DD (-mdf) */
+						data.time_secondary._reserved = setup->date_mday_first ? 1 : 0;
+						if (setup->is_carousel) {
+							data.mode = carousel_display_mode(setup, &carousel_state, &carousel_tick);
+							if (data.mode == DISPLAY_MODE_TEMPERATURE)
+								data.temperature = get_cpu_temp();
+						} else if (data.mode != DISPLAY_MODE_DATE) {
+							data.mode = DISPLAY_MODE_CLOCK;
+						}
 					}
 				}
 				ret = write(openvfd_fd,&data,sizeof(data));
@@ -479,6 +555,20 @@ int main(int argc, char *argv[])
 		sigaction(SIGINT, &sig_handler, 0);
 		setup.is_demo = is_demo_mode(argc, argv);
 		setup.is_12h = is_12h_mode(argc, argv);
+		setup.is_carousel = is_carousel_mode(argc, argv);
+		setup.date_mday_first = is_date_mday_first(argc, argv);
+		/* default durations: 5s CLOCK, 3s DATE, 3s TEMP */
+		setup.carousel_durations[0] = 10;
+		setup.carousel_durations[1] = 6;
+		setup.carousel_durations[2] = 6;
+		switch (parse_carousel_durations(argc, argv, setup.carousel_durations)) {
+		case 1:
+			setup.is_carousel = true;
+			break;
+		case -1:
+			setup.is_carousel = false;
+			break;
+		}
 		setup.user_string = get_user_string(argc, argv);
 		if (setup.user_string)
 			setup.secondary_user_string = get_secondary_user_string(argc, argv);
@@ -554,6 +644,89 @@ bool is_12h_mode(int argc, char *argv[])
 	return is_cmd_option(argc, argv, "-12h");
 }
 
+/* -mdf: month-day-first, display date as MM.DD instead of default DD.MM */
+bool is_date_mday_first(int argc, char *argv[])
+{
+	return is_cmd_option(argc, argv, "-mdf");
+}
+
+bool is_carousel_mode(int argc, char *argv[])
+{
+	return is_cmd_option(argc, argv, "--carousel");
+}
+
+static bool parse_duration_field(const char *field, long *out)
+{
+	char *end;
+	long val;
+
+	if (!field || !*field)
+		return false;
+	errno = 0;
+	val = strtol(field, &end, 10);
+	if (end == field || *end != '\0' || errno == ERANGE || val < 0 || val > (INT_MAX / 2))
+		return false;
+	*out = val;
+	return true;
+}
+
+/* 1 = parsed, 0 = option absent, -1 = rejected. Seconds are stored as 500ms ticks. */
+int parse_carousel_durations(int argc, char *argv[], int durations[3])
+{
+	int i;
+
+	for (i = 1; i < argc; i++) {
+		const char *start, *comma;
+		long vals[3];
+		int field;
+
+		if (strcmp(argv[i], "-cd") && strcmp(argv[i], "--carousel-duration"))
+			continue;
+		if (++i >= argc) {
+			printf("Error parsing carousel durations, missing argument.\n");
+			return -1;
+		}
+
+		start = argv[i];
+		for (field = 0; field < 3; field++) {
+			char buf[32];
+			size_t len;
+
+			comma = strchr(start, ',');
+			if (field < 2) {
+				if (!comma) {
+					printf("Error parsing carousel durations, expected CLOCK,DATE,TEMP.\n");
+					return -1;
+				}
+				len = (size_t)(comma - start);
+				if (len == 0 || len >= sizeof(buf)) {
+					printf("Error parsing carousel durations, expected three non-negative integers.\n");
+					return -1;
+				}
+				memcpy(buf, start, len);
+				buf[len] = '\0';
+				if (!parse_duration_field(buf, &vals[field])) {
+					printf("Error parsing carousel durations, expected three non-negative integers.\n");
+					return -1;
+				}
+				start = comma + 1;
+			} else if (comma || !parse_duration_field(start, &vals[field])) {
+				printf("Error parsing carousel durations, expected CLOCK,DATE,TEMP.\n");
+				return -1;
+			}
+		}
+		if (vals[0] == 0 && vals[1] == 0 && vals[2] == 0) {
+			printf("Error parsing carousel durations, at least one duration must be non-zero.\n");
+			return -1;
+		}
+		durations[0] = (int)vals[0] * 2;
+		durations[1] = (int)vals[1] * 2;
+		durations[2] = (int)vals[2] * 2;
+		return 1;
+	}
+	return 0;
+}
+
 int get_cmd_display_type(int argc, char *argv[])
 {
 	int ret = -1, i;
@@ -624,6 +797,9 @@ bool print_usage(int argc, char *argv[])
 			printf("\t-ss SECONDARY_USER_STRING\tDisplay a smaller secondary string\n\t\t\tin addtion to USER_STRING.");
 			printf("\t-t\t\tRun OpenVFDService in display test mode.\n");
 			printf("\t-dm\t\tRun OpenVFDService in display demo mode.\n");
+			printf("\t--carousel\tRun OpenVFDService in carousel mode.\n\t\t\tCycles through CLOCK -> DATE -> TEMPERATURE.\n");
+			printf("\t-cd S,S,S\tCarousel durations in seconds (CLOCK,DATE,TEMP).\n\t\t\tDefault: 5,3,3. Implies --carousel.\n");
+			printf("\t-mdf\t\tDate format: month-day-first (MM.DD). Default is DD.MM.\n");
 			printf("\t-dt N\t\tSpecifies which display type to use.\n");
 			printf("\t-co N...\t< D HH:MM > Order of display chars.\n\t\t\tValid values are 0 - 6.\n\t\t\t(D=dots, represented by a single char)\n");
 			printf("\t-h\t\tThis text.\n\n");
