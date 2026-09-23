@@ -419,17 +419,12 @@ static int create_control_fifo(void)
 	umask(oldmask);
 	chmod(PIPE_PATH, S_IRUSR | S_IWUSR);
 
-	fd = open(PIPE_PATH, O_RDWR | O_NONBLOCK);
+	/* O_RDWR does not block, and keeps a writer open so reads wait for data. */
+	fd = open(PIPE_PATH, O_RDWR);
 	if (fd < 0) {
 		printf("Unable to open fifo; errno=%d\n", errno);
 		unlink(PIPE_PATH);
 		return -1;
-	}
-	/* Keep a writer open so later reads block for data instead of EOF. */
-	{
-		int flags = fcntl(fd, F_GETFL);
-		if (flags >= 0)
-			fcntl(fd, F_SETFL, flags & ~O_NONBLOCK);
 	}
 	return fd;
 }

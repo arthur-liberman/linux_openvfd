@@ -259,6 +259,8 @@ static ssize_t openvfd_dev_read(struct file *filp, char __user * buf,
 	__u32 diskvalue = 0;
 	int rbuf[2] = { 0 };
 	//pr_dbg("start read keyboard value...............\r\n");
+	if (count < sizeof(rbuf))
+		return -EINVAL;
 	if (dev->Keyboard_diskstatus == 1) {
 		diskvalue = FD628_GetKey(dev);
 		if (diskvalue == 0)
@@ -270,8 +272,6 @@ static ssize_t openvfd_dev_read(struct file *filp, char __user * buf,
 		rbuf[0] = disk;
 	else
 		rbuf[0] = diskvalue;
-	if (count < sizeof(rbuf))
-		return -EINVAL;
 	if (copy_to_user(buf, rbuf, sizeof(rbuf)))
 		return -EFAULT;
 	return sizeof(rbuf);

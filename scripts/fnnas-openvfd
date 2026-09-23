@@ -39,7 +39,6 @@ carousel_flag=""
 carousel_durations=""
 #
 # Set font color
-# Set font color
 STEPS="[\033[95m STEPS \033[0m]"
 INFO="[\033[94m INFO \033[0m]"
 SUCCESS="[\033[92m SUCCESS \033[0m]"
@@ -59,7 +58,7 @@ is_duration_list() {
 }
 
 is_boxid() {
-    [[ "${1}" =~ ^[0-9]+$ ]]
+    [[ "${1}" =~ ^[A-Za-z0-9][A-Za-z0-9_-]*$ ]]
 }
 
 stop_vfdservice() {
@@ -212,7 +211,7 @@ do_enable_autostart() {
     read boxid_val
     boxid_val="${boxid_val:-${cur_boxid}}"
     if ! is_boxid "${boxid_val}"; then
-        error_msg "boxid must be numeric."
+        error_msg "boxid must be a number or a device name (letters, digits, _ or -)."
     fi
 
     echo -ne "${OPTIONS} Enable carousel mode? (y/N): "
