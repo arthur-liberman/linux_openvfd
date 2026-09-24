@@ -1261,4 +1261,5 @@ module_exit(openvfd_driver_exit);
 
 MODULE_AUTHOR("Arthur Liberman");
 MODULE_DESCRIPTION("OpenVFD Driver");
+MODULE_VERSION(OPENVFD_DRIVER_VERSION);
 MODULE_LICENSE("GPL-v3");

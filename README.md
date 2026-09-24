@@ -9,7 +9,7 @@
 This repository contains the Linux kernel driver and userspace service for FD628 and similar LED/LCD display controllers commonly found on the front panel of Android TV boxes and ARM-based NAS devices.
 
 - [FD628 / PT6964 Controller Datasheet](http://pdf1.alldatasheet.com/datasheet-pdf/view/232882/PTC/PT6964.html)
-- Driver version: **V1.4.4**
+- Driver version: **V1.4.6**
 
 ### Supported Controllers
 
@@ -134,7 +134,7 @@ vfd_display_type='0x01,0x00,0x00,0x00'  # type,reserved,flags,controller
 本仓库包含 FD628 及同类 LED/LCD 显示控制器的 Linux 内核驱动和用户态服务程序，广泛应用于安卓电视盒子和 ARM 架构 NAS 设备的前面板显示。
 
 - [FD628 / PT6964 控制器数据手册](http://pdf1.alldatasheet.com/datasheet-pdf/view/232882/PTC/PT6964.html)
-- 驱动版本：**V1.4.4**
+- 驱动版本：**V1.4.6**
 
 ### 支持的控制器
 
