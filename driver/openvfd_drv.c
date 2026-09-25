@@ -1262,4 +1262,11 @@ module_exit(openvfd_driver_exit);
 MODULE_AUTHOR("Arthur Liberman");
 MODULE_DESCRIPTION("OpenVFD Driver");
 MODULE_VERSION(OPENVFD_DRIVER_VERSION);
-MODULE_LICENSE("GPL-v3");
+// SPDX-License-Identifier: GPL-3.0-only
+/*
+ * MODULE_LICENSE is a kernel tag, not the license grant. The loader
+ * accepts "GPL" and rejects "GPL-v3"; any other string is treated as
+ * GPL-incompatible and the build fails on GPL-only symbols.
+ * This code is released under GPL-3.0; see LICENSE.
+ */
+MODULE_LICENSE("GPL");
