@@ -1081,6 +1081,11 @@ static int openvfd_driver_probe(struct platform_device *pdev)
 	kp->cdev.brightness_set = locked_set_display_brightness;
 	kp->cdev.max_brightness = FD628_Brightness_8;
 	kp->cdev.brightness = vfd_brightness;
+#ifdef LED_RETAIN_AT_SHUTDOWN
+	/* Brightness 0 is the lowest *on* level for this driver, not "off".
+	 * Don't let the LED core write it on unregister. */
+	kp->cdev.flags |= LED_RETAIN_AT_SHUTDOWN;
+#endif
 	ret = led_classdev_register(&pdev->dev, &kp->cdev);
 	if (ret < 0) {
 		kfree(kp);
@@ -1144,13 +1149,16 @@ static void openvfd_driver_remove(struct platform_device *pdev)
 static int openvfd_driver_remove(struct platform_device *pdev)
 #endif
 {
-	if (vfd_show_stop) display_text("stop");
-	else               set_power(0);
-
 #if defined(CONFIG_HAS_EARLYSUSPEND) || defined(CONFIG_AMLOGIC_LEGACY_EARLY_SUSPEND)
 	unregister_early_suspend(&openvfd_early_suspend);
 #endif
 	led_classdev_unregister(&kp->cdev);
+
+	/* Write the final hardware state only after the LED class device is
+	 * gone, otherwise led_classdev_unregister() turns the display back on
+	 * at the lowest brightness level. */
+	if (vfd_show_stop) display_text("stop");
+	else               set_power(0);
 	deregister_openvfd_driver();
 #ifdef CONFIG_OF
 	if (pdata->dev->gpio3_pin.flags.bits.is_requested)
